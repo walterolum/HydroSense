@@ -49,7 +49,7 @@ export default function ReportStatus() {
       if (translations[r.id]) return;
       const resp = await fetch('/api/ai/translate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
         body: JSON.stringify({ text: r.description?.slice(0, 300) || '', target_language: language, source_language: 'en' }),
       });
       const data = await resp.json();

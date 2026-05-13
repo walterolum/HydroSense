@@ -14,7 +14,7 @@ import StatCard from '../../components/common/StatCard';
 
 const api = axios.create({ baseURL: '/api' });
 api.interceptors.request.use(cfg => {
-  const t = localStorage.getItem('hs_token');
+  const t = sessionStorage.getItem('hs_token');
   if (t) cfg.headers.Authorization = `Bearer ${t}`;
   return cfg;
 });

@@ -36,8 +36,8 @@ export default function OTPVerification() {
       const res = await api.post('/auth/verify-otp', { email, otp });
       if (res.data.verified) {
         if (res.data.token && res.data.user) {
-          localStorage.setItem('hs_token', res.data.token);
-          localStorage.setItem('hs_user', JSON.stringify(res.data.user));
+          sessionStorage.setItem('hs_token', res.data.token);
+          sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
         }
         setSuccess('Verification successful!');
         setTimeout(() => navigate('/dashboard'), 1500);

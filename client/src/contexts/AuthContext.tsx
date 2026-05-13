@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('hs_token');
-    localStorage.removeItem('hs_user');
+    sessionStorage.removeItem('hs_token');
+    sessionStorage.removeItem('hs_user');
     setToken(null);
     setUser(null);
     setSessionTimeRemaining(null);
@@ -77,15 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, extendSession]);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('hs_token');
-    const storedUser = localStorage.getItem('hs_user');
+    const storedToken = sessionStorage.getItem('hs_token');
+    const storedUser = sessionStorage.getItem('hs_user');
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
       startSessionTimer();
       getMe().then(r => {
         setUser(r.data.user);
-        localStorage.setItem('hs_user', JSON.stringify(r.data.user));
+        sessionStorage.setItem('hs_user', JSON.stringify(r.data.user));
       }).catch(() => {
         logout();
       }).finally(() => setLoading(false));
@@ -100,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await apiLogin(email, password);
     const { token: t, user: u } = res.data;
-    localStorage.setItem('hs_token', t);
-    localStorage.setItem('hs_user', JSON.stringify(u));
+    sessionStorage.setItem('hs_token', t);
+    sessionStorage.setItem('hs_user', JSON.stringify(u));
     setToken(t);
     setUser(u);
     startSessionTimer();
@@ -112,14 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     const r = await getMe();
     setUser(r.data.user);
-    localStorage.setItem('hs_user', JSON.stringify(r.data.user));
+    sessionStorage.setItem('hs_user', JSON.stringify(r.data.user));
   };
 
   const patchUser = (partial: Partial<User>) => {
     setUser(prev => {
       if (!prev) return prev;
       const updated = { ...prev, ...partial };
-      localStorage.setItem('hs_user', JSON.stringify(updated));
+      sessionStorage.setItem('hs_user', JSON.stringify(updated));
       return updated;
     });
   };

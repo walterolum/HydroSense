@@ -268,7 +268,7 @@ export interface AIDashboard {
 }
 
 ai.interceptors.request.use(config => {
-  const token = localStorage.getItem('hs_token');
+  const token = sessionStorage.getItem('hs_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   const params = config.params || {};

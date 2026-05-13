@@ -123,7 +123,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch('/api/ai/translate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
         body: JSON.stringify({ text, target_language: lang, source_language: 'en' }),
       });
       const data = await res.json();
@@ -147,7 +147,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch('/api/ai/translate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
         body: JSON.stringify({ text, target_language: 'en', source_language: lang }),
       });
       const data = await res.json();

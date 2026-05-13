@@ -75,8 +75,8 @@ export default function CitizenRegistration() {
       const res = await verifyOTP(registeredEmail, otp);
       if (res.data.verified) {
         if (res.data.token && res.data.user) {
-          localStorage.setItem('hs_token', res.data.token);
-          localStorage.setItem('hs_user', JSON.stringify(res.data.user));
+          sessionStorage.setItem('hs_token', res.data.token);
+          sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
         }
         setSuccess('Email verified! You can now log in.');
         setTimeout(() => navigate('/login'), 1500);

@@ -60,7 +60,7 @@ export default function MultilingualReport() {
     try {
       const res = await fetch('/api/ai/transcribe', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
         body: formData,
       });
       const data = await res.json();
@@ -121,7 +121,7 @@ export default function MultilingualReport() {
         audioData.append('audio', audioBlob, 'recording.webm');
         await fetch('/api/citizen-reports/upload-media', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
           body: audioData,
         });
       }
@@ -133,7 +133,7 @@ export default function MultilingualReport() {
         imgData.append('image', imageFile);
         await fetch('/api/citizen-reports/upload-media', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${localStorage.getItem('hs_token')}` },
+          headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
           body: imgData,
         });
       }
