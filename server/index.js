@@ -26,9 +26,9 @@ const AI_SERVICE_DIR = path.join(__dirname, '..', 'ai-service');
 
 const CONFIG = {
   port: parseInt(process.env.PORT, 10) || 5000,
-  corsOrigins: process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'],
+  corsOrigins: process.env.CORS_ORIGINS ?
+  process.env.CORS_ORIGINS.split(',') :
+  ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'],
   ai: {
     healthCheckIntervalMs: 15000,
     startupGracePeriodMs: 30000,
@@ -36,11 +36,11 @@ const CONFIG = {
     maxRecoveryAttempts: 10,
     recoveryCooldownMs: 30000,
     baseRetryDelayMs: 1000,
-    maxRetryDelayMs: 60000,
+    maxRetryDelayMs: 60000
   },
   db: {
-    busyTimeoutMs: 5000,
-  },
+    busyTimeoutMs: 5000
+  }
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -58,7 +58,7 @@ app.use(cors({
   origin: CONFIG.corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-  credentials: true,
+  credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -70,7 +70,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const io = new Server(server, {
   cors: { origin: CONFIG.corsOrigins, methods: ['GET', 'POST'] },
   pingInterval: 25000,
-  pingTimeout: 20000,
+  pingTimeout: 20000
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -109,15 +109,15 @@ function postToAI(path, data) {
     const opts = {
       hostname: '127.0.0.1', port: AI_PORT, path, method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-      timeout: 15000,
+      timeout: 15000
     };
-    const req = http.request(opts, res => {
+    const req = http.request(opts, (res) => {
       let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve(null); } });
+      res.on('data', (c) => d += c);
+      res.on('end', () => {try {resolve(JSON.parse(d));} catch {resolve(null);}});
     });
     req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('timeout', () => {req.destroy();resolve(null);});
     req.write(body);
     req.end();
   });
@@ -125,7 +125,7 @@ function postToAI(path, data) {
 
 // Enhanced multilingual report submission
 app.post('/api/reports/multilingual', authMiddleware, async (req, res) => {
-  const db = getDb();
+  const db = await getDb();
   const { incident_type, description, district, sub_county, village, lat, lng,
     severity, channel, is_anonymous, reporter_name, reporter_phone, reporter_email,
     source_language, original_text } = req.body;
@@ -134,31 +134,31 @@ app.post('/api/reports/multilingual', authMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, error: 'incident_type, description, and district required' });
   }
 
-  const name = is_anonymous ? 'Anonymous' : (reporter_name || req.user.name);
-  const phone = is_anonymous ? null : (reporter_phone || req.user.phone);
-  const email = is_anonymous ? null : (reporter_email || req.user.email);
+  const name = is_anonymous ? 'Anonymous' : reporter_name || req.user.name;
+  const phone = is_anonymous ? null : reporter_phone || req.user.phone;
+  const email = is_anonymous ? null : reporter_email || req.user.email;
   const lang = source_language || req.user.language || 'en';
 
-  const result = db.prepare(`INSERT INTO citizen_reports (user_id, reporter_name, reporter_phone, reporter_email, incident_type, description, district, sub_county, village, lat, lng, severity, channel, is_anonymous, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`).run(
+  const result = await db.prepare(`INSERT INTO citizen_reports (user_id, reporter_name, reporter_phone, reporter_email, incident_type, description, district, sub_county, village, lat, lng, severity, channel, is_anonymous, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`).run(
     req.user.id, name, phone, email, incident_type, description, district,
     sub_county || null, village || null, lat || null, lng || null,
     severity || 'medium', channel || 'app', is_anonymous ? 1 : 0
   );
   const reportId = result.lastInsertRowid;
 
-  db.prepare(`INSERT INTO citizen_report_tracking (report_id, status, note, updated_by) VALUES (?, 'submitted', 'Multilingual report submitted for AI analysis', ?)`).run(reportId, req.user.id);
+  await db.prepare(`INSERT INTO citizen_report_tracking (report_id, status, note, updated_by) VALUES (?, 'submitted', 'Multilingual report submitted for AI analysis', ?)`).run(reportId, req.user.id);
 
   // Trigger AI analysis
   const analysis = await postToAI('/ai/incident-analysis/enhanced-analyze', {
     text: description, source_language: lang, district,
     sub_county: sub_county || null, village: village || null,
-    incident_type, channel: channel || 'app', original_text: original_text || null,
+    incident_type, channel: channel || 'app', original_text: original_text || null
   });
 
   if (analysis && analysis.analysis) {
     const a = analysis.analysis;
     try {
-      db.prepare(`INSERT INTO incident_analysis (report_id, ai_severity, ai_category, ai_urgency, ai_risk_score, extracted_location, ai_summary, confidence_score, response_recommendation) VALUES (?,?,?,?,?,?,?,?,?)`).run(
+      await db.prepare(`INSERT INTO incident_analysis (report_id, ai_severity, ai_category, ai_urgency, ai_risk_score, extracted_location, ai_summary, confidence_score, response_recommendation) VALUES (?,?,?,?,?,?,?,?,?)`).run(
         reportId, a.ai_severity, a.ai_category, a.ai_urgency, a.ai_risk_score,
         a.extracted_location, a.translated_summary || description,
         a.confidence_score || 50, a.response_recommendation || ''
@@ -173,7 +173,7 @@ app.post('/api/reports/multilingual', authMiddleware, async (req, res) => {
   postToAI('/ai/notifications/send', {
     recipient_id: req.user.id, recipient_contact: req.user.email || '',
     channel: 'in_app', template_name: 'report_submitted', language: lang,
-    report_id: reportId, category: incident_type.replace(/_/g, ' '), district,
+    report_id: reportId, category: incident_type.replace(/_/g, ' '), district
   });
 
   res.status(201).json({ success: true, id: reportId, analysis: analysis ? analysis.analysis : null,
@@ -181,15 +181,15 @@ app.post('/api/reports/multilingual', authMiddleware, async (req, res) => {
 });
 
 // Auto-assign all pending reports
-app.post('/api/reports/auto-assign-pending', authMiddleware, function(req, res) {
-  const db = getDb();
-  const pending = db.prepare("SELECT id, district, severity, incident_type FROM citizen_reports WHERE status = 'pending' AND id NOT IN (SELECT report_id FROM task_assignments) LIMIT 20").all();
+app.post('/api/reports/auto-assign-pending', authMiddleware, async function (req, res) {
+  const db = await getDb();
+  const pending = await db.prepare("SELECT id, district, severity, incident_type FROM citizen_reports WHERE status = 'pending' AND id NOT IN (SELECT report_id FROM task_assignments) LIMIT 20").all();
 
   let triggered = 0;
   for (const report of pending) {
     try {
-      const reqHttp = http.request({ hostname: '127.0.0.1', port: AI_PORT, path: '/ai/incident-analysis/auto-assign/' + report.id, method: 'POST', timeout: 5000 }, function() {});
-      reqHttp.on('error', function() {});
+      const reqHttp = http.request({ hostname: '127.0.0.1', port: AI_PORT, path: '/ai/incident-analysis/auto-assign/' + report.id, method: 'POST', timeout: 5000 }, function () {});
+      reqHttp.on('error', function () {});
       reqHttp.end();
       triggered++;
     } catch (e) {}
@@ -199,8 +199,8 @@ app.post('/api/reports/auto-assign-pending', authMiddleware, function(req, res) 
 });
 
 // Get locality officers
-app.get('/api/reports/officers', authMiddleware, function(req, res) {
-  const db = getDb();
+app.get('/api/reports/officers', authMiddleware, async function (req, res) {
+  const db = await getDb();
   const { district, incident_type } = req.query;
   const preferredRoles = {
     water_contamination: ['health_officer', 'district_officer'],
@@ -210,13 +210,13 @@ app.get('/api/reports/officers', authMiddleware, function(req, res) {
     illegal_dumping: ['district_officer', 'ngo_officer'],
     pollution: ['health_officer', 'climate_scientist'],
     environmental_hazard: ['district_officer', 'climate_scientist'],
-    infrastructure_damage: ['technician', 'district_officer'],
+    infrastructure_damage: ['technician', 'district_officer']
   };
   const roles = preferredRoles[incident_type] || ['district_officer'];
-  const placeholders = roles.map(function() { return '?'; }).join(',');
+  const placeholders = roles.map(function () {return '?';}).join(',');
   const params = [district].concat(roles);
 
-  const officers = db.prepare("SELECT id, name, role, district, sub_county, email, phone FROM users WHERE district = ? AND role IN (" + placeholders + ") AND active = 1 ORDER BY last_login DESC").all(...params);
+  const officers = await db.prepare("SELECT id, name, role, district, sub_county, email, phone FROM users WHERE district = ? AND role IN (" + placeholders + ") AND active = 1 ORDER BY last_login DESC").all(...params);
   res.json({ success: true, data: officers });
 });
 
@@ -230,11 +230,11 @@ app.use(errorHandler);
 // HEALTH & DIAGNOSTIC ENDPOINTS
 // ═══════════════════════════════════════════════════════════════
 
-app.get('/api/health-check', (_, res) => {
+app.get('/api/health-check', async (_, res) => {
   let dbOk = false;
   try {
-    const db = getDb();
-    db.prepare('SELECT 1').get();
+    const db = await getDb();
+    await db.prepare('SELECT 1').get();
     dbOk = true;
   } catch {}
   res.json({
@@ -242,7 +242,7 @@ app.get('/api/health-check', (_, res) => {
     timestamp: new Date().toISOString(),
     service: 'HYDROSENSE API v2.0',
     database: dbOk ? 'connected' : 'error',
-    uptime_seconds: Math.floor((Date.now() - START_TIME) / 1000),
+    uptime_seconds: Math.floor((Date.now() - START_TIME) / 1000)
   });
 });
 
@@ -254,7 +254,7 @@ app.get('/api/system/status', (_, res) => {
     uptime_seconds: Math.floor((Date.now() - START_TIME) / 1000),
     ai_service: aiServiceStatus,
     database: 'connected',
-    version: '2.0.0',
+    version: '2.0.0'
   });
 });
 
@@ -267,12 +267,12 @@ async function proxyToAI(req, res, targetPath) {
   let responded = false;
   const requestId = req.headers['x-request-id'] || crypto.randomUUID().slice(0, 8);
   const safeRespond = (statusCode, data) => {
-    if (!responded) { responded = true; res.status(statusCode).json({ ...data, _request_id: requestId, _proxy_ms: Date.now() - startTime }); }
+    if (!responded) {responded = true;res.status(statusCode).json({ ...data, _request_id: requestId, _proxy_ms: Date.now() - startTime });}
   };
 
-  const bodyData = (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body)
-    ? JSON.stringify(req.body)
-    : null;
+  const bodyData = ['POST', 'PUT', 'PATCH'].includes(req.method) && req.body ?
+  JSON.stringify(req.body) :
+  null;
 
   const options = {
     hostname: 'localhost',
@@ -282,9 +282,9 @@ async function proxyToAI(req, res, targetPath) {
     headers: {
       'Content-Type': 'application/json',
       'X-Request-ID': requestId,
-      ...(bodyData ? { 'Content-Length': Buffer.byteLength(bodyData) } : {}),
+      ...(bodyData ? { 'Content-Length': Buffer.byteLength(bodyData) } : {})
     },
-    timeout: CONFIG.ai.requestTimeoutMs,
+    timeout: CONFIG.ai.requestTimeoutMs
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
@@ -295,18 +295,18 @@ async function proxyToAI(req, res, targetPath) {
       res.writeHead(proxyRes.statusCode, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
-        'X-Request-ID': requestId,
+        'X-Request-ID': requestId
       });
-      proxyRes.on('data', chunk => {
+      proxyRes.on('data', (chunk) => {
         if (!responded) responded = true;
         res.write(chunk);
       });
-      proxyRes.on('end', () => { res.end(); });
+      proxyRes.on('end', () => {res.end();});
       return;
     }
 
     let data = '';
-    proxyRes.on('data', chunk => data += chunk);
+    proxyRes.on('data', (chunk) => data += chunk);
     proxyRes.on('end', () => {
       try {
         const parsed = JSON.parse(data);
@@ -343,7 +343,7 @@ app.all('/api/ai/:path(*)', authMiddleware, (req, res) => {
 
 let aiServiceStatus = {
   status: 'offline', last_check: null, check_count: 0,
-  recovery_attempts: 0, latency: null,
+  recovery_attempts: 0, latency: null
 };
 let lastKnownStatus = null;
 let aiProcess = null;
@@ -357,7 +357,7 @@ function emitAIStatus(data) {
     latency: data.latency || null,
     last_check: data.last_check || new Date().toISOString(),
     recovery_attempts: data.recovery_attempts || aiServiceStatus.recovery_attempts || 0,
-    check_count: data.check_count || aiServiceStatus.check_count || 0,
+    check_count: data.check_count || aiServiceStatus.check_count || 0
   });
 }
 
@@ -365,13 +365,13 @@ async function checkAIHealth() {
   return new Promise((resolve) => {
     const start = Date.now();
     let done = false;
-    const finish = (result) => { if (!done) { done = true; resolve(result); } };
+    const finish = (result) => {if (!done) {done = true;resolve(result);}};
 
     const req = http.request(
       { hostname: 'localhost', port: AI_PORT, path: '/ai/health', method: 'GET', timeout: 5000 },
       (proxyRes) => {
         let data = '';
-        proxyRes.on('data', chunk => data += chunk);
+        proxyRes.on('data', (chunk) => data += chunk);
         proxyRes.on('end', () => {
           const latency = Date.now() - start;
           try {
@@ -384,7 +384,7 @@ async function checkAIHealth() {
       }
     );
     req.on('error', () => finish({ ok: false, latency: Date.now() - start }));
-    req.setTimeout(5000, () => { req.destroy(); finish({ ok: false, latency: Date.now() - start }); });
+    req.setTimeout(5000, () => {req.destroy();finish({ ok: false, latency: Date.now() - start });});
     req.end();
   });
 }
@@ -397,7 +397,7 @@ function handleAIOnline(healthData, latency) {
     last_check: new Date().toISOString(),
     check_count: (aiServiceStatus.check_count || 0) + 1,
     recovery_attempts: 0,
-    latency,
+    latency
   };
   consecutiveFailures = 0;
   emitAIStatus({ status: 'online', latency });
@@ -415,7 +415,7 @@ function handleAIDegraded() {
     status: 'offline',
     last_check: new Date().toISOString(),
     check_count: (aiServiceStatus.check_count || 0) + 1,
-    recovery_attempts: aiServiceStatus.recovery_attempts || 0,
+    recovery_attempts: aiServiceStatus.recovery_attempts || 0
   };
 
   if (wasOnline || consecutiveFailures >= 2) {
@@ -456,15 +456,15 @@ function attemptAIAutoRecovery() {
   }
 
   if (aiProcess) {
-    try { aiProcess.kill('SIGTERM'); } catch {}
+    try {aiProcess.kill('SIGTERM');} catch {}
     aiProcess = null;
   }
 
   const python = findPython();
-  if (!python) { console.log('[AI Auto-Recovery] Python not found.'); return; }
+  if (!python) {console.log('[AI Auto-Recovery] Python not found.');return;}
 
   const mainPy = path.join(AI_SERVICE_DIR, 'main.py');
-  if (!fs.existsSync(mainPy)) { console.log('[AI Auto-Recovery] main.py not found.'); return; }
+  if (!fs.existsSync(mainPy)) {console.log('[AI Auto-Recovery] main.py not found.');return;}
 
   try {
     execFileSync(python, ['-c', 'import fastapi, uvicorn; print("ok")'], { timeout: 5000, cwd: AI_SERVICE_DIR, stdio: 'pipe' });
@@ -479,12 +479,12 @@ function attemptAIAutoRecovery() {
   lastRecoveryTime = now;
 
   aiProcess = spawn(python, [
-    '-m', 'uvicorn', 'main:app', '--host', '0.0.0.0',
-    '--port', String(AI_PORT), '--log-level', 'warning',
-  ], {
+  '-m', 'uvicorn', 'main:app', '--host', '0.0.0.0',
+  '--port', String(AI_PORT), '--log-level', 'warning'],
+  {
     cwd: AI_SERVICE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env },
+    env: { ...process.env }
   });
 
   const startupTimeout = setTimeout(() => {
@@ -523,10 +523,10 @@ function attemptAIAutoRecovery() {
 
 function findPython() {
   const candidates = [
-    path.join(AI_SERVICE_DIR, '.venv', 'Scripts', 'python.exe'),
-    path.join(AI_SERVICE_DIR, '.venv', 'Scripts', 'python3.exe'),
-    'python', 'python3', 'py',
-  ];
+  path.join(AI_SERVICE_DIR, '.venv', 'Scripts', 'python.exe'),
+  path.join(AI_SERVICE_DIR, '.venv', 'Scripts', 'python3.exe'),
+  'python', 'python3', 'py'];
+
   for (const py of candidates) {
     try {
       execFileSync(py, ['--version'], { timeout: 3000, stdio: 'pipe' });
@@ -549,8 +549,8 @@ async function initialAIDetection() {
       return;
     }
     const delay = Math.min(attempt * 2000, 10000);
-    console.log(`[AI] Not detected (attempt ${attempt}/10), retrying in ${delay/1000}s`);
-    await new Promise(r => setTimeout(r, delay));
+    console.log(`[AI] Not detected (attempt ${attempt}/10), retrying in ${delay / 1000}s`);
+    await new Promise((r) => setTimeout(r, delay));
   }
   console.log('[AI] Not detected after 10 attempts. Background recovery will continue.');
   aiServiceStatus = { status: 'offline', last_check: new Date().toISOString(), check_count: 1, initialized: true, recovery_attempts: 0 };
@@ -574,10 +574,10 @@ io.on('connection', (socket) => {
 // SENSOR SIMULATION CRON
 // ═══════════════════════════════════════════════════════════════
 
-cron.schedule('*/30 * * * * *', () => {
+cron.schedule('*/30 * * * * *', async () => {
   try {
-    const db = getDb();
-    const sensors = db.prepare(`
+    const db = await getDb();
+    const sensors = await db.prepare(`
       SELECT s.id, s.water_point_id, s.sensor_type, s.unit,
              s.last_reading, s.min_threshold, s.max_threshold, wp.district
       FROM sensors s JOIN water_points wp ON s.water_point_id = wp.id
@@ -589,18 +589,18 @@ cron.schedule('*/30 * * * * *', () => {
 
     for (const sensor of sensors) {
       const value = generateReading(sensor);
-      db.prepare('UPDATE sensors SET last_reading = ?, last_seen = ? WHERE id = ?').run(value, now, sensor.id);
-      db.prepare('INSERT INTO sensor_readings (sensor_id, water_point_id, value, unit, timestamp) VALUES (?, ?, ?, ?, ?)').run(sensor.id, sensor.water_point_id, value, sensor.unit, now);
+      await db.prepare('UPDATE sensors SET last_reading = ?, last_seen = ? WHERE id = ?').run(value, now, sensor.id);
+      await db.prepare('INSERT INTO sensor_readings (sensor_id, water_point_id, value, unit, timestamp) VALUES (?, ?, ?, ?, ?)').run(sensor.id, sensor.water_point_id, value, sensor.unit, now);
       updates.push({
         sensor_id: sensor.id, water_point_id: sensor.water_point_id,
         sensor_type: sensor.sensor_type, value, unit: sensor.unit,
-        district: sensor.district, timestamp: now,
+        district: sensor.district, timestamp: now
       });
 
       if (sensor.min_threshold !== null && value < sensor.min_threshold) {
-        const exists = db.prepare("SELECT id FROM alerts WHERE source = ? AND status = 'active' AND created_at > datetime('now', '-2 hours')").get(`sensor_${sensor.id}`);
+        const exists = await db.prepare("SELECT id FROM alerts WHERE source = ? AND status = 'active' AND created_at > datetime('now', '-2 hours')").get(`sensor_${sensor.id}`);
         if (!exists) {
-          db.prepare(`INSERT INTO alerts (alert_type, severity, water_point_id, district, title, message, source) VALUES ('infrastructure', 'warning', ?, ?, ?, ?, ?)`).run(
+          await db.prepare(`INSERT INTO alerts (alert_type, severity, water_point_id, district, title, message, source) VALUES ('infrastructure', 'warning', ?, ?, ?, ?, ?)`).run(
             sensor.water_point_id, sensor.district,
             `Low ${sensor.sensor_type} Reading`,
             `Sensor ${sensor.id} reading ${value} ${sensor.unit} is below minimum threshold ${sensor.min_threshold} ${sensor.unit}`,
@@ -626,7 +626,7 @@ function generateReading(sensor) {
 
   let value;
   if (sensor.sensor_type === 'solar_power') {
-    value = (hour >= 7 && hour <= 18) ? 40 + Math.random() * 55 : Math.random() * 5;
+    value = hour >= 7 && hour <= 18 ? 40 + Math.random() * 55 : Math.random() * 5;
   } else if (sensor.sensor_type === 'rainfall') {
     value = Math.random() < 0.2 ? Math.random() * 15 : 0;
   } else {
@@ -652,7 +652,7 @@ function shutdown(signal) {
   server.close(() => {
     console.log('[Server] HTTP server closed.');
     if (aiProcess) {
-      try { aiProcess.kill('SIGTERM'); } catch {}
+      try {aiProcess.kill('SIGTERM');} catch {}
     }
     process.exit(0);
   });
@@ -677,8 +677,8 @@ process.on('unhandledRejection', (reason) => {
 // ═══════════════════════════════════════════════════════════════
 
 const PORT = CONFIG.port;
-server.listen(PORT, () => {
-  getDb();
+server.listen(PORT, async () => {
+  await getDb();
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  HYDROSENSE — Climate-Resilient Rural Water System');

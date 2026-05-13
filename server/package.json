@@ -4,16 +4,21 @@
   "description": "Climate-Resilient Rural Water Monitoring System - Backend Server",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node seed.js && node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js"
   },
   "dependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.3",
+    "@babel/traverse": "^7.29.0",
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "^12.10.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.18.3",
     "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.22.3",
     "node-cron": "^3.0.3",
     "socket.io": "^4.7.4"
   },

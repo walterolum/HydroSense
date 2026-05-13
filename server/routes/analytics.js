@@ -5,15 +5,15 @@ const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 router.use(authMiddleware);
 
-router.get('/overview', (req, res) => {
-  const db = getDb();
-  const wps = db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='functional' THEN 1 ELSE 0 END) as functional, SUM(CASE WHEN status='non_functional' THEN 1 ELSE 0 END) as broken, SUM(beneficiaries) as beneficiaries FROM water_points").get();
-  const alerts = db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN severity='emergency' THEN 1 ELSE 0 END) as emergency, SUM(CASE WHEN severity='critical' THEN 1 ELSE 0 END) as critical FROM alerts WHERE status='active'").get();
-  const maintenance = db.prepare("SELECT COUNT(*) as pending FROM maintenance_requests WHERE status NOT IN ('completed','cancelled')").get();
-  const quality = db.prepare('SELECT AVG(water_safety_score) as avg_score, SUM(CASE WHEN overall_safe=0 THEN 1 ELSE 0 END) as unsafe FROM water_quality_tests').get();
-  const health = db.prepare("SELECT SUM(cases) as cases, COUNT(*) as incidents FROM health_incidents WHERE outbreak_status IN ('outbreak','alert')").get();
-  const climate = db.prepare("SELECT COUNT(*) as districts_drought FROM drought_index WHERE severity IN ('extreme_drought','severe_drought','moderate_drought')").get();
-  const coverage = wps.total > 0 ? Math.round((wps.functional / wps.total) * 100) : 0;
+router.get('/overview', async (req, res) => {
+  const db = await getDb();
+  const wps = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status='functional' THEN 1 ELSE 0 END) as functional, SUM(CASE WHEN status='non_functional' THEN 1 ELSE 0 END) as broken, SUM(beneficiaries) as beneficiaries FROM water_points").get();
+  const alerts = await db.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN severity='emergency' THEN 1 ELSE 0 END) as emergency, SUM(CASE WHEN severity='critical' THEN 1 ELSE 0 END) as critical FROM alerts WHERE status='active'").get();
+  const maintenance = await db.prepare("SELECT COUNT(*) as pending FROM maintenance_requests WHERE status NOT IN ('completed','cancelled')").get();
+  const quality = await db.prepare('SELECT AVG(water_safety_score) as avg_score, SUM(CASE WHEN overall_safe=0 THEN 1 ELSE 0 END) as unsafe FROM water_quality_tests').get();
+  const health = await db.prepare("SELECT SUM(cases) as cases, COUNT(*) as incidents FROM health_incidents WHERE outbreak_status IN ('outbreak','alert')").get();
+  const climate = await db.prepare("SELECT COUNT(*) as districts_drought FROM drought_index WHERE severity IN ('extreme_drought','severe_drought','moderate_drought')").get();
+  const coverage = wps.total > 0 ? Math.round(wps.functional / wps.total * 100) : 0;
 
   res.json({
     success: true,
@@ -28,9 +28,9 @@ router.get('/overview', (req, res) => {
   });
 });
 
-router.get('/water-security', (req, res) => {
-  const db = getDb();
-  const byDistrict = db.prepare(`
+router.get('/water-security', async (req, res) => {
+  const db = await getDb();
+  const byDistrict = await db.prepare(`
     SELECT wp.district,
       COUNT(*) as total_points,
       SUM(CASE WHEN wp.status='functional' THEN 1 ELSE 0 END) as functional,
@@ -47,21 +47,21 @@ router.get('/water-security', (req, res) => {
   res.json({ success: true, data: byDistrict });
 });
 
-router.get('/trends', (req, res) => {
-  const db = getDb();
+router.get('/trends', async (req, res) => {
+  const db = await getDb();
   const { months = 6 } = req.query;
-  const climateMonthly = db.prepare(`
+  const climateMonthly = await db.prepare(`
     SELECT strftime('%Y-%m', timestamp) as month, district, AVG(rainfall_mm) as avg_rainfall, AVG(temperature_max) as avg_temp
     FROM climate_readings WHERE timestamp >= datetime('now', '-${parseInt(months)} months')
     GROUP BY month, district ORDER BY month
   `).all();
-  const maintenanceMonthly = db.prepare(`
+  const maintenanceMonthly = await db.prepare(`
     SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as requests,
       SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) as completed
     FROM maintenance_requests WHERE created_at >= datetime('now', '-${parseInt(months)} months')
     GROUP BY month ORDER BY month
   `).all();
-  const healthMonthly = db.prepare(`
+  const healthMonthly = await db.prepare(`
     SELECT strftime('%Y-%m', reported_date) as month, SUM(cases) as cases, COUNT(*) as incidents
     FROM health_incidents WHERE reported_date >= datetime('now', '-${parseInt(months)} months')
     GROUP BY month ORDER BY month
@@ -70,11 +70,11 @@ router.get('/trends', (req, res) => {
 });
 
 router.get('/predictions', (req, res) => {
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const cur = new Date().getMonth();
   const predictions = Array.from({ length: 6 }, (_, i) => {
     const m = (cur + i) % 12;
-    const isRainy = [2,3,4,9,10].includes(m);
+    const isRainy = [2, 3, 4, 9, 10].includes(m);
     return {
       month: months[m],
       borehole_failure_risk_pct: isRainy ? 15 + Math.random() * 10 : 25 + Math.random() * 20,
@@ -88,12 +88,12 @@ router.get('/predictions', (req, res) => {
   res.json({ success: true, data: predictions });
 });
 
-router.get('/climate-risk', (req, res) => {
-  const db = getDb();
-  const drought = db.prepare('SELECT * FROM drought_index ORDER BY spi_value ASC').all();
-  const flood = db.prepare('SELECT * FROM flood_alerts ORDER BY water_level_m DESC').all();
-  const resilience = db.prepare('SELECT * FROM resilience_scores ORDER BY overall_resilience_score ASC').all();
-  const high_risk_wps = db.prepare(`
+router.get('/climate-risk', async (req, res) => {
+  const db = await getDb();
+  const drought = await db.prepare('SELECT * FROM drought_index ORDER BY spi_value ASC').all();
+  const flood = await db.prepare('SELECT * FROM flood_alerts ORDER BY water_level_m DESC').all();
+  const resilience = await db.prepare('SELECT * FROM resilience_scores ORDER BY overall_resilience_score ASC').all();
+  const high_risk_wps = await db.prepare(`
     SELECT wp.*, di.severity as drought_severity, di.spi_value
     FROM water_points wp
     JOIN drought_index di ON wp.district = di.district

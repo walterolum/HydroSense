@@ -3,6 +3,7 @@ const path = require('path');
 
 const DB_PATH = path.join(__dirname, 'watermonitor.db');
 let db;
+const add = sql => { try { db.exec(sql); } catch {} };
 
 function getDb() {
   if (!db) {
@@ -14,6 +15,7 @@ function getDb() {
   }
   return db;
 }
+
 
 function runMigrations() {
   const add = sql => { try { db.exec(sql); } catch {} };
