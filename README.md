@@ -1,2 +1,0 @@
-# veltrix
-our fist project

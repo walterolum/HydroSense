@@ -1,0 +1,92 @@
+# .gitattributes — Hydrosense Project
+# Normalize line endings to LF on commit, CRLF on checkout (Windows)
+* text=auto eol=crlf
+
+# Python source
+*.py text diff=python
+*.pyi text diff=python
+*.pyw text
+*.cfg text
+*.toml text
+*.ini text
+*.rst text
+*.md text
+*.yaml text
+*.yml text
+*.json text
+*.env.example text
+
+# React / TypeScript / JS
+*.ts text diff=typescript
+*.tsx text
+*.js text diff=javascript
+*.jsx text
+*.css text
+*.scss text
+*.html text
+*.svg text
+*.vue text
+
+# Shell scripts (keep LF)
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files — mark as binary (no diff, no CRLF conversion)
+*.pyc binary
+*.pyo binary
+*.so binary
+*.dll binary
+*.pyd binary
+*.pkl binary
+*.pickle binary
+*.h5 binary
+*.hdf5 binary
+*.pth binary
+*.pt binary
+*.onnx binary
+*.pb binary
+*.tflite binary
+*.bin binary
+*.gguf binary
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.tar binary
+*.gz binary
+*.xz binary
+*.bz2 binary
+*.7z binary
+*.rar binary
+*.mp4 binary
+*.webm binary
+*.avi binary
+*.mov binary
+*.wav binary
+*.mp3 binary
+*.flac binary
+*.ogg binary
+
+# Lock/package files — treat as binary to avoid merge conflicts
+package-lock.json binary
+yarn.lock binary
+pnpm-lock.yaml binary
+Pipfile.lock binary
+poetry.lock binary
+
+# Dirs that should never be in git — handled by .gitignore, but just in case
+.gitattributes export-ignore
+.gitignore export-ignore
+.editorconfig export-ignore
