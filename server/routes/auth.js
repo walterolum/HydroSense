@@ -41,11 +41,21 @@ router.post('/register', async (req, res) => {
     language || 'en'
   );
 
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
+    SECRET,
+    { expiresIn: '24h' }
+  );
+
+  const { password_hash, ...safeUser } = user;
+
   res.status(201).json({
     success: true,
-    id: result.lastInsertRowid,
-    message: 'Registration successful. Please verify your email with OTP.',
-    otp_required: true
+    message: 'Registration successful! Redirecting to dashboard...',
+    otp_required: false,
+    token,
+    user: safeUser
   });
 });
 

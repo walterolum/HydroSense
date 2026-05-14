@@ -57,8 +57,14 @@ export default function CitizenRegistration() {
       setSuccess(res.data.message || 'Registration successful!');
       setRegisteredEmail(form.email);
 
-      await sendOTP(form.email);
-      setStep(2);
+      if (res.data.otp_required === false && res.data.token && res.data.user) {
+        sessionStorage.setItem('hs_token', res.data.token);
+        sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
+        setTimeout(() => window.location.href = '/dashboard', 1000);
+      } else {
+        await sendOTP(form.email);
+        setStep(2);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed');
     } finally {
