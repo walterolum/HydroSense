@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const { authMiddleware, requireRole, SECRET } = require('../middleware/auth');
 const { sendOTP: sendRealEmail } = require('../utils/email');
+const { sendSMS } = require('../utils/sms');
 
 const router = express.Router();
 
@@ -65,6 +66,12 @@ router.post('/send-otp', async (req, res) => {
   // Send real email asynchronously
   sendRealEmail(email.toLowerCase().trim(), otp, purpose).catch(console.error);
 
+  // Send SMS asynchronously if phone number exists
+  const userRecord = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (userRecord && userRecord.phone) {
+    sendSMS(userRecord.phone, otp).catch(console.error);
+  }
+
   console.log(`[OTP] OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'OTP sent successfully', otp_debug: otp });
 });
@@ -108,6 +115,12 @@ router.post('/resend-otp', async (req, res) => {
 
   // Send real email asynchronously
   sendRealEmail(email.toLowerCase().trim(), otp, 'registration').catch(console.error);
+
+  // Send SMS asynchronously if phone number exists
+  const userRecord = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (userRecord && userRecord.phone) {
+    sendSMS(userRecord.phone, otp).catch(console.error);
+  }
 
   console.log(`[OTP] Resent OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'OTP resent successfully', otp_debug: otp });
@@ -309,6 +322,17 @@ router.post('/forgot-password', async (req, res) => {
 
   // Send real email asynchronously
   sendRealEmail(email.toLowerCase().trim(), otp, 'password_reset').catch(console.error);
+
+  // Send SMS asynchronously if phone number exists
+  if (user && user.phone) {
+    sendSMS(user.phone, otp).catch(console.error);
+  } else {
+    // Fetch it if not in the 'user' object (the SELECT above might not include 'phone')
+    const userForPhone = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    if (userForPhone && userForPhone.phone) {
+      sendSMS(userForPhone.phone, otp).catch(console.error);
+    }
+  }
 
   console.log(`[PASSWORD RESET] OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'Password reset OTP sent to your email', otp_debug: otp });

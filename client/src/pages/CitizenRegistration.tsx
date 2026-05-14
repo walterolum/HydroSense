@@ -285,7 +285,7 @@ export default function CitizenRegistration() {
             <>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Verify Your Email</h2>
               <p className="text-gray-500 text-sm mb-6">
-                We've sent a 6-digit OTP to <strong>{registeredEmail}</strong>. Check your inbox and enter it below.
+                We've sent a 6-digit OTP to your phone and email (<strong>{registeredEmail}</strong>). Please enter it below.
               </p>
 
               <form onSubmit={handleVerifyOTP} className="space-y-5">
