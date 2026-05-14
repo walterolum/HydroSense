@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const { authMiddleware, requireRole, SECRET } = require('../middleware/auth');
+const { sendOTP: sendRealEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -61,6 +62,9 @@ router.post('/send-otp', async (req, res) => {
 
   otpStore.set(email.toLowerCase().trim(), { otp, expires: Date.now() + 10 * 60 * 1000 });
 
+  // Send real email asynchronously
+  sendRealEmail(email.toLowerCase().trim(), otp, purpose).catch(console.error);
+
   console.log(`[OTP] OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'OTP sent successfully', otp_debug: otp });
 });
@@ -101,6 +105,9 @@ router.post('/resend-otp', async (req, res) => {
 
   await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(email.toLowerCase().trim());
   await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, 'registration', ?)`).run(email.toLowerCase().trim(), otp, expires);
+
+  // Send real email asynchronously
+  sendRealEmail(email.toLowerCase().trim(), otp, 'registration').catch(console.error);
 
   console.log(`[OTP] Resent OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'OTP resent successfully', otp_debug: otp });
@@ -299,6 +306,9 @@ router.post('/forgot-password', async (req, res) => {
 
   await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND purpose = 'password_reset'`).run(email.toLowerCase().trim());
   await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, 'password_reset', ?)`).run(email.toLowerCase().trim(), otp, expires);
+
+  // Send real email asynchronously
+  sendRealEmail(email.toLowerCase().trim(), otp, 'password_reset').catch(console.error);
 
   console.log(`[PASSWORD RESET] OTP for ${email}: ${otp}`);
   res.json({ success: true, message: 'Password reset OTP sent to your email', otp_debug: otp });
