@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://YOUR_RENDER_URL.onrender.com/api/$1"
+      "destination": "https://hydrosense-server.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "https://YOUR_RENDER_URL.onrender.com/socket.io/$1"
+      "destination": "https://hydrosense-server.onrender.com/socket.io/$1"
     },
     {
       "source": "/(.*)",
