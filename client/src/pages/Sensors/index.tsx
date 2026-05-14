@@ -29,7 +29,8 @@ export default function SensorsPage() {
     }).finally(() => setLoading(false));
 
     // Socket.io real-time updates
-    socketRef.current = io('/', { transports: ['websocket', 'polling'] });
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL?.replace('/api', '') || '/';
+    socketRef.current = io(socketUrl, { transports: ['websocket', 'polling'] });
     socketRef.current.on('sensor_updates', (updates: any[]) => {
       setLiveCount(c => c + 1);
       setReadings(prev => {
