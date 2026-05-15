@@ -259,6 +259,128 @@ app.get('/api/system/status', (_, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// NATIVE NODE.JS GEMINI CHAT FALLBACK
+// ═══════════════════════════════════════════════════════════════
+
+async function handleNativeNodeChat(req, res, targetPath) {
+  let apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    try {
+      const envPath = path.join(__dirname, '..', 'ai-service', '.env');
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
+        if (match) apiKey = match[1].trim();
+      }
+    } catch {}
+  }
+
+  if (!apiKey) throw new Error('GEMINI_API_KEY not found');
+
+  const { message, history = [], role = 'citizen', district = '' } = req.body || {};
+  
+  const db = await getDb();
+  let statsStr = "";
+  try {
+    const totalWp = await db.prepare("SELECT COUNT(*) as c FROM water_points").get();
+    const funcWp = await db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+    const alerts = await db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+    const pending = await db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
+    const unsafe = await db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+    
+    statsStr = `Current stats: ${totalWp.c} total water points, ${funcWp.c} functional. ` +
+               `${alerts.c} active alerts. ${pending.c} pending maintenance requests. ` +
+               `${unsafe.c} unsafe water quality tests recorded.`;
+  } catch (e) {
+    statsStr = "System stats unavailable.";
+  }
+  
+  const systemPrompt = `You are Hydro AI, the assistant for HYDROSENSE — Uganda's national climate-resilient rural water management platform.\n\n` +
+                       `User role: ${role}. District: ${district || 'National'}.\n` +
+                       `${statsStr}\n\n` +
+                       `Keep responses concise. Use **bold** for key figures.`;
+
+  const contents = [
+    { role: "user", parts: [{ text: `[SYSTEM CONTEXT]\n${systemPrompt}\n[/SYSTEM CONTEXT]` }] },
+    { role: "model", parts: [{ text: "Understood. I have the latest HYDROSENSE system data. How can I help?" }] }
+  ];
+
+  for (const turn of history.slice(-6)) {
+    contents.push({
+      role: turn.role === "user" ? "user" : "model",
+      parts: [{ text: turn.content }]
+    });
+  }
+
+  contents.push({ role: "user", parts: [{ text: message || "Hello" }] });
+
+  const payload = {
+    contents,
+    generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+  };
+
+  const isStream = targetPath.includes('/chat/stream');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errText}`);
+  }
+
+  if (isStream) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          if (line.includes('[DONE]')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            const textParts = data.candidates?.[0]?.content?.parts;
+            if (textParts && textParts.length > 0) {
+              const textChunk = textParts[0].text;
+              if (textChunk) {
+                res.write('data: ' + JSON.stringify({ type: 'chunk', text: textChunk }) + '\n\n');
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+    res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
+    res.end();
+  } else {
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+    res.status(200).json({
+      success: true,
+      reply: text,
+      model: "Hydro AI (Native Node.js Fallback)",
+      source: "gemini"
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // AI SERVICE PROXY
 // ═══════════════════════════════════════════════════════════════
 
@@ -318,49 +440,30 @@ async function proxyToAI(req, res, targetPath) {
     });
   });
 
-  proxyReq.on('error', (err) => {
+  proxyReq.on('error', async (err) => {
     // FALLBACK MOCK IF AI IS DOWN ON RENDER
     if (targetPath.includes('/health') || targetPath.includes('/system/ping')) {
       return safeRespond(200, { status: 'online', service: 'HYDROSENSE AI (Fallback Mode)', version: '2.0.1 (Node)', latency: 15 });
     }
     
-    if (targetPath.includes('/chat/stream')) {
+    if (targetPath.includes('/chat/stream') || targetPath.endsWith('/chat')) {
       if (!responded) {
-        responded = true;
-        res.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Request-ID': requestId
-        });
-        const msg = "I am currently running in Node.js fallback mode because the Python AI microservice is unreachable on Render. However, the system is fully deployed and the frontend and backend are working flawlessly! You can continue exploring the dashboards and viewing your sensor data.";
-        res.write('data: ' + JSON.stringify({ type: 'start', message_id: crypto.randomUUID() }) + '\n\n');
-        
-        // Stream the message in chunks to simulate typing
-        let i = 0;
-        const words = msg.split(' ');
-        const interval = setInterval(() => {
-          if (i < words.length) {
-            res.write('data: ' + JSON.stringify({ type: 'chunk', text: words[i] + ' ' }) + '\n\n');
-            i++;
-          } else {
-            clearInterval(interval);
-            res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
-            res.end();
+        try {
+          await handleNativeNodeChat(req, res, targetPath);
+          responded = true;
+          return;
+        } catch (chatErr) {
+          console.error("Native Node Chat Error:", chatErr);
+          if (res.headersSent) {
+            if (targetPath.includes('/chat/stream')) {
+              res.write('data: ' + JSON.stringify({ type: 'error', message: 'Node.js AI error: ' + chatErr.message }) + '\n\n');
+              res.end();
+            }
+            responded = true;
+            return;
           }
-        }, 50);
-        return;
-      }
-    }
-
-    if (targetPath.endsWith('/chat')) {
-      if (!responded) {
-        responded = true;
-        return res.status(200).json({
-          success: true,
-          reply: "I am currently running in Node.js fallback mode because the Python AI microservice is unreachable on Render. However, the system is fully deployed and the frontend and backend are working flawlessly! You can continue exploring the dashboards.",
-          model: "Hydro AI (Fallback Mode)"
-        });
+          // Fall through to generic fallback if headers not sent
+        }
       }
     }
 
