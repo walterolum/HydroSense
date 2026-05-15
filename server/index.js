@@ -462,7 +462,8 @@ async function proxyToAI(req, res, targetPath) {
             responded = true;
             return;
           }
-          // Fall through to generic fallback if headers not sent
+          // Attach error to req so we can read it in the generic fallback
+          req.nativeChatError = chatErr.message;
         }
       }
     }
@@ -474,8 +475,8 @@ async function proxyToAI(req, res, targetPath) {
         success: true,
         data: [],
         analysis: "Node.js Fallback: Data simulated because AI microservice is unavailable.",
-        message: "Node.js Fallback Response",
-        reply: "Node.js Fallback Response",
+        message: req.nativeChatError ? `AI Error: ${req.nativeChatError}` : "Node.js Fallback Response",
+        reply: req.nativeChatError ? `AI Error: ${req.nativeChatError}` : "Node.js Fallback Response",
         risk_score: 50,
         predictions: []
       });
