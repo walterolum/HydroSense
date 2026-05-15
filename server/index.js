@@ -473,8 +473,17 @@ function attemptAIAutoRecovery() {
   try {
     execFileSync(python, ['-c', 'import fastapi, uvicorn; print("ok")'], { timeout: 5000, cwd: AI_SERVICE_DIR, stdio: 'pipe' });
   } catch {
-    console.log('[AI Auto-Recovery] Dependencies not installed.');
-    return;
+    console.log('[AI Auto-Recovery] Dependencies not installed. Installing now...');
+    try {
+      execFileSync(python, ['-m', 'pip', 'install', '-r', 'requirements.txt', '--break-system-packages'], { cwd: AI_SERVICE_DIR, stdio: 'inherit' });
+    } catch (e) {
+      try {
+        execFileSync(python, ['-m', 'pip', 'install', '-r', 'requirements.txt'], { cwd: AI_SERVICE_DIR, stdio: 'inherit' });
+      } catch (err) {
+        console.log(`[AI Auto-Recovery] Failed to install dependencies: ${err.message}`);
+        return;
+      }
+    }
   }
 
   console.log(`[AI Auto-Recovery] Attempt ${recoveryCount}/${CONFIG.ai.maxRecoveryAttempts}`);

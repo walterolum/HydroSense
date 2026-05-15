@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node seed.js && node index.js",
     "dev": "nodemon index.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "postinstall": "cd ../ai-service && (python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || echo 'Warning: Could not install Python AI dependencies')"
   },
   "dependencies": {
     "@babel/generator": "^7.29.1",
