@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
 
-const AI_BASE = '';
+const AI_BASE = '/api';
 
 const ai: AxiosInstance = axios.create({
   baseURL: AI_BASE,
@@ -543,7 +543,7 @@ export async function sendChatMessageStream(
   const streamRequestId = `fe_stream_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
   try {
-    const response = await fetch('/ai/chat/stream', {
+    const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Request-ID': streamRequestId },
       body: JSON.stringify(payload),

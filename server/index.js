@@ -331,6 +331,10 @@ async function proxyToAI(req, res, targetPath) {
   proxyReq.end();
 }
 
+// Public AI health endpoints
+app.all('/api/ai/health', (req, res) => proxyToAI(req, res, '/ai/health'));
+app.all('/api/ai/system/ping', (req, res) => proxyToAI(req, res, '/ai/system/ping'));
+
 // Wildcard route that captures full path after /api/ai/
 app.all('/api/ai/:path(*)', authMiddleware, (req, res) => {
   const targetPath = '/ai/' + req.params.path;

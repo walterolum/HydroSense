@@ -38,7 +38,7 @@ interface AIServiceContextType {
 
 const AIServiceContext = createContext<AIServiceContextType | null>(null);
 
-const AI_HEALTH_URLS = ['/ai/health', 'http://localhost:8000/ai/health'];
+const AI_HEALTH_URLS = ['/api/ai/health', 'http://localhost:8000/ai/health'];
 const FAST_POLL_MS = 20000;
 const SLOW_POLL_MS = 45000;
 const OFFLINE_THRESHOLD = 3;
