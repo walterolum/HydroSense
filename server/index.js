@@ -334,18 +334,18 @@ async function proxyToAI(req, res, targetPath) {
           'X-Request-ID': requestId
         });
         const msg = "I am currently running in Node.js fallback mode because the Python AI microservice is unreachable on Render. However, the system is fully deployed and the frontend and backend are working flawlessly! You can continue exploring the dashboards and viewing your sensor data.";
-        res.write('data: ' + JSON.stringify({ event: 'start', message_id: crypto.randomUUID() }) + '\n\n');
+        res.write('data: ' + JSON.stringify({ type: 'start', message_id: crypto.randomUUID() }) + '\n\n');
         
         // Stream the message in chunks to simulate typing
         let i = 0;
         const words = msg.split(' ');
         const interval = setInterval(() => {
           if (i < words.length) {
-            res.write('data: ' + JSON.stringify({ event: 'chunk', text: words[i] + ' ' }) + '\n\n');
+            res.write('data: ' + JSON.stringify({ type: 'chunk', text: words[i] + ' ' }) + '\n\n');
             i++;
           } else {
             clearInterval(interval);
-            res.write('data: ' + JSON.stringify({ event: 'done' }) + '\n\n');
+            res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
             res.end();
           }
         }, 50);
