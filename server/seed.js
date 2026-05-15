@@ -48,6 +48,8 @@ console.log('Starting database seed...');
 
 // Clear existing data
 db.exec(`
+  DELETE FROM citizen_report_tracking;
+  DELETE FROM citizen_reports;
   DELETE FROM resilience_scores;
   DELETE FROM maintenance_funds;
   DELETE FROM budget_records;
@@ -65,6 +67,7 @@ db.exec(`
   DELETE FROM spare_parts;
   DELETE FROM water_points;
   DELETE FROM users;
+  DELETE FROM sqlite_sequence;
 `);
 
 // --- USERS ---
