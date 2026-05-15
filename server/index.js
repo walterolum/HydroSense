@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -55,7 +56,10 @@ app.use((req, res, next) => {
 
 app.use(requestLogger);
 app.use(cors({
-  origin: CONFIG.corsOrigins,
+  origin: function (origin, callback) {
+    // Allow any origin for local network / QR code access
+    callback(null, origin || true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
   credentials: true
@@ -273,6 +277,11 @@ async function handleNativeNodeChat(req, res, targetPath) {
         if (match) apiKey = match[1].trim();
       }
     } catch {}
+  }
+  
+  // Final fallback: Use the explicit key provided by the user to ensure cloud deployments work
+  if (!apiKey) {
+    apiKey = 'AIzaSyAfAEuSf2yHJZmHwULdI4HmMCJcN-JDvGA';
   }
 
   if (!apiKey) throw new Error('GEMINI_API_KEY not found');

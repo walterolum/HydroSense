@@ -542,10 +542,17 @@ export async function sendChatMessageStream(
 
   const streamRequestId = `fe_stream_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
+  const token = sessionStorage.getItem('hs_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Request-ID': streamRequestId
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   try {
     const response = await fetch('/api/ai/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Request-ID': streamRequestId },
+      headers,
       body: JSON.stringify(payload),
       signal: combinedSignal,
     });
