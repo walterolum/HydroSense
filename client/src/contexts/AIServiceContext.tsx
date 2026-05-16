@@ -38,11 +38,11 @@ interface AIServiceContextType {
 
 const AIServiceContext = createContext<AIServiceContextType | null>(null);
 
-const AI_HEALTH_URLS = ['/api/ai/health', 'http://localhost:8000/ai/health'];
+const AI_HEALTH_URLS = ['/api/ai/health'];
 const FAST_POLL_MS = 20000;
 const SLOW_POLL_MS = 45000;
 const OFFLINE_THRESHOLD = 3;
-const HEALTH_TIMEOUT_MS = 10000;
+const HEALTH_TIMEOUT_MS = 35000;
 const MAX_BACKOFF_MS = 90000;
 const RECOVERY_GRACE_MS = 5000;
 const STALL_DETECTION_MS = 30000;

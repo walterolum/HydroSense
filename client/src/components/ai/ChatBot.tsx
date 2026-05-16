@@ -440,13 +440,6 @@ export default function ChatBot() {
 
     if (capturedBase64) clearImage();
 
-    if (!aiOnline) {
-      retryDataRef.current = { text: msg, capturedBase64, capturedMime, capturedPreview };
-      setRetryMessage('AI services are offline. Tap to retry when reconnected.');
-      addErrorMessage('AI services are offline.', 'offline');
-      return;
-    }
-
     await executeSend(msg, capturedBase64, capturedMime, capturedPreview || null);
   };
 

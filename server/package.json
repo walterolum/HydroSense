@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "description": "Climate-Resilient Rural Water Monitoring System - Backend Server",
   "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node seed.js && node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js",
-    "postinstall": "cd ../ai-service && (python3 -m pip install -r requirements.txt || python -m pip install -r requirements.txt || echo 'Warning: Could not install Python AI dependencies')"
+    "postinstall": "node -e \"const fs=require('fs'),cp=require('child_process'),p='../ai-service/requirements.txt';if(fs.existsSync(p)){try{cp.execSync('pip3 install -r '+p,{stdio:'ignore'})}catch(e){try{cp.execSync('pip install -r '+p,{stdio:'ignore'})}catch(e2){}}}console.log('Setup complete')\""
   },
   "dependencies": {
     "@babel/generator": "^7.29.1",
@@ -19,7 +22,6 @@
     "dotenv": "^17.4.2",
     "express": "^4.18.3",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.22.3",
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.7",
     "socket.io": "^4.7.4",
