@@ -270,7 +270,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
   let apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     try {
-      const envPath = path.join(__dirname, '..', 'ai-service', '.env');
+      const envPath = path.join(__dirname, '.env');
       if (fs.existsSync(envPath)) {
         const content = fs.readFileSync(envPath, 'utf8');
         const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
@@ -278,13 +278,8 @@ async function handleNativeNodeChat(req, res, targetPath) {
       }
     } catch {}
   }
-  
-  // Final fallback: Use the explicit key provided by the user to ensure cloud deployments work
-  if (!apiKey) {
-    apiKey = 'AIzaSyAfAEuSf2yHJZmHwULdI4HmMCJcN-JDvGA';
-  }
 
-  if (!apiKey) throw new Error('GEMINI_API_KEY not found');
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
 
   const { message, history = [], role = 'citizen', district = '' } = req.body || {};
   
@@ -338,8 +333,13 @@ async function handleNativeNodeChat(req, res, targetPath) {
   });
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errText}`);
+    if (response.status === 429) {
+      throw new Error('Hydro AI is temporarily busy. Please wait a moment and try again.');
+    }
+    if (response.status === 400) {
+      throw new Error('Invalid request to AI service. Please try rephrasing your question.');
+    }
+    throw new Error(`AI service error (${response.status}). Please try again shortly.`);
   }
 
   if (isStream) {

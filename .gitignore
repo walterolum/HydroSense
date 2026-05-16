@@ -138,5 +138,8 @@ pnpm-lock.yaml
 Pipfile.lock
 poetry.lock
 
+# ===== SCRATCH / TEST SCRIPTS =====
+server/scratch/
+
 # ===== PROFESSIONAL DEV EXCLUSIONS =====
 .devcontainer/ (keep if needed)
