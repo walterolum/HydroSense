@@ -329,7 +329,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
   };
 
   const isStream = targetPath.includes('/chat/stream');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -462,16 +462,22 @@ async function proxyToAI(req, res, targetPath) {
           responded = true;
           return;
         } catch (chatErr) {
-          console.error("Native Node Chat Error:", chatErr);
+          console.error("Native Node Chat Error:", chatErr.message);
           if (res.headersSent) {
-            if (targetPath.includes('/chat/stream')) {
-              res.write('data: ' + JSON.stringify({ type: 'error', message: 'Node.js AI error: ' + chatErr.message }) + '\n\n');
-              res.end();
-            }
+            res.write('data: ' + JSON.stringify({ type: 'error', message: 'AI error: ' + chatErr.message }) + '\n\n');
+            res.end();
             responded = true;
             return;
           }
-          // Attach error to req so we can read it in the generic fallback
+          // Headers not yet sent — for stream endpoint send a proper SSE error so
+          // the frontend's onError fires and triggers its non-stream fallback
+          if (targetPath.includes('/chat/stream')) {
+            responded = true;
+            res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+            res.write('data: ' + JSON.stringify({ type: 'error', message: 'AI error: ' + chatErr.message }) + '\n\n');
+            res.end();
+            return;
+          }
           req.nativeChatError = chatErr.message;
         }
       }
