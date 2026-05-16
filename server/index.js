@@ -324,7 +324,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
   };
 
   const isStream = targetPath.includes('/chat/stream');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
 
   const response = await fetch(url, {
     method: 'POST',
