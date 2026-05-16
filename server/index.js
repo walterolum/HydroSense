@@ -383,7 +383,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
     res.status(200).json({
       success: true,
       reply: text,
-      model: "Hydro AI (Native Node.js Fallback)",
+      model: "Hydro AI v4.0",
       source: "gemini"
     });
   }
