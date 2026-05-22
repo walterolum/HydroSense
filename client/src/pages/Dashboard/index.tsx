@@ -304,30 +304,35 @@ export default function Dashboard() {
       ═══════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
 
-        {/* ── Compact Profile Card (avatar + role + date only) ── */}
-        <div className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 animate-drop-in">
-          <div className="h-16 water-shimmer" style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }} />
-          <div className="px-4 pb-4 bg-white dark:bg-gray-900">
-            <div className="flex items-end gap-3 -mt-7 mb-3">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-extrabold shadow-lg border-4 border-white dark:border-gray-900 flex-shrink-0 overflow-hidden"
-                style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}>
-                {user?.avatar
-                  ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
-                  : initials(user?.name || 'U')}
-              </div>
-              <div className="pb-0.5 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-xs font-semibold text-green-600 dark:text-green-400">Online</span>
-              </div>
+        {/* ── Profile Card — large avatar, role, date ── */}
+        <div className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 animate-drop-in bg-white dark:bg-gray-900 flex flex-col">
+          {/* Gradient banner */}
+          <div className="h-24 water-shimmer flex-shrink-0" style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }} />
+
+          {/* Avatar — large and centered, overlapping the banner */}
+          <div className="flex flex-col items-center -mt-14 px-4 pb-5 flex-1">
+            <div
+              className="w-28 h-28 rounded-full flex items-center justify-center text-white text-4xl font-extrabold shadow-xl border-4 border-white dark:border-gray-900 overflow-hidden flex-shrink-0"
+              style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
+            >
+              {user?.avatar
+                ? <img src={user.avatar} alt={user?.name} className="w-full h-full object-cover object-center" />
+                : <span className="select-none">{initials(user?.name || 'U')}</span>}
+            </div>
+
+            {/* Online indicator */}
+            <div className="flex items-center gap-1.5 mt-2 mb-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-xs font-bold text-green-600 dark:text-green-400">Online</span>
             </div>
 
             {/* Role badge */}
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${theme.badge}`}>
+            <span className={`px-3 py-1.5 rounded-full text-xs font-extrabold text-center ${theme.badge}`}>
               {ROLE_LABELS[role] || role}
             </span>
 
             {/* Date */}
-            <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
+            <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-semibold">
               <Clock size={11} />
               {now.toLocaleDateString('en-UG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </div>
