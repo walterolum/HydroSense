@@ -4,6 +4,12 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LanguageCode } from '../types/language';
 import VoiceRecorder, { VoiceResult } from '../components/reporting/VoiceRecorder';
+
+const LANG_NAMES: Record<string, string> = {
+  en: 'English', lug: 'Luganda', swa: 'Swahili', luo: 'Luo',
+  nyn: 'Runyankore', teo: 'Teso', lgg: 'Lugbara', xog: 'Lusoga',
+  cgg: 'Rukiga', ach: 'Acholi',
+};
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport } from '../api/client';
 import {
@@ -40,6 +46,7 @@ export default function MultilingualReport() {
 
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [voiceActive, setVoiceActive] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState<LanguageCode>(language);
@@ -50,14 +57,18 @@ export default function MultilingualReport() {
 
   const handleVoiceResult = (result: VoiceResult) => {
     if (result.blob) { setAudioBlob(result.blob); setAudioDuration(result.durationMs); }
-    // Populate description with English translation for AI analysis
+    setVoiceActive(false);
     setForm(prev => ({
       ...prev,
       description: result.english || result.original || prev.description,
-      // Auto-fill incident type if AI detected one
       ...(result.incidentType && !prev.incident_type ? { incident_type: result.incidentType } : {}),
       ...(result.severity ? { severity: result.severity } : {}),
     }));
+  };
+
+  const handleVoiceLiveUpdate = (text: string) => {
+    setVoiceActive(true);
+    setForm(prev => ({ ...prev, description: text }));
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,12 +210,34 @@ export default function MultilingualReport() {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.description')}</label>
-              <textarea value={form.description} onChange={update('description')} rows={4} required
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Describe the issue in your language..." />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-semibold text-gray-700">{t('report.description')}</label>
+                {voiceActive && (
+                  <span className="flex items-center gap-1 text-xs font-bold text-red-600 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-red-500" /> Live voice input
+                  </span>
+                )}
+              </div>
+              <textarea
+                value={form.description}
+                onChange={e => { setVoiceActive(false); update('description')(e); }}
+                rows={5}
+                required
+                className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white focus:outline-none transition-all duration-200 ${
+                  voiceActive
+                    ? 'border-red-400 ring-2 ring-red-200 focus:ring-red-300'
+                    : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                }`}
+                placeholder={sourceLang !== 'en'
+                  ? `Speak in ${LANG_NAMES[sourceLang] || sourceLang} — text will appear here in English…`
+                  : 'Describe the issue or use the microphone below…'}
+              />
               <div className="mt-2">
-                <VoiceRecorder onRecordingComplete={handleVoiceResult} language={sourceLang} />
+                <VoiceRecorder
+                  onRecordingComplete={handleVoiceResult}
+                  onLiveUpdate={handleVoiceLiveUpdate}
+                  language={sourceLang}
+                />
               </div>
             </div>
 
