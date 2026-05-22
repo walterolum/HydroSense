@@ -27,7 +27,7 @@ function runMigrations() {
   add(`ALTER TABLE users ADD COLUMN district TEXT`);
   add(`ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'en'`);
   add(`ALTER TABLE users ADD COLUMN sub_county TEXT`);
-  /* ── OTP Codes ── */
+  /* ── OTP Codes (secure) ── */
   add(`CREATE TABLE IF NOT EXISTS otp_codes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL,
@@ -35,7 +35,22 @@ function runMigrations() {
     purpose TEXT DEFAULT 'registration',
     expires_at TEXT NOT NULL,
     used INTEGER DEFAULT 0,
+    attempts INTEGER DEFAULT 0,
+    blocked_until TEXT,
+    ip_address TEXT,
     created_at TEXT DEFAULT (datetime('now'))
+  )`);
+  /* migrations for existing otp_codes table */
+  add(`ALTER TABLE otp_codes ADD COLUMN attempts INTEGER DEFAULT 0`);
+  add(`ALTER TABLE otp_codes ADD COLUMN blocked_until TEXT`);
+  add(`ALTER TABLE otp_codes ADD COLUMN ip_address TEXT`);
+  /* ── Failed OTP attempt log ── */
+  add(`CREATE TABLE IF NOT EXISTS otp_attempt_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    ip_address TEXT,
+    success INTEGER DEFAULT 0,
+    attempted_at TEXT DEFAULT (datetime('now'))
   )`);
 
   /* ── Citizen Multi-Channel Reports ── */

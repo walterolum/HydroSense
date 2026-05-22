@@ -8,7 +8,59 @@ const { sendSMS } = require('../utils/sms');
 
 const router = express.Router();
 
-/* ── OTP Store (in-memory fallback) ── */
+/* ─────────────────────────────────────────────────────────────
+   SECURE OTP INFRASTRUCTURE
+   - OTPs are bcrypt-hashed before DB storage
+   - 5-minute expiry
+   - Max 3 send requests per email per 5 min (spam prevention)
+   - Max 5 verify attempts then 15-min block (brute-force)
+   - 60-second cooldown between resend requests
+───────────────────────────────────────────────────────────── */
+const MAX_VERIFY_ATTEMPTS = 5;
+const BLOCK_DURATION_MS   = 15 * 60 * 1000;   // 15 min
+const OTP_EXPIRY_MS       = 5  * 60 * 1000;   // 5 min
+const RESEND_COOLDOWN_MS  = 60 * 1000;         // 60 sec
+const MAX_SEND_PER_WINDOW = 3;
+const SEND_WINDOW_MS      = 5  * 60 * 1000;   // 5 min
+
+/* In-memory rate limiter: { email → { count, windowStart, lastSent } } */
+const sendRateMap  = new Map();
+
+function checkSendRate(email) {
+  const now  = Date.now();
+  const rec  = sendRateMap.get(email);
+  if (!rec || now - rec.windowStart > SEND_WINDOW_MS) {
+    sendRateMap.set(email, { count: 1, windowStart: now, lastSent: now });
+    return { ok: true };
+  }
+  const cooldownLeft = RESEND_COOLDOWN_MS - (now - rec.lastSent);
+  if (cooldownLeft > 0) {
+    return { cooldown: true, secondsLeft: Math.ceil(cooldownLeft / 1000) };
+  }
+  if (rec.count >= MAX_SEND_PER_WINDOW) {
+    const windowLeft = Math.ceil((SEND_WINDOW_MS - (now - rec.windowStart)) / 1000);
+    return { limited: true, secondsLeft: windowLeft };
+  }
+  rec.count++;
+  rec.lastSent = now;
+  return { ok: true };
+}
+
+async function generateAndStoreOTP(db, email, purpose, ip) {
+  const raw     = Math.floor(100000 + Math.random() * 900000).toString();
+  const hashed  = bcrypt.hashSync(raw, 10);
+  const expires = new Date(Date.now() + OTP_EXPIRY_MS).toISOString();
+
+  db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(email);
+  db.prepare(`
+    INSERT INTO otp_codes (email, otp, purpose, expires_at, attempts, ip_address)
+    VALUES (?, ?, ?, ?, 0, ?)
+  `).run(email, hashed, purpose, expires, ip || null);
+
+  return raw; // plaintext returned only to delivery functions
+}
+
+/* ── OTP Store (legacy in-memory — kept for backward compat, not used for auth) ── */
 const otpStore = new Map();
 
 /* ── Public user profile (for QR code scanning, no auth required) ── */
@@ -69,103 +121,124 @@ router.post('/register', async (req, res) => {
   });
 });
 
-/* ── Send OTP ── */
+/* ── Send OTP (rate-limited, hashed) ── */
 router.post('/send-otp', async (req, res) => {
-  const db = await getDb();
+  const db = getDb();
+  const ip  = req.ip || req.connection?.remoteAddress || 'unknown';
   const { email, purpose = 'registration', device_type = 'smart', phone: bodyPhone } = req.body;
   if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   const emailKey = email.toLowerCase().trim();
 
-  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(emailKey);
-  await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, ?, ?)`).run(emailKey, otp, purpose, expires);
-  otpStore.set(emailKey, { otp, expires: Date.now() + 10 * 60 * 1000 });
+  /* Rate limit check */
+  const rl = checkSendRate(emailKey);
+  if (rl.cooldown) return res.status(429).json({ success: false, error: `Please wait ${rl.secondsLeft}s before requesting another code.`, secondsLeft: rl.secondsLeft });
+  if (rl.limited)  return res.status(429).json({ success: false, error: `Too many requests. Try again in ${rl.secondsLeft}s.`, secondsLeft: rl.secondsLeft });
 
   const userRecord = db.prepare('SELECT phone FROM users WHERE email = ?').get(emailKey);
-  const phone = bodyPhone || (userRecord && userRecord.phone) || null;
+  const phone = bodyPhone || (userRecord?.phone) || null;
+
+  const raw = await generateAndStoreOTP(db, emailKey, purpose, ip);
 
   if (device_type === 'feature') {
-    // Button/feature phone: SMS is primary channel
-    if (phone) {
-      sendSMS(phone, otp).catch(console.error);
-    }
-    sendRealEmail(emailKey, otp, purpose).catch(() => {});
-    console.log(`[OTP][FEATURE] SMS OTP for ${phone}: ${otp}`);
-    res.json({
-      success: true,
-      message: `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`,
-      delivery_method: 'sms',
-      phone_hint: phone ? phone.slice(0, 7) + '****' : null,
-      otp_debug: otp,
-    });
-  } else {
-    // Smartphone: send to BOTH email AND SMS so the user gets it whichever they check first
-    sendRealEmail(emailKey, otp, purpose).catch(console.error);
-    if (phone) {
-      sendSMS(phone, otp).catch(console.error);
-    }
-    console.log(`[OTP][SMART] Email+SMS OTP for ${emailKey} / ${phone}: ${otp}`);
-    res.json({
-      success: true,
-      message: `Verification code sent to your email${phone ? ' and phone' : ''}`,
-      delivery_method: 'email',
-      sms_sent: !!phone,
-      phone_hint: phone ? phone.slice(0, 7) + '****' : null,
-      otp_debug: otp,
-    });
+    if (phone) sendSMS(phone, raw).catch(console.error);
+    sendRealEmail(emailKey, raw, purpose).catch(() => {});
+    console.log(`[OTP][FEATURE] ${phone}: ${raw}`);
+    return res.json({ success: true, message: `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`, delivery_method: 'sms', phone_hint: phone ? phone.slice(0, 7) + '****' : null, expires_in: 300 });
   }
+
+  sendRealEmail(emailKey, raw, purpose).catch(console.error);
+  if (phone) sendSMS(phone, raw).catch(console.error);
+  console.log(`[OTP][SMART] ${emailKey}/${phone}: ${raw}`);
+  res.json({ success: true, message: `Verification code sent to your email${phone ? ' and phone' : ''}`, delivery_method: 'email', sms_sent: !!phone, phone_hint: phone ? phone.slice(0, 7) + '****' : null, expires_in: 300 });
 });
 
-/* ── Verify OTP ── */
+/* ── Verify OTP (hashed compare, brute-force protection, auto-login) ── */
 router.post('/verify-otp', async (req, res) => {
-  const db = await getDb();
+  const db = getDb();
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
   const { email, otp } = req.body;
-  if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP are required' });
+  if (!email || !otp) return res.status(400).json({ success: false, error: 'Email and OTP code are required' });
 
-  const record = await db.prepare(`SELECT * FROM otp_codes WHERE email = ? AND otp = ? AND used = 0 AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1`).get(email.toLowerCase().trim(), otp);
-  if (!record) return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+  const emailKey = email.toLowerCase().trim();
 
-  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
+  /* Find the most recent unused, unexpired record */
+  const record = db.prepare(`
+    SELECT * FROM otp_codes
+    WHERE email = ? AND used = 0 AND expires_at > datetime('now')
+    ORDER BY created_at DESC LIMIT 1
+  `).get(emailKey);
 
-  const user = await db.prepare(`SELECT id, name, email, role FROM users WHERE email = ?`).get(email.toLowerCase().trim());
-  if (user) {
-    await db.prepare(`UPDATE users SET otp_verified = 1 WHERE id = ?`).run(user.id);
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
-      SECRET,
-      { expiresIn: '24h' }
-    );
-    return res.json({ success: true, message: 'OTP verified successfully', verified: true, token, user });
+  if (!record) {
+    return res.status(400).json({ success: false, error: 'No valid code found. Please request a new one.' });
   }
 
-  res.json({ success: true, message: 'OTP verified successfully', verified: true });
+  /* Check if temporarily blocked */
+  if (record.blocked_until && new Date(record.blocked_until) > new Date()) {
+    const remainSec = Math.ceil((new Date(record.blocked_until) - new Date()) / 1000);
+    return res.status(429).json({ success: false, error: `Too many failed attempts. Try again in ${Math.ceil(remainSec / 60)} minute(s).`, blockedFor: remainSec });
+  }
+
+  /* Hash compare */
+  const isValid = bcrypt.compareSync(otp.trim(), record.otp);
+
+  /* Log attempt */
+  db.prepare(`INSERT INTO otp_attempt_log (email, ip_address, success) VALUES (?, ?, ?)`).run(emailKey, ip, isValid ? 1 : 0);
+
+  if (!isValid) {
+    const newAttempts = (record.attempts || 0) + 1;
+    const remaining = MAX_VERIFY_ATTEMPTS - newAttempts;
+
+    if (newAttempts >= MAX_VERIFY_ATTEMPTS) {
+      const blockedUntil = new Date(Date.now() + BLOCK_DURATION_MS).toISOString();
+      db.prepare(`UPDATE otp_codes SET attempts = ?, blocked_until = ? WHERE id = ?`).run(newAttempts, blockedUntil, record.id);
+      return res.status(429).json({ success: false, error: `Account temporarily locked for 15 minutes after ${MAX_VERIFY_ATTEMPTS} failed attempts.`, blockedFor: BLOCK_DURATION_MS / 1000 });
+    }
+
+    db.prepare(`UPDATE otp_codes SET attempts = ? WHERE id = ?`).run(newAttempts, record.id);
+    return res.status(400).json({ success: false, error: `Incorrect code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`, attemptsLeft: remaining });
+  }
+
+  /* Valid — mark used and activate user */
+  db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
+
+  const user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(emailKey);
+  if (!user) return res.status(404).json({ success: false, error: 'User account not found' });
+
+  db.prepare(`UPDATE users SET otp_verified = 1, active = 1 WHERE id = ?`).run(user.id);
+
+  const { password_hash, ...safeUser } = user;
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
+    SECRET,
+    { expiresIn: '24h' }
+  );
+
+  res.json({ success: true, verified: true, message: 'Account verified and activated successfully!', token, user: { ...safeUser, otp_verified: 1, active: 1 } });
 });
 
-/* ── Resend OTP ── */
+/* ── Resend OTP (same rate-limit as send) ── */
 router.post('/resend-otp', async (req, res) => {
-  const { email } = req.body;
+  const db = getDb();
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const { email, device_type = 'smart', phone: bodyPhone } = req.body;
   if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
 
-  const db = await getDb();
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const emailKey = email.toLowerCase().trim();
 
-  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(email.toLowerCase().trim());
-  await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, 'registration', ?)`).run(email.toLowerCase().trim(), otp, expires);
+  const rl = checkSendRate(emailKey);
+  if (rl.cooldown) return res.status(429).json({ success: false, error: `Please wait ${rl.secondsLeft}s before resending.`, secondsLeft: rl.secondsLeft });
+  if (rl.limited)  return res.status(429).json({ success: false, error: `Too many requests. Try again in ${rl.secondsLeft}s.`, secondsLeft: rl.secondsLeft });
 
-  // Send real email asynchronously
-  sendRealEmail(email.toLowerCase().trim(), otp, 'registration').catch(console.error);
+  const userRecord = db.prepare('SELECT phone FROM users WHERE email = ?').get(emailKey);
+  const phone = bodyPhone || (userRecord?.phone) || null;
+  const raw   = await generateAndStoreOTP(db, emailKey, 'registration', ip);
 
-  // Send SMS asynchronously if phone number exists
-  const userRecord = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  if (userRecord && userRecord.phone) {
-    sendSMS(userRecord.phone, otp).catch(console.error);
-  }
+  sendRealEmail(emailKey, raw, 'registration').catch(console.error);
+  if (phone) sendSMS(phone, raw).catch(console.error);
 
-  console.log(`[OTP] Resent OTP for ${email}: ${otp}`);
-  res.json({ success: true, message: 'OTP resent successfully', otp_debug: otp });
+  console.log(`[OTP][RESEND] ${emailKey}: ${raw}`);
+  res.json({ success: true, message: 'New verification code sent!', expires_in: 300 });
 });
 
 /* ── Login ── */
