@@ -649,9 +649,9 @@ export default function Login() {
           </div>
 
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center">
-              System access is managed by the Administrator.
-              Contact your admin for login credentials.
+            <p className="text-[11px] text-gray-400 text-center">
+              © {new Date().getFullYear()} HydroSense. All rights reserved.<br />
+              Climate-Resilient Water Management · Uganda
             </p>
           </div>
 
