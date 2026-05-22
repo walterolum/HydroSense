@@ -87,7 +87,7 @@ const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: s
   },
 };
 
-const LAYER_ORDER: LayerKey[] = ['street', 'hybrid', 'satellite', 'terrain', 'dark', 'light', 'humanitarian'];
+const LAYER_ORDER: LayerKey[] = ['street', 'hybrid', 'satellite', 'terrain'];
 
 interface WaterMapProps {
   waterPoints: WaterPoint[];
