@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 const ROLE_LABELS: Record<string, string> = {
   national_admin: 'National Admin',
   district_officer: 'District Officer',
@@ -32,7 +30,7 @@ export default function VerifyProfile() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    axios.get(`${API}/auth/users/${id}/public`)
+    axios.get(`/api/auth/users/${id}/public`)
       .then(r => setUser(r.data.user))
       .catch(() => setError('User not found or account is inactive.'))
       .finally(() => setLoading(false));
