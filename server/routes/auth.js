@@ -72,28 +72,47 @@ router.post('/register', async (req, res) => {
 /* ── Send OTP ── */
 router.post('/send-otp', async (req, res) => {
   const db = await getDb();
-  const { email, purpose = 'registration' } = req.body;
+  const { email, purpose = 'registration', device_type = 'smart', phone: bodyPhone } = req.body;
   if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const emailKey = email.toLowerCase().trim();
 
-  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(email.toLowerCase().trim());
-  await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, ?, ?)`).run(email.toLowerCase().trim(), otp, purpose, expires);
+  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND used = 0`).run(emailKey);
+  await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, ?, ?)`).run(emailKey, otp, purpose, expires);
+  otpStore.set(emailKey, { otp, expires: Date.now() + 10 * 60 * 1000 });
 
-  otpStore.set(email.toLowerCase().trim(), { otp, expires: Date.now() + 10 * 60 * 1000 });
+  const userRecord = db.prepare('SELECT phone FROM users WHERE email = ?').get(emailKey);
+  const phone = bodyPhone || (userRecord && userRecord.phone) || null;
 
-  // Send real email asynchronously
-  sendRealEmail(email.toLowerCase().trim(), otp, purpose).catch(console.error);
-
-  // Send SMS asynchronously if phone number exists
-  const userRecord = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  if (userRecord && userRecord.phone) {
-    sendSMS(userRecord.phone, otp).catch(console.error);
+  if (device_type === 'feature') {
+    // Button/feature phone: deliver via SMS primarily
+    if (phone) {
+      sendSMS(phone, otp).catch(console.error);
+    }
+    // Also send email as backup if available
+    sendRealEmail(emailKey, otp, purpose).catch(() => {});
+    console.log(`[OTP][FEATURE-PHONE] SMS OTP for ${phone}: ${otp}`);
+    res.json({
+      success: true,
+      message: `OTP sent via SMS to ${phone ? phone.slice(0, 6) + '****' : 'your phone'}`,
+      delivery_method: 'sms',
+      otp_debug: otp,
+    });
+  } else {
+    // Smartphone: deliver via email primarily
+    sendRealEmail(emailKey, otp, purpose).catch(console.error);
+    // Also send SMS as backup
+    if (phone) sendSMS(phone, otp).catch(() => {});
+    console.log(`[OTP][SMARTPHONE] Email OTP for ${emailKey}: ${otp}`);
+    res.json({
+      success: true,
+      message: `OTP sent to ${emailKey}`,
+      delivery_method: 'email',
+      otp_debug: otp,
+    });
   }
-
-  console.log(`[OTP] OTP for ${email}: ${otp}`);
-  res.json({ success: true, message: 'OTP sent successfully', otp_debug: otp });
 });
 
 /* ── Verify OTP ── */
