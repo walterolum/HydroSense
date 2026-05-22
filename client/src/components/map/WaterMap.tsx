@@ -101,7 +101,7 @@ export default function WaterMap({
   onSelect,
   showHeatmap = false,
 }: WaterMapProps) {
-  const [activeLayer, setActiveLayer] = useState<LayerKey>('street');
+  const [activeLayer, setActiveLayer] = useState<LayerKey>('hybrid');
   const base = BASE_LAYERS[activeLayer];
 
   return (

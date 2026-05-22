@@ -305,31 +305,48 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
 
         {/* ── Profile Card — large avatar, role, date ── */}
-        {/* NOTE: no overflow-hidden on outer div — prevents avatar from being clipped */}
         <div className="rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 animate-drop-in bg-white dark:bg-gray-900 flex flex-col">
-          {/* Gradient banner — rounded top corners only */}
+          {/* Gradient banner — no shimmer/position class so it doesn't overlap the avatar */}
           <div
-            className="h-28 water-shimmer rounded-t-2xl flex-shrink-0"
+            className="h-28 rounded-t-2xl flex-shrink-0"
             style={{ background: `linear-gradient(135deg, ${theme.from}, ${theme.to})` }}
           />
 
-          {/* Avatar — fully visible, centered, overlapping banner */}
-          <div className="flex flex-col items-center px-4 pb-5" style={{ marginTop: -56 }}>
+          {/* Avatar — z-index keeps it above the banner, no clipping, no overlay */}
+          <div
+            className="flex flex-col items-center px-4 pb-5"
+            style={{ marginTop: -60, position: 'relative', zIndex: 10 }}
+          >
             <div
-              className="w-28 h-28 rounded-full flex items-center justify-center text-white text-4xl font-extrabold shadow-2xl flex-shrink-0 overflow-hidden"
               style={{
+                width: 112,
+                height: 112,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                flexShrink: 0,
+                border: '5px solid white',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
                 background: `linear-gradient(135deg, ${theme.from}, ${theme.to})`,
-                border: '4px solid white',
-                outline: `3px solid ${theme.from}40`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               {user?.avatar
                 ? <img
                     src={user.avatar}
                     alt={user?.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center top',
+                      display: 'block',
+                    }}
                   />
-                : <span className="select-none">{initials(user?.name || 'U')}</span>}
+                : <span style={{ color: '#fff', fontSize: 36, fontWeight: 800, userSelect: 'none' }}>
+                    {initials(user?.name || 'U')}
+                  </span>}
             </div>
 
             {/* Online indicator */}
