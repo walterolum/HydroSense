@@ -307,12 +307,37 @@ router.delete('/users/:id', authMiddleware, requireRole('national_admin'), async
   if (req.user.id === userId) {
     return res.status(400).json({ success: false, error: 'You cannot delete your own account' });
   }
-  const db = await getDb();
-  const user = await db.prepare('SELECT id, name FROM users WHERE id = ?').get(userId);
+  const db = getDb();
+  const user = db.prepare('SELECT id, name FROM users WHERE id = ?').get(userId);
   if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
-  await db.prepare('DELETE FROM users WHERE id=?').run(userId);
-  res.json({ success: true, message: `User "${user.name}" has been permanently deleted` });
+  try {
+    const deleteUser = db.transaction(() => {
+      // Nullify all FK references that lack ON DELETE CASCADE/SET NULL
+      db.prepare('UPDATE citizen_reports SET user_id=NULL WHERE user_id=?').run(userId);
+      db.prepare('UPDATE task_assignments SET assigned_to=NULL WHERE assigned_to=?').run(userId);
+      db.prepare('UPDATE task_assignments SET assigned_by=NULL WHERE assigned_by=?').run(userId);
+      db.prepare('UPDATE response_tickets SET created_by=NULL WHERE created_by=?').run(userId);
+      db.prepare('UPDATE ai_conversations SET user_id=NULL WHERE user_id=?').run(userId);
+      db.prepare('UPDATE ai_decision_log SET user_id=NULL WHERE user_id=?').run(userId);
+      db.prepare('UPDATE citizen_report_tracking SET updated_by=NULL WHERE updated_by=?').run(userId);
+      db.prepare('UPDATE citizen_observations SET user_id=NULL WHERE user_id=?').run(userId);
+      db.prepare('UPDATE volunteer_events SET created_by=NULL WHERE created_by=?').run(userId);
+      db.prepare('UPDATE maintenance_requests SET reported_by=NULL WHERE reported_by=?').run(userId);
+      db.prepare('UPDATE maintenance_requests SET assigned_to=NULL WHERE assigned_to=?').run(userId);
+      db.prepare('UPDATE water_quality_tests SET tested_by=NULL WHERE tested_by=?').run(userId);
+      db.prepare('UPDATE community_reports SET assigned_to=NULL WHERE assigned_to=?').run(userId);
+      db.prepare('UPDATE governance_audit SET user_id=NULL WHERE user_id=?').run(userId);
+      db.prepare('UPDATE maintenance_funds SET managed_by=NULL WHERE managed_by=?').run(userId);
+      db.prepare('UPDATE env_incidents SET reported_by=NULL WHERE reported_by=?').run(userId);
+      db.prepare('DELETE FROM users WHERE id=?').run(userId);
+    });
+    deleteUser();
+    res.json({ success: true, message: `User "${user.name}" has been permanently deleted` });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ success: false, error: err.message || 'Failed to delete user' });
+  }
 });
 
 /* ── Forgot Password (send OTP) ── */
