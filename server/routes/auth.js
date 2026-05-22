@@ -140,17 +140,50 @@ router.post('/send-otp', async (req, res) => {
 
   const raw = await generateAndStoreOTP(db, emailKey, purpose, ip);
 
+  /* Helper: log delivery result to DB */
+  const logDelivery = (channel, result, recipientPhone = null) => {
+    try {
+      db.prepare(`
+        INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id, error_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(emailKey, recipientPhone, channel, result?.provider || 'unknown', result?.status || 'failed', result?.messageId || null, result?.error || null);
+    } catch {}
+  };
+
   if (device_type === 'feature') {
-    if (phone) sendSMS(phone, raw).catch(console.error);
-    sendRealEmail(emailKey, raw, purpose).catch(() => {});
+    // Feature phone: SMS primary, email backup
+    const smsResult = phone ? await sendSMS(phone, raw).catch(() => null) : null;
+    logDelivery('sms', smsResult, phone);
+    sendRealEmail(emailKey, raw, purpose).then(r => logDelivery('email', r)).catch(() => {});
     console.log(`[OTP][FEATURE] ${phone}: ${raw}`);
-    return res.json({ success: true, message: `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`, delivery_method: 'sms', phone_hint: phone ? phone.slice(0, 7) + '****' : null, expires_in: 300 });
+    return res.json({
+      success: true,
+      message:         `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`,
+      delivery_method: 'sms',
+      sms_provider:    smsResult?.provider || null,
+      phone_hint:      phone ? phone.slice(0, 7) + '****' : null,
+      expires_in:      300,
+    });
   }
 
-  sendRealEmail(emailKey, raw, purpose).catch(console.error);
-  if (phone) sendSMS(phone, raw).catch(console.error);
-  console.log(`[OTP][SMART] ${emailKey}/${phone}: ${raw}`);
-  res.json({ success: true, message: `Verification code sent to your email${phone ? ' and phone' : ''}`, delivery_method: 'email', sms_sent: !!phone, phone_hint: phone ? phone.slice(0, 7) + '****' : null, expires_in: 300 });
+  // Smartphone: email + SMS simultaneously
+  const [emailResult, smsResult] = await Promise.all([
+    sendRealEmail(emailKey, raw, purpose).catch(() => null),
+    phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
+  ]);
+  logDelivery('email', emailResult);
+  if (phone) logDelivery('sms', smsResult, phone);
+  console.log(`[OTP][SMART] ${emailKey} (${emailResult?.provider}) / ${phone} (${smsResult?.provider}): ${raw}`);
+  res.json({
+    success:         true,
+    message:         `Verification code sent to your email${phone ? ' and phone' : ''}`,
+    delivery_method: 'email',
+    email_provider:  emailResult?.provider || null,
+    sms_sent:        !!smsResult && smsResult.status !== 'mock',
+    sms_provider:    smsResult?.provider || null,
+    phone_hint:      phone ? phone.slice(0, 7) + '****' : null,
+    expires_in:      300,
+  });
 });
 
 /* ── Verify OTP (hashed compare, brute-force protection, auto-login) ── */
@@ -217,7 +250,7 @@ router.post('/verify-otp', async (req, res) => {
   res.json({ success: true, verified: true, message: 'Account verified and activated successfully!', token, user: { ...safeUser, otp_verified: 1, active: 1 } });
 });
 
-/* ── Resend OTP (same rate-limit as send) ── */
+/* ── Resend OTP (same rate-limit as send, with provider tracking) ── */
 router.post('/resend-otp', async (req, res) => {
   const db = getDb();
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
@@ -234,11 +267,29 @@ router.post('/resend-otp', async (req, res) => {
   const phone = bodyPhone || (userRecord?.phone) || null;
   const raw   = await generateAndStoreOTP(db, emailKey, 'registration', ip);
 
-  sendRealEmail(emailKey, raw, 'registration').catch(console.error);
-  if (phone) sendSMS(phone, raw).catch(console.error);
+  const logDelivery = (channel, result, ph = null) => {
+    try {
+      db.prepare(`INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(emailKey, ph, channel, result?.provider || 'unknown', result?.status || 'failed', result?.messageId || null);
+    } catch {}
+  };
 
-  console.log(`[OTP][RESEND] ${emailKey}: ${raw}`);
-  res.json({ success: true, message: 'New verification code sent!', expires_in: 300 });
+  const [emailResult, smsResult] = await Promise.all([
+    sendRealEmail(emailKey, raw, 'registration').catch(() => null),
+    phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
+  ]);
+  logDelivery('email', emailResult);
+  if (phone) logDelivery('sms', smsResult, phone);
+
+  console.log(`[OTP][RESEND] ${emailKey} (${emailResult?.provider}) / ${phone} (${smsResult?.provider}): ${raw}`);
+  res.json({
+    success:        true,
+    message:        'New verification code sent!',
+    email_provider: emailResult?.provider || null,
+    sms_sent:       !!smsResult && smsResult.status !== 'mock',
+    sms_provider:   smsResult?.provider || null,
+    expires_in:     300,
+  });
 });
 
 /* ── Login ── */

@@ -12,6 +12,27 @@ import {
 
 type DeviceType = 'smart' | 'feature';
 
+/* ── Provider display names + icons ── */
+const PROVIDER_INFO: Record<string, { label: string; icon: string; color: string }> = {
+  'africastalking':   { label: "Africa's Talking", icon: '🌍', color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  'twilio':           { label: 'Twilio',            icon: '📡', color: 'bg-red-100 text-red-700 border-red-200' },
+  'brevo':            { label: 'Brevo',             icon: '✉️', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  'sendgrid':         { label: 'SendGrid',          icon: '📨', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  'nodemailer-gmail': { label: 'Gmail SMTP',        icon: '📧', color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  'mock':             { label: 'Dev Mode',          icon: '🔧', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+};
+
+function ProviderBadge({ provider }: { provider: string | null }) {
+  if (!provider) return null;
+  const info = PROVIDER_INFO[provider];
+  if (!info) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${info.color} ml-2`}>
+      {info.icon} {info.label}
+    </span>
+  );
+}
+
 /* ── Multilingual OTP labels ── */
 const OTP_LABELS: Record<string, { title: string; sub: string; enter: string; resend: string; wait: string }> = {
   en:  { title: 'Verify Your Account',  sub: 'Enter the code sent to you',        enter: 'Enter verification code', resend: 'Resend code',        wait: 'Resend available in' },
@@ -125,7 +146,10 @@ export default function CitizenRegistration() {
   const [error, setError]             = useState('');
   const [success, setSuccess]         = useState('');
   const [deviceType, setDeviceType]   = useState<DeviceType>('smart');
-  const [deliveryMethod, setDelivery] = useState<'email' | 'sms'>('email');
+  const [deliveryMethod, setDelivery]   = useState<'email' | 'sms'>('email');
+  const [emailProvider, setEmailProv]   = useState<string | null>(null);
+  const [smsProvider, setSmsProv]       = useState<string | null>(null);
+  const [smsSent, setSmsSent]           = useState(false);
   const [otp, setOtp]                 = useState('');
   const [otpError, setOtpError]       = useState(false);
   const [attemptsLeft, setAttempts]   = useState(5);
@@ -192,7 +216,10 @@ export default function CitizenRegistration() {
       }
       if (isResend) setSuccess('New code sent!');
       setDelivery(data.delivery_method || (deviceType === 'feature' ? 'sms' : 'email'));
-      if (data.phone_hint) setPhoneHint(data.phone_hint);
+      if (data.phone_hint)     setPhoneHint(data.phone_hint);
+      if (data.email_provider) setEmailProv(data.email_provider);
+      if (data.sms_provider)   setSmsProv(data.sms_provider);
+      if (data.sms_sent !== undefined) setSmsSent(data.sms_sent);
       setOtp('');
       setOtpTimerKey(k => k + 1);
       startResendCooldown(60);
@@ -226,7 +253,10 @@ export default function CitizenRegistration() {
         body: JSON.stringify({ email: form.email, device_type: deviceType, phone: form.phone, purpose: 'registration' }),
       }).then(r => r.json());
       setDelivery(otpRes.delivery_method || (deviceType === 'feature' ? 'sms' : 'email'));
-      if (otpRes.phone_hint) setPhoneHint(otpRes.phone_hint);
+      if (otpRes.phone_hint)     setPhoneHint(otpRes.phone_hint);
+      if (otpRes.email_provider) setEmailProv(otpRes.email_provider);
+      if (otpRes.sms_provider)   setSmsProv(otpRes.sms_provider);
+      if (otpRes.sms_sent !== undefined) setSmsSent(otpRes.sms_sent);
       startResendCooldown(60);
       setStep(2);
     } catch (err: any) {
@@ -532,18 +562,24 @@ export default function CitizenRegistration() {
                 <div className="space-y-3 mb-5">
                   <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
                     <Mail size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-blue-800">📧 Email</p>
-                      <p className="text-xs text-blue-700 font-semibold">{registeredEmail}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center flex-wrap gap-1">
+                        <p className="text-sm font-bold text-blue-800">📧 Email</p>
+                        <ProviderBadge provider={emailProvider} />
+                      </div>
+                      <p className="text-xs text-blue-700 font-semibold mt-0.5">{registeredEmail}</p>
                       <p className="text-xs text-blue-500 mt-1">Check inbox and spam folder</p>
                     </div>
                   </div>
-                  {registeredPhone && (
+                  {(registeredPhone || smsSent) && (
                     <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-start gap-3">
                       <Phone size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-bold text-green-800">📱 SMS</p>
-                        <p className="text-xs text-green-700 font-semibold">{phoneHint || registeredPhone.slice(0,7)+'****'}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center flex-wrap gap-1">
+                          <p className="text-sm font-bold text-green-800">📱 SMS</p>
+                          <ProviderBadge provider={smsProvider} />
+                        </div>
+                        <p className="text-xs text-green-700 font-semibold mt-0.5">{phoneHint || registeredPhone.slice(0,7)+'****'}</p>
                         <p className="text-xs text-green-600 mt-1">Text message also sent to your phone</p>
                       </div>
                     </div>

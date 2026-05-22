@@ -52,6 +52,18 @@ function runMigrations() {
     success INTEGER DEFAULT 0,
     attempted_at TEXT DEFAULT (datetime('now'))
   )`);
+  /* ── OTP delivery log (SMS + Email provider tracking) ── */
+  add(`CREATE TABLE IF NOT EXISTS otp_delivery_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT,
+    phone TEXT,
+    channel TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    status TEXT DEFAULT 'sent',
+    provider_message_id TEXT,
+    error_message TEXT,
+    sent_at TEXT DEFAULT (datetime('now'))
+  )`);
 
   /* ── Citizen Multi-Channel Reports ── */
   add(`CREATE TABLE IF NOT EXISTS citizen_reports (
