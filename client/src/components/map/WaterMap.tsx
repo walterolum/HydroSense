@@ -31,36 +31,41 @@ function createIcon(status: string) {
   return L.divIcon({ html: svg, className: '', iconSize: [24, 36], iconAnchor: [12, 36], popupAnchor: [0, -36] });
 }
 
-/* ── Tile sources ── */
-// Esri labels overlay — adds streets, place names, boundaries on top of satellite
-const ESRI_LABELS = 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
-const ESRI_LABELS_ATTR = '© <a href="https://www.esri.com/">Esri</a>';
-
 type LayerKey = 'street' | 'satellite' | 'hybrid' | 'terrain' | 'dark' | 'light' | 'humanitarian';
 
-const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: string; maxNativeZoom?: number }> = {
+/* Google Maps tile URLs — reliable, globally available, no API key needed for tile access */
+const GM = (lyrs: string) =>
+  `https://mt{s}.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`;
+
+const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: string; subdomains?: string; maxNativeZoom?: number }> = {
   street: {
     label: 'Street',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   },
+  // Google satellite only (no labels)
   satellite: {
     label: 'Satellite',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© <a href="https://www.esri.com/">Esri</a>, Maxar, GeoEye, Earthstar Geographics',
-    maxNativeZoom: 19,
+    url: GM('s'),
+    attribution: '© Google',
+    subdomains: '0123',
+    maxNativeZoom: 20,
   },
+  // Google hybrid = satellite imagery + road/place name labels
   hybrid: {
     label: 'Hybrid',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: '© <a href="https://www.esri.com/">Esri</a>, Maxar — Labels: Esri',
-    maxNativeZoom: 19,
+    url: GM('y'),
+    attribution: '© Google',
+    subdomains: '0123',
+    maxNativeZoom: 20,
   },
+  // Google terrain + labels
   terrain: {
     label: 'Terrain',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
-    maxNativeZoom: 17,
+    url: GM('p'),
+    attribution: '© Google',
+    subdomains: '0123',
+    maxNativeZoom: 20,
   },
   dark: {
     label: 'Dark',
@@ -118,25 +123,15 @@ export default function WaterMap({
         {/* Zoom control on bottom-right */}
         <ZoomControl position="bottomright" />
 
-        {/* Base tile */}
+        {/* Base tile — subdomains vary by provider */}
         <TileLayer
           key={activeLayer}
           url={base.url}
           attribution={base.attribution}
+          subdomains={base.subdomains ?? 'abc'}
           maxZoom={20}
           maxNativeZoom={base.maxNativeZoom ?? 19}
         />
-
-        {/* Hybrid: labels overlay on top of satellite */}
-        {activeLayer === 'hybrid' && (
-          <TileLayer
-            url={ESRI_LABELS}
-            attribution={ESRI_LABELS_ATTR}
-            maxZoom={20}
-            maxNativeZoom={19}
-            opacity={0.85}
-          />
-        )}
 
         {/* Water point markers */}
         {waterPoints.map(wp => (
