@@ -150,39 +150,35 @@ router.post('/send-otp', async (req, res) => {
     } catch {}
   };
 
-  if (device_type === 'feature') {
-    // Feature phone: SMS primary, email backup
-    const smsResult = phone ? await sendSMS(phone, raw).catch(() => null) : null;
-    logDelivery('sms', smsResult, phone);
-    sendRealEmail(emailKey, raw, purpose).then(r => logDelivery('email', r)).catch(() => {});
-    console.log(`[OTP][FEATURE] ${phone}: ${raw}`);
-    return res.json({
-      success: true,
-      message:         `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`,
-      delivery_method: 'sms',
-      sms_provider:    smsResult?.provider || null,
-      phone_hint:      phone ? phone.slice(0, 7) + '****' : null,
-      expires_in:      300,
-    });
-  }
-
-  // Smartphone: email + SMS simultaneously
+  // Send via all available channels simultaneously
   const [emailResult, smsResult] = await Promise.all([
     sendRealEmail(emailKey, raw, purpose).catch(() => null),
     phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
   ]);
   logDelivery('email', emailResult);
   if (phone) logDelivery('sms', smsResult, phone);
-  console.log(`[OTP][SMART] ${emailKey} (${emailResult?.provider}) / ${phone} (${smsResult?.provider}): ${raw}`);
-  res.json({
+
+  const emailDelivered = emailResult && emailResult.status !== 'mock';
+  const smsDelivered   = smsResult   && smsResult.status   !== 'mock';
+  const noneDelivered  = !emailDelivered && !smsDelivered;
+
+  console.log(`[OTP] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider} code:${raw}`);
+
+  return res.json({
     success:         true,
-    message:         `Verification code sent to your email${phone ? ' and phone' : ''}`,
-    delivery_method: 'email',
+    message:         noneDelivered
+      ? 'No delivery service configured — use the code shown on screen'
+      : device_type === 'feature'
+        ? `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`
+        : `Verification code sent to your email${smsDelivered ? ' and phone' : ''}`,
+    delivery_method: device_type === 'feature' ? 'sms' : 'email',
     email_provider:  emailResult?.provider || null,
-    sms_sent:        !!smsResult && smsResult.status !== 'mock',
     sms_provider:    smsResult?.provider || null,
+    sms_sent:        smsDelivered,
     phone_hint:      phone ? phone.slice(0, 7) + '****' : null,
     expires_in:      300,
+    // Show code on screen when no real provider delivered it
+    otp_display:     noneDelivered ? raw : null,
   });
 });
 
@@ -281,14 +277,17 @@ router.post('/resend-otp', async (req, res) => {
   logDelivery('email', emailResult);
   if (phone) logDelivery('sms', smsResult, phone);
 
-  console.log(`[OTP][RESEND] ${emailKey} (${emailResult?.provider}) / ${phone} (${smsResult?.provider}): ${raw}`);
+  const emailOk = emailResult && emailResult.status !== 'mock';
+  const smsOk   = smsResult   && smsResult.status   !== 'mock';
+  console.log(`[OTP][RESEND] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider}: ${raw}`);
   res.json({
     success:        true,
-    message:        'New verification code sent!',
+    message:        !emailOk && !smsOk ? 'Use the code shown on screen' : 'New verification code sent!',
     email_provider: emailResult?.provider || null,
-    sms_sent:       !!smsResult && smsResult.status !== 'mock',
+    sms_sent:       smsOk,
     sms_provider:   smsResult?.provider || null,
     expires_in:     300,
+    otp_display:    !emailOk && !smsOk ? raw : null,
   });
 });
 

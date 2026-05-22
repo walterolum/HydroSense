@@ -150,6 +150,7 @@ export default function CitizenRegistration() {
   const [emailProvider, setEmailProv]   = useState<string | null>(null);
   const [smsProvider, setSmsProv]       = useState<string | null>(null);
   const [smsSent, setSmsSent]           = useState(false);
+  const [otpDisplay, setOtpDisplay]     = useState<string | null>(null); // shown when no provider configured
   const [otp, setOtp]                 = useState('');
   const [otpError, setOtpError]       = useState(false);
   const [attemptsLeft, setAttempts]   = useState(5);
@@ -214,13 +215,22 @@ export default function CitizenRegistration() {
         if (data.secondsLeft) startResendCooldown(data.secondsLeft);
         return;
       }
-      if (isResend) setSuccess('New code sent!');
       setDelivery(data.delivery_method || (deviceType === 'feature' ? 'sms' : 'email'));
       if (data.phone_hint)     setPhoneHint(data.phone_hint);
       if (data.email_provider) setEmailProv(data.email_provider);
       if (data.sms_provider)   setSmsProv(data.sms_provider);
       if (data.sms_sent !== undefined) setSmsSent(data.sms_sent);
-      setOtp('');
+
+      // If no provider delivered, show the code on screen and auto-fill
+      if (data.otp_display) {
+        setOtpDisplay(data.otp_display);
+        setOtp(data.otp_display);          // auto-fill the boxes
+        setSuccess('No delivery service configured — your code is shown below. Copy it and click Verify.');
+      } else {
+        setOtpDisplay(null);
+        setOtp('');
+        if (isResend) setSuccess('New verification code sent!');
+      }
       setOtpTimerKey(k => k + 1);
       startResendCooldown(60);
     } catch {
@@ -257,6 +267,10 @@ export default function CitizenRegistration() {
       if (otpRes.email_provider) setEmailProv(otpRes.email_provider);
       if (otpRes.sms_provider)   setSmsProv(otpRes.sms_provider);
       if (otpRes.sms_sent !== undefined) setSmsSent(otpRes.sms_sent);
+      if (otpRes.otp_display) {
+        setOtpDisplay(otpRes.otp_display);
+        setOtp(otpRes.otp_display);
+      }
       startResendCooldown(60);
       setStep(2);
     } catch (err: any) {
@@ -584,6 +598,30 @@ export default function CitizenRegistration() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* On-screen OTP code (shown when no delivery provider is configured) */}
+              {otpDisplay && (
+                <div className="mb-5 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-5 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <span className="text-lg">⚠️</span>
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                      No SMS/Email service configured — your code is shown below
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-gray-900 rounded-xl border-2 border-amber-300 py-4 px-6 mb-3">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-1">Your Verification Code</p>
+                    <p className="text-4xl font-extrabold tracking-[0.5em] text-amber-700 dark:text-amber-400 font-mono">
+                      {otpDisplay}
+                    </p>
+                  </div>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                    The boxes below are already filled. Just click <strong>Verify &amp; Activate</strong>.
+                  </p>
+                  <p className="text-xs text-amber-600/70 mt-2">
+                    To receive codes by SMS/Email, add credentials in Render → Environment Variables.
+                  </p>
                 </div>
               )}
 
