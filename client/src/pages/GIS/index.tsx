@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Map, Filter, Layers, Info } from 'lucide-react';
 import { getWaterPoints, getDroughtIndex, getFloodAlerts } from '../../api/client';
 import { WaterPoint } from '../../types';
@@ -9,14 +10,19 @@ const DISTRICTS = ['All', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Kotido', 'Soroti', 
 const STATUSES = ['All', 'functional', 'non_functional', 'needs_repair', 'under_maintenance'];
 
 export default function GISMap() {
+  const [searchParams] = useSearchParams();
   const [wps, setWps] = useState<WaterPoint[]>([]);
   const [drought, setDrought] = useState<any[]>([]);
   const [flood, setFlood] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WaterPoint | null>(null);
-  const [district, setDistrict] = useState('All');
+  const urlDistrict = searchParams.get('district') || 'All';
+  const [district, setDistrict] = useState(urlDistrict);
   const [status, setStatus] = useState('All');
   const [layer, setLayer] = useState<'water_points' | 'drought' | 'flood'>('water_points');
+
+  // Re-apply district if URL param changes (e.g. navigated from alert card)
+  useEffect(() => { setDistrict(urlDistrict); }, [urlDistrict]);
 
   useEffect(() => {
     const params: any = {};
