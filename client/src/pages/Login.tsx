@@ -648,32 +648,10 @@ export default function Login() {
             </Link>
           </div>
 
-          {/* Admin Quick Access */}
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-400 mb-3 text-center">
+            <p className="text-xs text-gray-400 text-center">
               System access is managed by the Administrator.
               Contact your admin for login credentials.
-            </p>
-            <button
-              onClick={() => fillDemo('admin@mwe.go.ug')}
-              className={`w-full text-left px-4 py-3 rounded-2xl text-sm transition-all border ${
-                email === 'admin@mwe.go.ug'
-                  ? 'border-purple-400 bg-purple-50 shadow-sm'
-                  : 'border-gray-200 bg-gray-50 hover:border-purple-200 hover:bg-gray-100'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-gray-800 text-sm">👑 System Administrator</div>
-                  <div className="text-xs text-gray-400 mt-0.5">admin@mwe.go.ug</div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold border bg-purple-100 text-purple-700 border-purple-200 flex-shrink-0">
-                  ADMIN
-                </span>
-              </div>
-            </button>
-            <p className="text-[10px] text-gray-300 text-center mt-2">
-              All other user accounts are created and managed by the Administrator.
             </p>
           </div>
 
