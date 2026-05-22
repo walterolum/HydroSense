@@ -263,6 +263,68 @@ app.get('/api/system/status', (_, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// VOICE TRANSLATE — speech transcript → English explanation via Gemini
+// ═══════════════════════════════════════════════════════════════
+app.post('/api/ai/voice-translate', async (req, res) => {
+  try {
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      try {
+        const envPath = path.join(__dirname, '.env');
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf8');
+          const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
+          if (match) apiKey = match[1].trim();
+        }
+      } catch {}
+    }
+    if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });
+
+    const { text, sourceLang = 'unknown', languageName = 'local language' } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'No text provided' });
+
+    const prompt = `You are a water management assistant for Uganda's HydroSense platform.
+
+A citizen reported an issue by speaking in ${languageName} (language code: ${sourceLang}).
+Their speech was transcribed as: "${text}"
+
+Please respond with a JSON object (no markdown, raw JSON only) in this exact format:
+{
+  "detectedLanguage": "the language the user spoke in",
+  "english": "accurate English translation of the original message",
+  "explanation": "clear 2-3 sentence explanation of the water/environmental issue described, what it means, and suggested urgency for the water management team",
+  "incidentType": "best matching type from: water_contamination, broken_water_point, flooding, sewage_leak, illegal_dumping, pollution, environmental_hazard, infrastructure_damage, or 'other'",
+  "severity": "low, medium, high, or critical based on the description"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 600 }
+        })
+      }
+    );
+
+    if (!response.ok) return res.status(502).json({ error: 'AI translation failed. Please type your report manually.' });
+
+    const data = await response.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: 'Could not parse AI response' });
+
+    const result = JSON.parse(jsonMatch[0]);
+    res.json({ success: true, original: text, ...result });
+  } catch (err) {
+    console.error('voice-translate error:', err);
+    res.status(500).json({ error: 'Translation failed. Please type your report manually.' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // NATIVE NODE.JS GEMINI CHAT FALLBACK
 // ═══════════════════════════════════════════════════════════════
 

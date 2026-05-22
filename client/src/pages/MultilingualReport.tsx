@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LanguageCode } from '../types/language';
-import VoiceRecorder from '../components/reporting/VoiceRecorder';
+import VoiceRecorder, { VoiceResult } from '../components/reporting/VoiceRecorder';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport } from '../api/client';
 import {
@@ -48,28 +48,16 @@ export default function MultilingualReport() {
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const handleVoiceResult = async (blob: Blob, durationMs: number) => {
-    setAudioBlob(blob);
-    setAudioDuration(durationMs);
-    // Send to AI for speech-to-text + translation
-    const formData = new FormData();
-    formData.append('audio', blob, 'recording.webm');
-    formData.append('language', sourceLang);
-    formData.append('detect_language', 'true');
-
-    try {
-      const res = await fetch('/api/ai/transcribe', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.text) {
-        setForm(prev => ({ ...prev, description: data.text }));
-      }
-    } catch {
-      // Audio saved even if transcription fails
-    }
+  const handleVoiceResult = (result: VoiceResult) => {
+    if (result.blob) { setAudioBlob(result.blob); setAudioDuration(result.durationMs); }
+    // Populate description with English translation for AI analysis
+    setForm(prev => ({
+      ...prev,
+      description: result.english || result.original || prev.description,
+      // Auto-fill incident type if AI detected one
+      ...(result.incidentType && !prev.incident_type ? { incident_type: result.incidentType } : {}),
+      ...(result.severity ? { severity: result.severity } : {}),
+    }));
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +204,7 @@ export default function MultilingualReport() {
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Describe the issue in your language..." />
               <div className="mt-2">
-                <VoiceRecorder onRecordingComplete={handleVoiceResult} />
+                <VoiceRecorder onRecordingComplete={handleVoiceResult} language={sourceLang} />
               </div>
             </div>
 
