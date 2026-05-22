@@ -240,39 +240,26 @@ export default function CitizenRegistration() {
     }
   }, [registeredEmail, registeredPhone, deviceType, resendCooldown, startResendCooldown]);
 
-  /* ── Register ── */
+  /* ── Register (no OTP — direct activation) ── */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
-    if (deviceType === 'feature' && !form.phone) { setError('Phone number is required for feature phone registration'); return; }
     setLoading(true);
     try {
-      await registerCitizen({
+      const res = await registerCitizen({
         name: form.name, email: form.email, password: form.password,
         phone: form.phone, national_id: form.national_id, community_id: form.community_id,
         district: form.district, sub_county: form.sub_county, location: form.location,
-        language: form.language, device_type: deviceType,
+        language: form.language,
       });
-      setRegisteredEmail(form.email);
-      setRegisteredPhone(form.phone);
-      // Send OTP after registration
-      const otpRes = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, device_type: deviceType, phone: form.phone, purpose: 'registration' }),
-      }).then(r => r.json());
-      setDelivery(otpRes.delivery_method || (deviceType === 'feature' ? 'sms' : 'email'));
-      if (otpRes.phone_hint)     setPhoneHint(otpRes.phone_hint);
-      if (otpRes.email_provider) setEmailProv(otpRes.email_provider);
-      if (otpRes.sms_provider)   setSmsProv(otpRes.sms_provider);
-      if (otpRes.sms_sent !== undefined) setSmsSent(otpRes.sms_sent);
-      if (otpRes.otp_display) {
-        setOtpDisplay(otpRes.otp_display);
-        setOtp(otpRes.otp_display);
+      // Auto-login — store token and go directly to dashboard
+      if (res.data.token && res.data.user) {
+        sessionStorage.setItem('hs_token', res.data.token);
+        sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
       }
-      startResendCooldown(60);
-      setStep(2);
+      setSuccess('Account created! Taking you to your dashboard…');
+      setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -383,54 +370,11 @@ export default function CitizenRegistration() {
             </div>
           )}
 
-          {/* Step indicator */}
-          <div className="flex items-center gap-2 mb-6">
-            {['Register', 'Verify'].map((label, idx) => {
-              const s = idx + 1;
-              return (
-                <div key={s} className={`flex items-center gap-2 ${s < step ? 'text-green-600' : s === step ? 'text-blue-600' : 'text-gray-300'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${s < step ? 'bg-green-100 border-green-400' : s === step ? 'bg-blue-100 border-blue-400' : 'bg-gray-100 border-gray-300'}`}>
-                    {s < step ? '✓' : s}
-                  </div>
-                  <span className="text-sm font-medium hidden sm:inline">{label}</span>
-                  {idx < 1 && <div className="w-12 h-0.5 bg-gray-200 ml-2" />}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ══════════════ STEP 1: REGISTER ══════════════ */}
+          {/* ══════════════ REGISTER ══════════════ */}
           {step === 1 && (
             <>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Create Your Account</h2>
               <p className="text-gray-500 text-sm mb-5">Fill in your details to join the HydroSense community</p>
-
-              {/* Device type selector */}
-              <div className="mb-5">
-                <label className="block text-sm font-bold text-gray-700 mb-2">What type of phone do you use?</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {([
-                    { key: 'smart',   icon: Smartphone, label: 'Smartphone',   sub: 'OTP via email + SMS',    color: 'blue' },
-                    { key: 'feature', icon: PhoneCall,  label: 'Button Phone',  sub: 'OTP via SMS / USSD',    color: 'green' },
-                  ] as const).map(({ key, icon: Icon, label, sub, color }) => (
-                    <button key={key} type="button" onClick={() => setDeviceType(key)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 ${
-                        deviceType === key
-                          ? color === 'blue' ? 'border-blue-500 bg-blue-50' : 'border-green-500 bg-green-50'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}>
-                      <Icon size={26} className={deviceType === key ? (color === 'blue' ? 'text-blue-600' : 'text-green-600') : 'text-gray-400'} />
-                      <div className="text-center">
-                        <div className={`font-bold text-sm ${deviceType === key ? (color === 'blue' ? 'text-blue-800' : 'text-green-800') : 'text-gray-600'}`}>{label}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{sub}</div>
-                      </div>
-                      {deviceType === key && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${color === 'blue' ? 'bg-blue-600' : 'bg-green-600'}`}>Selected</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -444,21 +388,18 @@ export default function CitizenRegistration() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Email {deviceType === 'feature' ? <span className="text-gray-400 font-normal text-xs">(optional)</span> : '*'}
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
                     <div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input type="email" value={form.email} onChange={update('email')} required={deviceType === 'smart'} placeholder="you@example.com"
+                      <input type="email" value={form.email} onChange={update('email')} required placeholder="you@example.com"
                         className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
-                    {deviceType === 'feature' && <p className="text-xs text-green-600 font-medium mt-1">✓ OTP sent via SMS to your phone</p>}
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number *</label>
                     <div className="relative"><Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="tel" value={form.phone} onChange={update('phone')} required placeholder="+256 700 000 000"
-                        className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 ${deviceType === 'feature' ? 'border-green-300 focus:ring-green-500' : 'border-gray-200 focus:ring-blue-500'}`} />
+                        className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
                   </div>
 
@@ -543,153 +484,6 @@ export default function CitizenRegistration() {
             </>
           )}
 
-          {/* ══════════════ STEP 2: VERIFY OTP ══════════════ */}
-          {step === 2 && (
-            <>
-              {/* Header */}
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-3">
-                  <ShieldCheck size={30} className="text-blue-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900">{lang.title}</h2>
-                <p className="text-gray-500 text-sm mt-1">{lang.sub}</p>
-              </div>
-
-              {/* Delivery info cards */}
-              {deliveryMethod === 'sms' ? (
-                <div className="rounded-2xl overflow-hidden mb-5 shadow-lg border-4 border-gray-700">
-                  <div className="bg-gray-800 px-4 py-2 flex items-center justify-between">
-                    <span className="text-green-400 font-mono text-xs font-bold">HYDROSENSE USSD</span>
-                    <span className="text-gray-400 font-mono text-xs">*185#</span>
-                  </div>
-                  <div className="bg-black px-5 py-4 font-mono space-y-2">
-                    <p className="text-green-400 text-sm font-bold">Welcome to HydroSense</p>
-                    <p className="text-green-300 text-xs">CON Registration Verification</p>
-                    <div className="border-t border-green-900 my-2" />
-                    <p className="text-green-400 text-xs">SMS code sent to:</p>
-                    <p className="text-white text-sm font-bold">{phoneHint || registeredPhone.slice(0,7)+'****'}</p>
-                    <p className="text-green-300 text-xs mt-2">Enter the 6-digit code below</p>
-                    <p className="text-gray-500 text-xs mt-1">Or dial <span className="text-green-400">*185#</span> from your phone</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3 mb-5">
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
-                    <Mail size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <div className="flex items-center flex-wrap gap-1">
-                        <p className="text-sm font-bold text-blue-800">📧 Email</p>
-                        <ProviderBadge provider={emailProvider} />
-                      </div>
-                      <p className="text-xs text-blue-700 font-semibold mt-0.5">{registeredEmail}</p>
-                      <p className="text-xs text-blue-500 mt-1">Check inbox and spam folder</p>
-                    </div>
-                  </div>
-                  {(registeredPhone || smsSent) && (
-                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-start gap-3">
-                      <Phone size={18} className="text-green-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center flex-wrap gap-1">
-                          <p className="text-sm font-bold text-green-800">📱 SMS</p>
-                          <ProviderBadge provider={smsProvider} />
-                        </div>
-                        <p className="text-xs text-green-700 font-semibold mt-0.5">{phoneHint || registeredPhone.slice(0,7)+'****'}</p>
-                        <p className="text-xs text-green-600 mt-1">Text message also sent to your phone</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* On-screen OTP code (shown when no delivery provider is configured) */}
-              {otpDisplay && (
-                <div className="mb-5 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-5 text-center">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <span className="text-lg">⚠️</span>
-                    <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                      No SMS/Email service configured — your code is shown below
-                    </p>
-                  </div>
-                  <div className="bg-white dark:bg-gray-900 rounded-xl border-2 border-amber-300 py-4 px-6 mb-3">
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-1">Your Verification Code</p>
-                    <p className="text-4xl font-extrabold tracking-[0.5em] text-amber-700 dark:text-amber-400 font-mono">
-                      {otpDisplay}
-                    </p>
-                  </div>
-                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
-                    The boxes below are already filled. Just click <strong>Verify &amp; Activate</strong>.
-                  </p>
-                  <p className="text-xs text-amber-600/70 mt-2">
-                    To receive codes by SMS/Email, add credentials in Render → Environment Variables.
-                  </p>
-                </div>
-              )}
-
-              {/* Countdown timer */}
-              <div className="flex justify-center mb-5">
-                <CountdownTimer key={otpTimerKey} seconds={300} onExpire={() => setOtpExpired(true)} />
-              </div>
-
-              {otpExpired && (
-                <div className="mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 text-center font-medium">
-                  Your code has expired. Please request a new one.
-                </div>
-              )}
-
-              {/* Blocked state */}
-              {blockedFor > 0 && (
-                <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 text-center">
-                  Account temporarily locked. Try again in {Math.ceil(blockedFor / 60)} minute(s).
-                </div>
-              )}
-
-              {/* Attempts remaining warning */}
-              {attemptsLeft < 5 && attemptsLeft > 0 && !blockedFor && (
-                <div className="mb-4 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-700 text-center font-semibold">
-                  ⚠️ {attemptsLeft} attempt{attemptsLeft !== 1 ? 's' : ''} remaining before temporary lockout
-                </div>
-              )}
-
-              {/* OTP form */}
-              <form onSubmit={handleVerifyOTP} className="space-y-5">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-3 text-center">{lang.enter}</label>
-                  <OtpBoxes
-                    value={otp}
-                    onChange={v => { setOtp(v); setOtpError(false); setError(''); }}
-                    disabled={loading || (blockedFor > 0) || otpExpired}
-                    error={otpError}
-                  />
-                </div>
-
-                <button type="submit" disabled={loading || otp.length < 6 || (blockedFor > 0) || otpExpired}
-                  className={`w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 transition-all ${
-                    deliveryMethod === 'sms'
-                      ? 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-green-200'
-                      : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-blue-200'
-                  }`}>
-                  {loading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : (
-                    <><ShieldCheck size={16} /> Verify &amp; Activate Account</>
-                  )}
-                </button>
-
-                {/* Resend button with cooldown */}
-                <div className="text-center">
-                  {resendCooldown > 0 ? (
-                    <p className="text-sm text-gray-400 flex items-center justify-center gap-1.5">
-                      <RefreshCw size={13} className="animate-spin" />
-                      {lang.wait} {resendCooldown}s
-                    </p>
-                  ) : (
-                    <button type="button" onClick={() => sendOtp(true)} disabled={loading}
-                      className="text-sm text-blue-600 hover:underline font-semibold flex items-center gap-1.5 mx-auto disabled:opacity-50">
-                      <RefreshCw size={13} /> {lang.resend}
-                    </button>
-                  )}
-                </div>
-              </form>
-            </>
-          )}
 
           <div className="flex items-center justify-center gap-4 mt-6 text-xs text-gray-400">
             <div className="flex items-center gap-1"><Shield size={11} /> JWT Secured</div>
