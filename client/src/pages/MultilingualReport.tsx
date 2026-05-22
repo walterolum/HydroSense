@@ -47,6 +47,7 @@ export default function MultilingualReport() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioDuration, setAudioDuration] = useState(0);
   const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceRecording, setVoiceRecording] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState<LanguageCode>(language);
@@ -58,6 +59,7 @@ export default function MultilingualReport() {
   const handleVoiceResult = (result: VoiceResult) => {
     if (result.blob) { setAudioBlob(result.blob); setAudioDuration(result.durationMs); }
     setVoiceActive(false);
+    setVoiceRecording(false);
     setForm(prev => ({
       ...prev,
       description: result.english || result.original || prev.description,
@@ -68,7 +70,13 @@ export default function MultilingualReport() {
 
   const handleVoiceLiveUpdate = (text: string) => {
     setVoiceActive(true);
+    setVoiceRecording(true);
     setForm(prev => ({ ...prev, description: text }));
+  };
+
+  const handleVoicePhaseChange = (recording: boolean) => {
+    setVoiceRecording(recording);
+    if (!recording) setVoiceActive(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,26 +220,53 @@ export default function MultilingualReport() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-semibold text-gray-700">{t('report.description')}</label>
-                {voiceActive && (
-                  <span className="flex items-center gap-1 text-xs font-bold text-red-600 animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-red-500" /> Live voice input
+                {voiceRecording && (
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-red-600 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                    {sourceLang !== 'en'
+                      ? `Translating ${LANG_NAMES[sourceLang] || sourceLang} → English…`
+                      : 'Recording…'}
                   </span>
                 )}
               </div>
-              <textarea
-                value={form.description}
-                onChange={e => { setVoiceActive(false); update('description')(e); }}
-                rows={5}
-                required
-                className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white focus:outline-none transition-all duration-200 ${
-                  voiceActive
-                    ? 'border-red-400 ring-2 ring-red-200 focus:ring-red-300'
-                    : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                }`}
-                placeholder={sourceLang !== 'en'
-                  ? `Speak in ${LANG_NAMES[sourceLang] || sourceLang} — text will appear here in English…`
-                  : 'Describe the issue or use the microphone below…'}
-              />
+
+              {/* Textarea wrapper — shows a recording overlay when no English text yet */}
+              <div className="relative">
+                <textarea
+                  value={form.description}
+                  onChange={e => { setVoiceActive(false); setVoiceRecording(false); update('description')(e); }}
+                  rows={5}
+                  required
+                  readOnly={voiceRecording}
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white focus:outline-none transition-all duration-300 ${
+                    voiceRecording && !form.description
+                      ? 'border-red-400 ring-2 ring-red-100'
+                      : voiceActive
+                      ? 'border-green-400 ring-2 ring-green-100'
+                      : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
+                  placeholder={
+                    sourceLang !== 'en'
+                      ? `Speak in ${LANG_NAMES[sourceLang] || sourceLang} — English translation will appear here automatically…`
+                      : 'Describe the issue or use the microphone below…'
+                  }
+                />
+                {/* Overlay when recording non-English and no translation arrived yet */}
+                {voiceRecording && sourceLang !== 'en' && !form.description && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-red-50/80 border-2 border-red-300 gap-2 pointer-events-none">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-bold text-red-700">
+                        Listening in {LANG_NAMES[sourceLang] || sourceLang}…
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-500 text-center px-4">
+                      Speak now — your words will be translated to English automatically
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-2">
                 <VoiceRecorder
                   onRecordingComplete={handleVoiceResult}

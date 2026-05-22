@@ -99,16 +99,15 @@ export default function VoiceRecorder({
   }, [isEn, language, langName]);
 
   /* ── drain the pending queue one item at a time ── */
-  const drainQueue = useCallback(async (interimText = '') => {
+  const drainQueue = useCallback(async () => {
     if (translatingRef.current) return;
     while (pendingRef.current.length > 0) {
       translatingRef.current = true;
       const seg = pendingRef.current.shift()!;
       await translateSegment(seg);
       translatingRef.current = false;
-      // Push update to parent after each segment
-      const display = englishAccRef.current + (interimText ? ` ${interimText}` : '');
-      onLiveUpdate?.(display);
+      // After each segment translates, push English text to textarea
+      if (englishAccRef.current) onLiveUpdate?.(englishAccRef.current);
     }
     translatingRef.current = false;
   }, [translateSegment, onLiveUpdate]);
@@ -204,19 +203,26 @@ export default function VoiceRecorder({
           originalAccRef.current += (originalAccRef.current ? ' ' : '') + t;
           if (isEn) {
             englishAccRef.current += (englishAccRef.current ? ' ' : '') + t;
+            // English: update textarea immediately
+            onLiveUpdate?.(englishAccRef.current);
           } else {
+            // Non-English: queue for translation, update textarea only after English arrives
             pendingRef.current.push(t);
             setStatusMsg('Translating…');
-            drainQueue().then(() => setStatusMsg(''));
+            drainQueue().then(() => {
+              setStatusMsg('');
+              if (englishAccRef.current) onLiveUpdate?.(englishAccRef.current);
+            });
           }
         } else {
           interim = t;
+          if (isEn) {
+            // English interim: show immediately
+            onLiveUpdate?.((englishAccRef.current + ' ' + interim).trim());
+          }
+          // Non-English interim: do NOT push to textarea (would show foreign text)
         }
       }
-      /* Push live update: English accumulated + current interim (in original lang) */
-      const display = (englishAccRef.current || originalAccRef.current) +
-        (interim ? ` ${interim}` : '');
-      if (display.trim()) onLiveUpdate?.(display.trim());
     };
 
     recog.onerror = (e: any) => {
