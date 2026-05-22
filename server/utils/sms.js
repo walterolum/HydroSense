@@ -19,9 +19,16 @@ async function sendSMS(to, otp) {
   try {
     const client = twilio(accountSid, authToken);
     const message = await client.messages.create({
-      body: `Your Hydrosense OTP code is: ${otp}. Do not share this with anyone.`,
+      body: [
+        `HydroSense Verification Code`,
+        ``,
+        `Your one-time code is: ${otp}`,
+        ``,
+        `Valid for 10 minutes. Do NOT share this code with anyone.`,
+        `If you did not register on HydroSense, ignore this message.`,
+      ].join('\n'),
       from: fromNumber,
-      to: to
+      to: to,
     });
     console.log(`[SMS] OTP sent to ${to} (SID: ${message.sid})`);
     return true;

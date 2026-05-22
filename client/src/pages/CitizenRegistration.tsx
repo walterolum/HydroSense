@@ -455,24 +455,40 @@ export default function CitizenRegistration() {
                   </div>
                 </>
               ) : (
-                /* ── Smartphone / Email OTP UI ── */
+                /* ── Smartphone OTP UI ── */
                 <>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Check Your Email</h2>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-1">Verify Your Account</h2>
                   <p className="text-gray-500 text-sm mb-5">
-                    We sent a 6-digit code to{' '}
-                    <strong className="text-gray-700">{registeredEmail}</strong>
+                    We sent your 6-digit verification code to:
                   </p>
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
+                  {/* Email delivery */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-3 flex items-start gap-3">
                     <Mail size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-sm font-bold text-blue-800">Email sent</p>
-                      <p className="text-xs text-blue-600 mt-0.5">
-                        Open your email app and look for a message from HydroSense.
-                        Check your spam folder if you don't see it.
+                      <p className="text-sm font-bold text-blue-800">📧 Email</p>
+                      <p className="text-xs text-blue-700 font-semibold mt-0.5">{registeredEmail}</p>
+                      <p className="text-xs text-blue-500 mt-1">
+                        Open your inbox — check spam if not visible within 1 minute.
                       </p>
                     </div>
                   </div>
+
+                  {/* SMS delivery — shown when phone was provided */}
+                  {registeredPhone && (
+                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
+                      <Phone size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-green-800">📱 SMS Message</p>
+                        <p className="text-xs text-green-700 font-semibold mt-0.5">
+                          {registeredPhone.slice(0, 7)}****
+                        </p>
+                        <p className="text-xs text-green-600 mt-1">
+                          A text message with the code was also sent to your phone number.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

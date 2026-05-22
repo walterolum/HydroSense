@@ -87,29 +87,32 @@ router.post('/send-otp', async (req, res) => {
   const phone = bodyPhone || (userRecord && userRecord.phone) || null;
 
   if (device_type === 'feature') {
-    // Button/feature phone: deliver via SMS primarily
+    // Button/feature phone: SMS is primary channel
     if (phone) {
       sendSMS(phone, otp).catch(console.error);
     }
-    // Also send email as backup if available
     sendRealEmail(emailKey, otp, purpose).catch(() => {});
-    console.log(`[OTP][FEATURE-PHONE] SMS OTP for ${phone}: ${otp}`);
+    console.log(`[OTP][FEATURE] SMS OTP for ${phone}: ${otp}`);
     res.json({
       success: true,
-      message: `OTP sent via SMS to ${phone ? phone.slice(0, 6) + '****' : 'your phone'}`,
+      message: `Verification code sent via SMS to ${phone ? phone.slice(0, 7) + '****' : 'your phone'}`,
       delivery_method: 'sms',
+      phone_hint: phone ? phone.slice(0, 7) + '****' : null,
       otp_debug: otp,
     });
   } else {
-    // Smartphone: deliver via email primarily
+    // Smartphone: send to BOTH email AND SMS so the user gets it whichever they check first
     sendRealEmail(emailKey, otp, purpose).catch(console.error);
-    // Also send SMS as backup
-    if (phone) sendSMS(phone, otp).catch(() => {});
-    console.log(`[OTP][SMARTPHONE] Email OTP for ${emailKey}: ${otp}`);
+    if (phone) {
+      sendSMS(phone, otp).catch(console.error);
+    }
+    console.log(`[OTP][SMART] Email+SMS OTP for ${emailKey} / ${phone}: ${otp}`);
     res.json({
       success: true,
-      message: `OTP sent to ${emailKey}`,
+      message: `Verification code sent to your email${phone ? ' and phone' : ''}`,
       delivery_method: 'email',
+      sms_sent: !!phone,
+      phone_hint: phone ? phone.slice(0, 7) + '****' : null,
       otp_debug: otp,
     });
   }
