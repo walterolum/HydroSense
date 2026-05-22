@@ -11,6 +11,16 @@ const router = express.Router();
 /* ── OTP Store (in-memory fallback) ── */
 const otpStore = new Map();
 
+/* ── Public user profile (for QR code scanning, no auth required) ── */
+router.get('/users/:id/public', (req, res) => {
+  const db = getDb();
+  const user = db.prepare(
+    'SELECT id, name, email, role, district, organization, avatar FROM users WHERE id=? AND active=1'
+  ).get(parseInt(req.params.id));
+  if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+  res.json({ success: true, user });
+});
+
 /* ── Citizen Registration ── */
 router.post('/register', async (req, res) => {
   const db = await getDb();

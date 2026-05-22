@@ -33,6 +33,7 @@ import MultilingualReport from './pages/MultilingualReport';
 import CitizenTracking from './pages/CitizenTracking';
 import IncidentAnalysis from './pages/IncidentAnalysis';
 import TaskAssignment from './pages/TaskAssignment';
+import VerifyProfile from './pages/VerifyProfile';
 
 /* ─────────────────────────────────────────────────────────────
    RBAC — Advanced Role-Based Access Control
@@ -193,6 +194,9 @@ export default function App() {
     <LanguageProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public — QR credential verification (no auth needed) */}
+          <Route path="/verify/:id" element={<VerifyProfile />} />
+
           {/* Public — Authentication Gateway */}
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><CitizenRegistration /></PublicRoute>} />

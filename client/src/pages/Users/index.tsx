@@ -79,22 +79,9 @@ const generatePassword = () => {
     Array.from({ length: 6 }, () => rand(all)).join('');
 };
 
-/* Build QR text content */
-const qrText = (u: any, pwd?: string) => {
-  const lines = [
-    'HYDROSENSE SYSTEM',
-    '=================',
-    `Name:     ${u.name}`,
-    `Email:    ${u.email}`,
-    `Role:     ${ROLE_LABELS[u.role] || u.role}`,
-    u.district   ? `District: ${u.district}` : '',
-    u.organization ? `Org:      ${u.organization}` : '',
-    pwd ? `Password: ${pwd}` : 'Password: (ask your system admin)',
-    '=================',
-    'Portal: http://localhost:3000',
-  ].filter(Boolean).join('\n');
-  return lines;
-};
+/* Build QR URL — scans open the public profile verification page */
+const qrText = (u: any, _pwd?: string) =>
+  `${window.location.origin}/verify/${u.id}`;
 
 /* Free QR image URL (no package needed) */
 const qrUrl = (text: string, size = 200) =>
@@ -863,7 +850,7 @@ export default function UserManagement() {
                 </div>
 
                 <div className="text-[10px] text-gray-300 dark:text-gray-600 mt-3">
-                  Portal: http://localhost:3000
+                  {window.location.origin}/verify/{qrUser?.id}
                 </div>
               </div>
             </div>
@@ -903,7 +890,7 @@ export default function UserManagement() {
     ? `<div class="pwd-box"><div class="pwd-label">Password (shown once)</div><div class="pwd-val">${qrPassword}</div><div class="pwd-note">Save securely — not shown again</div></div>`
     : `<div style="font-size:10px;color:#94a3b8;margin-top:10px">Contact admin to get/reset password</div>`
   }
-  <div class="footer">Portal: http://localhost:3000</div>
+  <div class="footer">${window.location.origin}/verify/${qrUser?.id}</div>
 </div>
 </body>`;
                   win.document.close();
