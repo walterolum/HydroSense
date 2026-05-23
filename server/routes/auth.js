@@ -216,7 +216,7 @@ router.post('/verify-otp', async (req, res) => {
   /* Find the most recent unused, unexpired record */
   const record = db.prepare(`
     SELECT * FROM otp_codes
-    WHERE email = ? AND used = 0 AND expires_at > datetime('now')
+    WHERE email = ? AND used = 0 AND datetime(expires_at) > datetime('now')
     ORDER BY created_at DESC LIMIT 1
   `).get(emailKey);
 
@@ -564,7 +564,7 @@ router.post('/reset-password', async (req, res) => {
   const emailKey = email.toLowerCase().trim();
   const record = db.prepare(`
     SELECT * FROM otp_codes
-    WHERE email = ? AND purpose = 'password_reset' AND used = 0 AND expires_at > datetime('now')
+    WHERE email = ? AND purpose = 'password_reset' AND used = 0 AND datetime(expires_at) > datetime('now')
     ORDER BY created_at DESC LIMIT 1
   `).get(emailKey);
 

@@ -49,7 +49,7 @@ export default function OTPVerification() {
           sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
         }
         setSuccess('Verification successful!');
-        setTimeout(() => navigate('/dashboard'), 1500);
+        setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
       } else {
         setError('Verification failed. Please try again.');
       }
