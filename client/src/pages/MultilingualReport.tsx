@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LanguageCode } from '../types/language';
 import VoiceRecorder, { VoiceResult } from '../components/reporting/VoiceRecorder';
+import CameraCapture from '../components/common/CameraCapture';
 
 const LANG_NAMES: Record<string, string> = {
   en: 'English', lug: 'Luganda', swa: 'Swahili', luo: 'Luo',
@@ -51,8 +52,8 @@ export default function MultilingualReport() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [sourceLang, setSourceLang] = useState<LanguageCode>(language);
-  const fileRef    = useRef<HTMLInputElement>(null); // camera
-  const galleryRef = useRef<HTMLInputElement>(null); // gallery
+  const [showCamera, setShowCamera] = useState(false);
+  const galleryRef = useRef<HTMLInputElement>(null); // gallery / file picker
 
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -281,15 +282,13 @@ export default function MultilingualReport() {
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.photo')}</label>
 
-              {/* camera input — opens device camera directly */}
-              <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="hidden" />
-              {/* gallery input — opens file picker / photo library */}
+              {/* Gallery-only file input (no capture attr) */}
               <input ref={galleryRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
 
               {imagePreview ? (
                 /* already has a photo — show two replace options */
                 <div className="flex rounded-xl border-2 border-dashed border-blue-300 overflow-hidden bg-blue-50 w-full">
-                  <button type="button" onClick={() => fileRef.current?.click()}
+                  <button type="button" onClick={() => setShowCamera(true)}
                     title="Retake with camera"
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-colors border-r border-dashed border-blue-300">
                     <Camera size={16} /> Retake
@@ -301,9 +300,9 @@ export default function MultilingualReport() {
                   </button>
                 </div>
               ) : (
-                /* no photo yet — show camera + gallery side by side */
+                /* no photo yet — camera + gallery side by side */
                 <div className="flex rounded-xl border-2 border-dashed border-gray-300 overflow-hidden bg-gray-50 w-full">
-                  <button type="button" onClick={() => fileRef.current?.click()}
+                  <button type="button" onClick={() => setShowCamera(true)}
                     title="Open device camera"
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors border-r border-dashed border-gray-300">
                     <Camera size={16} /> Take Photo
@@ -420,5 +419,16 @@ export default function MultilingualReport() {
         )}
       </div>
     </div>
+
+    {showCamera && (
+      <CameraCapture
+        onCapture={(dataUrl, file) => {
+          setImagePreview(dataUrl);
+          setImageFile(file);
+          setShowCamera(false);
+        }}
+        onClose={() => setShowCamera(false)}
+      />
+    )}
   );
 }

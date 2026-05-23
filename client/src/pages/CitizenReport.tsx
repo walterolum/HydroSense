@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { submitCitizenReport } from '../api/client';
 import { AlertCircle, CheckCircle, Loader2, Upload, Camera, Mic, MessageSquare, Mail as MailIcon, Phone, Send, Image as ImageIcon } from 'lucide-react';
+import CameraCapture from '../components/common/CameraCapture';
 
 const incidentTypes = [
   { value: 'water_pollution', label: 'Water Pollution', icon: '💧', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -20,7 +21,8 @@ export default function CitizenReport() {
   const [success, setSuccess] = useState('');
   const [channel, setChannel] = useState('app');
   const [anonymous, setAnonymous] = useState(false);
-  const [mediaFiles, setMediaFiles] = useState<{ type: string; data: string; mime: string }[]>([]);
+  const [mediaFiles, setMediaFiles]   = useState<{ type: string; data: string; mime: string }[]>([]);
+  const [showCamera, setShowCamera]   = useState(false);
 
   const [form, setForm] = useState({
     incident_type: '', description: '', district: '', sub_county: '', village: '',
@@ -31,11 +33,10 @@ export default function CitizenReport() {
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const handleMediaCapture = (type: string, useCamera = false) => {
+  const handleMediaCapture = (type: string) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'audio' ? 'audio/*' : type === 'video' ? 'video/*' : 'image/*';
-    if (useCamera) input.capture = 'environment';
     input.onchange = (e: any) => {
       const file = e.target.files?.[0];
       if (file) {
@@ -224,11 +225,11 @@ export default function CitizenReport() {
             <label className="block text-sm font-semibold text-gray-700 mb-2">Attach Media Evidence</label>
             <div className="flex flex-wrap gap-3 mb-3">
 
-              {/* Photo: two options side-by-side */}
+              {/* Photo: camera modal OR gallery file picker */}
               <div className="flex rounded-xl border-2 border-dashed border-gray-300 overflow-hidden bg-gray-50">
                 <button
                   type="button"
-                  onClick={() => handleMediaCapture('image', true)}
+                  onClick={() => setShowCamera(true)}
                   title="Open device camera"
                   className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all border-r border-dashed border-gray-300"
                 >
@@ -236,7 +237,7 @@ export default function CitizenReport() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleMediaCapture('image', false)}
+                  onClick={() => handleMediaCapture('image')}
                   title="Choose from gallery"
                   className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all"
                 >
@@ -298,6 +299,20 @@ export default function CitizenReport() {
           {loading ? <><Loader2 size={16} className="animate-spin" /> Submitting Report...</> : <><Send size={16} /> Submit Report</>}
         </button>
       </form>
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={(dataUrl, file) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              setMediaFiles(prev => [...prev, { type: 'image', data: reader.result as string, mime: file.type }]);
+            };
+            reader.readAsDataURL(file);
+            setShowCamera(false);
+          }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
     </div>
   );
 }
