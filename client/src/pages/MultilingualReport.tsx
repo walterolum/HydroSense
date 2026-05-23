@@ -56,7 +56,7 @@ export default function MultilingualReport() {
   const [sourceLang, setSourceLang] = useState<LanguageCode>(language);
   const [showCamera, setShowCamera] = useState(false);
   const galleryRef = useRef<HTMLInputElement>(null); // gallery / file picker
-  const [disease, setDisease] = useState({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
+  const [disease, setDisease] = useState({ disease_type: 'cholera', other_name: '', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
 
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -130,7 +130,7 @@ export default function MultilingualReport() {
           district: form.district,
           sub_county: form.sub_county || undefined,
           village: form.village || undefined,
-          disease_type: disease.disease_type,
+          disease_type: disease.disease_type === 'other' && disease.other_name.trim() ? disease.other_name.trim().toLowerCase() : disease.disease_type,
           cases: parseInt(disease.cases) || 1,
           deaths: parseInt(disease.deaths) || 0,
           hospitalizations: parseInt(disease.hospitalizations) || 0,
@@ -312,12 +312,21 @@ export default function MultilingualReport() {
                 {/* Body */}
                 <div className="bg-rose-50 dark:bg-rose-950 p-4 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
+                    <div className={disease.disease_type === 'other' ? 'sm:col-span-2' : ''}>
                       <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Disease Type *</label>
-                      <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
+                      <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value, other_name: '' }))}
                         className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
                         {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
                       </select>
+                      {disease.disease_type === 'other' && (
+                        <input
+                          type="text"
+                          value={disease.other_name}
+                          onChange={e => setDisease(p => ({ ...p, other_name: e.target.value }))}
+                          placeholder="Type the disease name…"
+                          className="mt-2 w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Cases *</label>

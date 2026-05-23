@@ -26,7 +26,7 @@ export default function CitizenReport() {
   const [anonymous, setAnonymous] = useState(false);
   const [mediaFiles, setMediaFiles]   = useState<{ type: string; data: string; mime: string }[]>([]);
   const [showCamera, setShowCamera]   = useState(false);
-  const [disease, setDisease] = useState({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
+  const [disease, setDisease] = useState({ disease_type: 'cholera', other_name: '', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
 
   const [form, setForm] = useState({
     incident_type: '', description: '', district: '', sub_county: '', village: '',
@@ -97,7 +97,7 @@ export default function CitizenReport() {
           district: form.district,
           sub_county: form.sub_county || undefined,
           village: form.village || undefined,
-          disease_type: disease.disease_type,
+          disease_type: disease.disease_type === 'other' && disease.other_name.trim() ? disease.other_name.trim().toLowerCase() : disease.disease_type,
           cases: parseInt(disease.cases) || 1,
           deaths: parseInt(disease.deaths) || 0,
           hospitalizations: parseInt(disease.hospitalizations) || 0,
@@ -111,7 +111,7 @@ export default function CitizenReport() {
       setSuccess(`Report submitted successfully! Reference ID: ${res.data.id}. Track your report status.`);
       setForm({ incident_type: '', description: '', district: '', sub_county: '', village: '', lat: '', lng: '', severity: 'medium', water_impact: '', affected_population: 0, reporter_name: '', reporter_phone: '', reporter_email: '' });
       setMediaFiles([]);
-      setDisease({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
+      setDisease({ disease_type: 'cholera', other_name: '', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to submit report');
     } finally {
@@ -246,12 +246,21 @@ export default function CitizenReport() {
             {/* Body */}
             <div className="bg-rose-50 dark:bg-rose-950 p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                <div className={disease.disease_type === 'other' ? 'sm:col-span-2' : ''}>
                   <label className="block text-sm font-semibold text-gray-800 dark:text-rose-100 mb-1.5">Disease Type *</label>
-                  <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
+                  <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value, other_name: '' }))}
                     className="w-full px-4 py-3 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
                     {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
                   </select>
+                  {disease.disease_type === 'other' && (
+                    <input
+                      type="text"
+                      value={disease.other_name}
+                      onChange={e => setDisease(p => ({ ...p, other_name: e.target.value }))}
+                      placeholder="Type the disease name…"
+                      className="mt-2 w-full px-4 py-3 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 dark:text-rose-100 mb-1.5">Number of Cases *</label>
