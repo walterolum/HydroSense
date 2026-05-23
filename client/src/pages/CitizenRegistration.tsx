@@ -1,168 +1,20 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { registerCitizen } from '../api/client';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '../types/language';
 import {
   AlertCircle, CheckCircle, Phone, Mail, User, MapPin, Lock, Shield,
-  Fingerprint, Loader2, Eye, EyeOff, Globe, Smartphone, PhoneCall,
-  RefreshCw, Clock, ShieldCheck,
+  Fingerprint, Loader2, Eye, EyeOff, Globe,
 } from 'lucide-react';
 
-type DeviceType = 'smart' | 'feature';
-
-/* ── Provider display names + icons ── */
-const PROVIDER_INFO: Record<string, { label: string; icon: string; color: string }> = {
-  'africastalking':   { label: "Africa's Talking", icon: '🌍', color: 'bg-orange-100 text-orange-700 border-orange-200' },
-  'twilio':           { label: 'Twilio',            icon: '📡', color: 'bg-red-100 text-red-700 border-red-200' },
-  'brevo':            { label: 'Brevo',             icon: '✉️', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  'sendgrid':         { label: 'SendGrid',          icon: '📨', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  'nodemailer-gmail': { label: 'Gmail SMTP',        icon: '📧', color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  'mock':             { label: 'Dev Mode',          icon: '🔧', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-};
-
-function ProviderBadge({ provider }: { provider: string | null }) {
-  if (!provider) return null;
-  const info = PROVIDER_INFO[provider];
-  if (!info) return null;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${info.color} ml-2`}>
-      {info.icon} {info.label}
-    </span>
-  );
-}
-
-/* ── Multilingual OTP labels ── */
-const OTP_LABELS: Record<string, { title: string; sub: string; enter: string; resend: string; wait: string }> = {
-  en:  { title: 'Verify Your Account',  sub: 'Enter the code sent to you',        enter: 'Enter verification code', resend: 'Resend code',        wait: 'Resend available in' },
-  lug: { title: 'Kakasa Akawunti Ko',   sub: 'Yingiza koodi eyatumibwa',           enter: 'Yingiza koodi',           resend: 'Tuma Nate',          wait: 'Lindirira' },
-  swa: { title: 'Thibitisha Akaunti',   sub: 'Ingiza nambari iliyotumwa kwako',    enter: 'Ingiza nambari',          resend: 'Tuma tena',          wait: 'Subiri' },
-  luo: { title: 'Genyi Akaunti Mari',   sub: 'Ket namba ma ioro negi',             enter: 'Ket namba',               resend: 'Or Matien',          wait: 'Kur' },
-  nyn: { title: 'Kakasa Akaunti Yawe',  sub: 'Yingiza koodi eyatumibwa',           enter: 'Yingiza koodi',           resend: 'Tuma Nate',          wait: 'Lindira' },
-};
-
-/* ── 6-box OTP input component ── */
-function OtpBoxes({ value, onChange, disabled, error }: {
-  value: string; onChange: (v: string) => void; disabled?: boolean; error?: boolean;
-}) {
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = value.padEnd(6, '').split('').slice(0, 6);
-
-  const handleChange = (i: number, v: string) => {
-    const d = v.replace(/\D/g, '').slice(-1);
-    const next = [...digits]; next[i] = d;
-    onChange(next.join('').trimEnd());
-    if (d && i < 5) refs.current[i + 1]?.focus();
-  };
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace') {
-      if (!digits[i] && i > 0) refs.current[i - 1]?.focus();
-      else { const n = [...digits]; n[i] = ''; onChange(n.join('').trimEnd()); }
-    }
-    if (e.key === 'ArrowLeft' && i > 0) refs.current[i - 1]?.focus();
-    if (e.key === 'ArrowRight' && i < 5) refs.current[i + 1]?.focus();
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    onChange(pasted);
-    setTimeout(() => refs.current[Math.min(pasted.length, 5)]?.focus(), 0);
-  };
-
-  return (
-    <div className="flex gap-2 sm:gap-3 justify-center" onPaste={handlePaste}>
-      {digits.map((d, i) => (
-        <input
-          key={i}
-          ref={el => { refs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          maxLength={2}
-          value={d}
-          disabled={disabled}
-          onChange={e => handleChange(i, e.target.value)}
-          onKeyDown={e => handleKeyDown(i, e)}
-          onFocus={e => e.target.select()}
-          className={`w-11 h-14 sm:w-13 sm:h-16 text-center text-2xl font-extrabold border-2 rounded-xl transition-all duration-200 outline-none
-            ${d ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm' : 'border-gray-200 bg-gray-50 text-gray-400'}
-            ${error ? 'border-red-400 bg-red-50 animate-shake' : ''}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : 'focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white hover:border-gray-300'}
-          `}
-          placeholder="·"
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ── Countdown timer ── */
-function CountdownTimer({ seconds, onExpire }: { seconds: number; onExpire: () => void }) {
-  const [left, setLeft] = useState(seconds);
-  const expiredRef = useRef(false);
-
-  useEffect(() => {
-    expiredRef.current = false;
-    setLeft(seconds);
-  }, [seconds]);
-
-  useEffect(() => {
-    if (left <= 0) { if (!expiredRef.current) { expiredRef.current = true; onExpire(); } return; }
-    const t = setTimeout(() => setLeft(l => l - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left, onExpire]);
-
-  const m = Math.floor(left / 60);
-  const s = left % 60;
-  const pct = (left / seconds) * 100;
-  const urgent = left <= 60;
-
-  return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-      urgent ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-    }`}>
-      <Clock size={12} className={urgent ? 'animate-pulse' : ''} />
-      {left > 0 ? `${m}:${String(s).padStart(2, '0')} remaining` : 'Code expired'}
-      <svg width="16" height="16" viewBox="0 0 16 16" className="flex-shrink-0">
-        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="2.5" />
-        <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2.5"
-          strokeDasharray={`${2 * Math.PI * 6}`}
-          strokeDashoffset={`${2 * Math.PI * 6 * (1 - pct / 100)}`}
-          strokeLinecap="round" transform="rotate(-90 8 8)" />
-      </svg>
-    </div>
-  );
-}
 
 export default function CitizenRegistration() {
-  const navigate = useNavigate();
-  const { login } = useAuth();
   const { setLanguage } = useLanguage();
 
-  const [step, setStep]               = useState(1);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
-  const [success, setSuccess]         = useState('');
-  const [deviceType, setDeviceType]   = useState<DeviceType>('smart');
-  const [deliveryMethod, setDelivery]   = useState<'email' | 'sms'>('email');
-  const [emailProvider, setEmailProv]   = useState<string | null>(null);
-  const [smsProvider, setSmsProv]       = useState<string | null>(null);
-  const [smsSent, setSmsSent]           = useState(false);
-  const [otpDisplay, setOtpDisplay]     = useState<string | null>(null); // shown when no provider configured
-  const [otp, setOtp]                 = useState('');
-  const [otpError, setOtpError]       = useState(false);
-  const [attemptsLeft, setAttempts]   = useState(5);
-  const [blockedFor, setBlockedFor]   = useState(0);
-  const [otpExpired, setOtpExpired]   = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [otpTimerKey, setOtpTimerKey] = useState(0); // resets timer on resend
-  const resendTimerRef = useRef<ReturnType<typeof setInterval>>();
-
-  const [registeredEmail, setRegisteredEmail] = useState('');
-  const [registeredPhone, setRegisteredPhone] = useState('');
-  const [phoneHint, setPhoneHint]             = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [success, setSuccess] = useState('');
 
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
@@ -173,8 +25,6 @@ export default function CitizenRegistration() {
   const [showPw, setShowPw]   = useState(false);
   const [showCpw, setShowCpw] = useState(false);
 
-  const lang = OTP_LABELS[form.language] || OTP_LABELS.en;
-
   const update = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [f]: e.target.value }));
 
@@ -183,67 +33,11 @@ export default function CitizenRegistration() {
     'Mbarara','Mbale','Tororo','Masaka','Fort Portal','Kabale','Busia','Adjumani',
   ];
 
-  /* ── Start resend cooldown ── */
-  const startResendCooldown = useCallback((secs: number) => {
-    setResendCooldown(secs);
-    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
-    resendTimerRef.current = setInterval(() => {
-      setResendCooldown(c => { if (c <= 1) { clearInterval(resendTimerRef.current!); return 0; } return c - 1; });
-    }, 1000);
-  }, []);
-
-  /* ── Send / Resend OTP ── */
-  const sendOtp = useCallback(async (isResend = false) => {
-    if (resendCooldown > 0) return;
-    setLoading(true);
-    setError('');
-    setOtpExpired(false);
-    try {
-      const res = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: registeredEmail,
-          device_type: deviceType,
-          phone: registeredPhone,
-          purpose: 'registration',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Failed to send code');
-        if (data.secondsLeft) startResendCooldown(data.secondsLeft);
-        return;
-      }
-      setDelivery(data.delivery_method || (deviceType === 'feature' ? 'sms' : 'email'));
-      if (data.phone_hint)     setPhoneHint(data.phone_hint);
-      if (data.email_provider) setEmailProv(data.email_provider);
-      if (data.sms_provider)   setSmsProv(data.sms_provider);
-      if (data.sms_sent !== undefined) setSmsSent(data.sms_sent);
-
-      // If no provider delivered, show the code on screen and auto-fill
-      if (data.otp_display) {
-        setOtpDisplay(data.otp_display);
-        setOtp(data.otp_display);          // auto-fill the boxes
-        setSuccess('No delivery service configured — your code is shown below. Copy it and click Verify.');
-      } else {
-        setOtpDisplay(null);
-        setOtp('');
-        if (isResend) setSuccess('New verification code sent!');
-      }
-      setOtpTimerKey(k => k + 1);
-      startResendCooldown(60);
-    } catch {
-      setError('Failed to send verification code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [registeredEmail, registeredPhone, deviceType, resendCooldown, startResendCooldown]);
-
-  /* ── Register (no OTP — direct activation) ── */
+  /* ── Register — direct activation, no OTP ── */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
     setLoading(true);
     try {
@@ -254,20 +48,13 @@ export default function CitizenRegistration() {
         language: form.language,
       });
 
-      if (res.data.otp_required) {
-        setSuccess(res.data.message || 'Account created! A verification code has been sent to your email and phone.');
-        setTimeout(() => {
-          navigate(`/otp-verification?email=${encodeURIComponent(form.email)}&otp_display=${encodeURIComponent(res.data.otp_display || '')}`);
-        }, 1500);
-      } else {
-        // Auto-login fallback — store token and go directly to dashboard
-        if (res.data.token && res.data.user) {
-          sessionStorage.setItem('hs_token', res.data.token);
-          sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
-        }
-        setSuccess('Account created! Taking you to your dashboard…');
-        setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+      const { token, user: newUser } = res.data;
+      if (token && newUser) {
+        sessionStorage.setItem('hs_token', token);
+        sessionStorage.setItem('hs_user', JSON.stringify(newUser));
       }
+      setSuccess(res.data.message || 'Account created successfully! Taking you to your dashboard…');
+      setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -275,43 +62,6 @@ export default function CitizenRegistration() {
     }
   };
 
-  /* ── Verify OTP ── */
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.length < 6) return;
-    setError('');
-    setOtpError(false);
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: registeredEmail, otp }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.verified) {
-        setOtpError(true);
-        setError(data.error || 'Incorrect code');
-        if (data.attemptsLeft !== undefined) setAttempts(data.attemptsLeft);
-        if (data.blockedFor) setBlockedFor(data.blockedFor);
-        setOtp('');
-        return;
-      }
-      // Auto-login — store token and redirect to dashboard
-      if (data.token && data.user) {
-        sessionStorage.setItem('hs_token', data.token);
-        sessionStorage.setItem('hs_user', JSON.stringify(data.user));
-      }
-      setSuccess('Account verified! Taking you to your dashboard…');
-      setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
-    } catch {
-      setError('Verification failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => () => { if (resendTimerRef.current) clearInterval(resendTimerRef.current); }, []);
 
   /* ── Render ── */
   return (
@@ -333,10 +83,10 @@ export default function CitizenRegistration() {
           </p>
           <div className="space-y-3">
             {[
-              { icon: '🔐', title: 'OTP-Verified Registration', desc: 'Every account verified via Email or SMS' },
+              { icon: '✅', title: 'Instant Account Activation', desc: 'Register and get in immediately — no waiting' },
               { icon: '📱', title: 'Smartphone & Button Phone', desc: 'Works on any device in any network area' },
               { icon: '🌍', title: '10 Local Languages', desc: 'Interface in Luganda, Swahili, Luo & more' },
-              { icon: '⚡', title: '5-Minute Secure Code', desc: 'Auto-expiring codes, single-use only' },
+              { icon: '🔒', title: 'Secure by Default', desc: 'Passwords encrypted with bcrypt, JWT sessions' },
               { icon: '🛡️', title: 'Brute-Force Protected', desc: 'Rate limiting and attempt blocking enabled' },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3 bg-white/10 rounded-xl p-3 border border-white/10">
@@ -379,10 +129,9 @@ export default function CitizenRegistration() {
           )}
 
           {/* ══════════════ REGISTER ══════════════ */}
-          {step === 1 && (
-            <>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">Create Your Account</h2>
-              <p className="text-gray-500 text-sm mb-5">Fill in your details to join the HydroSense community</p>
+          <>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Create Your Account</h2>
+            <p className="text-gray-500 text-sm mb-5">Fill in your details to join the HydroSense community</p>
 
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -481,7 +230,7 @@ export default function CitizenRegistration() {
 
                 <button type="submit" disabled={loading}
                   className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-60 transition-all">
-                  {loading ? <><Loader2 size={16} className="animate-spin" /> Creating Account…</> : 'Create Account & Send Code'}
+                  {loading ? <><Loader2 size={16} className="animate-spin" /> Creating Account…</> : 'Create Account'}
                 </button>
               </form>
 
@@ -489,8 +238,7 @@ export default function CitizenRegistration() {
                 Already have an account?{' '}
                 <Link to="/login" className="text-blue-600 font-semibold hover:underline">Sign In</Link>
               </p>
-            </>
-          )}
+          </>
 
 
           <div className="flex items-center justify-center gap-4 mt-6 text-xs text-gray-400">

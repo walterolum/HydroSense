@@ -75,72 +75,66 @@ router.get('/users/:id/public', (req, res) => {
 
 /* ── Citizen Registration ── */
 router.post('/register', async (req, res) => {
-  const db = await getDb();
-  const { name, email, password, phone, national_id, community_id, district, sub_county, location, language } = req.body;
+  try {
+    const db = getDb();
+    const { name, email, password, phone, national_id, community_id, district, sub_county, location, language } = req.body;
 
-  if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Name is required' });
-  if (!email || !email.trim()) return res.status(400).json({ success: false, error: 'Email is required' });
-  if (!password || password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
-  if (!phone) return res.status(400).json({ success: false, error: 'Phone number is required' });
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Name is required' });
+    if (!email || !email.trim()) return res.status(400).json({ success: false, error: 'Email is required' });
+    if (!password || password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+    if (!phone) return res.status(400).json({ success: false, error: 'Phone number is required' });
 
-  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
-  if (existing) return res.status(409).json({ success: false, error: 'An account with this email already exists' });
+    const emailKey = email.toLowerCase().trim();
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(emailKey);
+    if (existing) return res.status(409).json({ success: false, error: 'An account with this email already exists' });
 
-  const hash = bcrypt.hashSync(password, 10);
-  const result = await db.prepare(`
-    INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified)
-    VALUES (?, ?, ?, 'citizen', ?, ?, ?, ?, ?, ?, ?, 1, 0)
-  `).run(
-    name.trim(),
-    email.toLowerCase().trim(),
-    hash,
-    phone,
-    national_id || null,
-    community_id || null,
-    district || null,
-    sub_county || null,
-    location || null,
-    language || 'en'
-  );
+    const hash = bcrypt.hashSync(password, 10);
+    const result = db.prepare(`
+      INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified)
+      VALUES (?, ?, ?, 'citizen', ?, ?, ?, ?, ?, ?, ?, 1, 1)
+    `).run(
+      name.trim(), emailKey, hash, phone,
+      national_id || null, community_id || null, district || null,
+      sub_county || null, location || null, language || 'en'
+    );
 
-  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const emailKey = email.toLowerCase().trim();
-  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const user = db.prepare(
+      'SELECT id, name, email, role, district, phone, language, otp_verified, active FROM users WHERE id = ?'
+    ).get(result.lastInsertRowid);
 
-  const raw = await generateAndStoreOTP(db, emailKey, 'registration', ip);
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
+      SECRET,
+      { expiresIn: '24h' }
+    );
 
-  const [emailResult, smsResult] = await Promise.all([
-    sendRealEmail(emailKey, raw, 'registration').catch(() => null),
-    phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
-  ]);
+    // Send welcome notification in the background — never blocks the response
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    setImmediate(async () => {
+      try {
+        const raw = await generateAndStoreOTP(db, emailKey, 'registration', ip);
+        const [emailResult, smsResult] = await Promise.allSettled([
+          sendRealEmail(emailKey, raw, 'registration').catch(() => null),
+          phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
+        ]);
+        console.log(`[REGISTER] Welcome notification → email:${emailResult?.value?.provider} sms:${smsResult?.value?.provider}`);
+      } catch (e) {
+        console.warn('[REGISTER] Welcome notification skipped:', e.message);
+      }
+    });
 
-  const logDelivery = (channel, delResult, recipientPhone = null) => {
-    try {
-      db.prepare(`
-        INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(emailKey, recipientPhone, channel, delResult?.provider || 'unknown', delResult?.status || 'failed', delResult?.messageId || null, delResult?.error || null);
-    } catch {}
-  };
-
-  logDelivery('email', emailResult);
-  if (phone) logDelivery('sms', smsResult, phone);
-
-  const emailDelivered = emailResult && emailResult.status !== 'mock';
-  const smsDelivered   = smsResult   && smsResult.status   !== 'mock';
-  const noneDelivered  = !emailDelivered && !smsDelivered;
-
-  console.log(`[OTP][REGISTER] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider} code:${raw}`);
-
-  res.status(201).json({
-    success: true,
-    message: noneDelivered
-      ? 'Registration successful! No delivery service configured — use the code shown below.'
-      : `Registration successful! Verification code sent to your email${smsDelivered ? ' and phone' : ''}.`,
-    otp_required: true,
-    email: emailKey,
-    otp_display: noneDelivered ? raw : null,
-  });
+    console.log(`[REGISTER] New citizen: ${emailKey}`);
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully! Welcome to HydroSense.',
+      otp_required: false,
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error('[REGISTER] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Registration failed. Please try again.' });
+  }
 });
 
 /* ── Send OTP (rate-limited, hashed) ── */
