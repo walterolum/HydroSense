@@ -12,7 +12,7 @@ const LANG_NAMES: Record<string, string> = {
   cgg: 'Rukiga', ach: 'Acholi',
 };
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
-import { submitCitizenReport } from '../api/client';
+import { submitCitizenReport, createHealthIncident } from '../api/client';
 import {
   AlertCircle, CheckCircle, Camera, Mic, MapPin, Send,
   Shield, Upload, Loader2, MessageSquare, Phone, Image
@@ -21,8 +21,10 @@ import {
 const INCIDENT_TYPES = [
   'water_contamination', 'broken_water_point', 'flooding',
   'sewage_leak', 'illegal_dumping', 'pollution',
-  'environmental_hazard', 'infrastructure_damage',
+  'environmental_hazard', 'infrastructure_damage', 'disease_report',
 ];
+
+const DISEASE_TYPES = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
 
 const DISTRICTS = [
   'Kampala', 'Gulu', 'Lira', 'Moroto', 'Jinja', 'Soroti', 'Arua',
@@ -54,6 +56,7 @@ export default function MultilingualReport() {
   const [sourceLang, setSourceLang] = useState<LanguageCode>(language);
   const [showCamera, setShowCamera] = useState(false);
   const galleryRef = useRef<HTMLInputElement>(null); // gallery / file picker
+  const [disease, setDisease] = useState({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
 
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -93,6 +96,10 @@ export default function MultilingualReport() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (form.incident_type === 'disease_report' && (!disease.cases || parseInt(disease.cases) < 1)) {
+      setError('Number of cases is required for disease reports (minimum 1)');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -122,6 +129,22 @@ export default function MultilingualReport() {
 
       const res = await submitCitizenReport(payload);
       const reportId = res.data.id;
+
+      if (form.incident_type === 'disease_report' && disease.cases) {
+        await createHealthIncident({
+          district: form.district,
+          sub_county: form.sub_county || undefined,
+          village: form.village || undefined,
+          disease_type: disease.disease_type,
+          cases: parseInt(disease.cases) || 1,
+          deaths: parseInt(disease.deaths) || 0,
+          hospitalizations: parseInt(disease.hospitalizations) || 0,
+          water_source_linked: disease.water_source_linked ? 1 : 0,
+          lat: form.lat ? parseFloat(form.lat) : undefined,
+          lng: form.lng ? parseFloat(form.lng) : undefined,
+          investigation_notes: description,
+        });
+      }
 
       // Upload audio if present
       if (audioBlob && reportId) {
@@ -278,6 +301,44 @@ export default function MultilingualReport() {
                 />
               </div>
             </div>
+
+            {/* Disease details — shown only when disease_report is selected */}
+            {form.incident_type === 'disease_report' && (
+              <div className="rounded-2xl border-2 border-pink-200 bg-pink-50 p-4 space-y-3">
+                <div className="text-sm font-bold text-pink-800">🏥 Disease Details — shared directly with health authorities</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Disease Type *</label>
+                    <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500 capitalize">
+                      {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Cases *</label>
+                    <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="People affected" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Deaths</label>
+                    <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Hospitalizations</label>
+                    <input type="number" min="0" value={disease.hospitalizations} onChange={e => setDisease(p => ({ ...p, hospitalizations: e.target.value }))}
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="0" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="flex items-center gap-3 px-3 py-2.5 bg-white rounded-xl cursor-pointer hover:bg-pink-50 transition-colors border border-pink-200">
+                      <input type="checkbox" checked={disease.water_source_linked} onChange={e => setDisease(p => ({ ...p, water_source_linked: e.target.checked }))}
+                        className="w-4 h-4 accent-pink-600 flex-shrink-0" />
+                      <span className="text-sm text-gray-700">Illness linked to a water source (borehole, river, well, etc.)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Photo upload */}
             <div>

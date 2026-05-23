@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { submitCitizenReport } from '../api/client';
+import { submitCitizenReport, createHealthIncident } from '../api/client';
 import { AlertCircle, CheckCircle, Loader2, Upload, Camera, Mic, MessageSquare, Mail as MailIcon, Phone, Send, Image as ImageIcon } from 'lucide-react';
 import CameraCapture from '../components/common/CameraCapture';
 
@@ -11,7 +11,10 @@ const incidentTypes = [
   { value: 'environmental_hazard', label: 'Environmental Hazard', icon: '☣️', color: 'bg-purple-100 text-purple-700 border-purple-200' },
   { value: 'infrastructure_damage', label: 'Infrastructure Damage', icon: '🏗️', color: 'bg-gray-100 text-gray-700 border-gray-200' },
   { value: 'water_contamination', label: 'Water Contamination', icon: '🧪', color: 'bg-green-100 text-green-700 border-green-200' },
+  { value: 'disease_report', label: 'Disease / Illness Report', icon: '🏥', color: 'bg-pink-100 text-pink-700 border-pink-200' },
 ];
+
+const DISEASE_TYPES = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
 
 const districts = ['Kampala', 'Gulu', 'Lira', 'Moroto', 'Jinja', 'Soroti', 'Arua', 'Mbarara', 'Mbale', 'Tororo', 'Masaka', 'Fort Portal', 'Kabale', 'Busia', 'Adjumani'];
 
@@ -23,6 +26,7 @@ export default function CitizenReport() {
   const [anonymous, setAnonymous] = useState(false);
   const [mediaFiles, setMediaFiles]   = useState<{ type: string; data: string; mime: string }[]>([]);
   const [showCamera, setShowCamera]   = useState(false);
+  const [disease, setDisease] = useState({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
 
   const [form, setForm] = useState({
     incident_type: '', description: '', district: '', sub_county: '', village: '',
@@ -63,6 +67,11 @@ export default function CitizenReport() {
       setLoading(false);
       return;
     }
+    if (form.incident_type === 'disease_report' && (!disease.cases || parseInt(disease.cases) < 1)) {
+      setError('Number of cases is required for disease reports (minimum 1)');
+      setLoading(false);
+      return;
+    }
 
     try {
       const payload = {
@@ -82,9 +91,27 @@ export default function CitizenReport() {
       }
 
       const res = await submitCitizenReport(payload);
+
+      if (form.incident_type === 'disease_report') {
+        await createHealthIncident({
+          district: form.district,
+          sub_county: form.sub_county || undefined,
+          village: form.village || undefined,
+          disease_type: disease.disease_type,
+          cases: parseInt(disease.cases) || 1,
+          deaths: parseInt(disease.deaths) || 0,
+          hospitalizations: parseInt(disease.hospitalizations) || 0,
+          water_source_linked: disease.water_source_linked ? 1 : 0,
+          lat: form.lat ? parseFloat(form.lat) : undefined,
+          lng: form.lng ? parseFloat(form.lng) : undefined,
+          investigation_notes: form.description,
+        });
+      }
+
       setSuccess(`Report submitted successfully! Reference ID: ${res.data.id}. Track your report status.`);
       setForm({ incident_type: '', description: '', district: '', sub_county: '', village: '', lat: '', lng: '', severity: 'medium', water_impact: '', affected_population: 0, reporter_name: '', reporter_phone: '', reporter_email: '' });
       setMediaFiles([]);
+      setDisease({ disease_type: 'cholera', cases: '', deaths: '', hospitalizations: '', water_source_linked: false });
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to submit report');
     } finally {
@@ -204,6 +231,44 @@ export default function CitizenReport() {
             </div>
           </div>
         </div>
+
+        {form.incident_type === 'disease_report' && (
+          <div className="bg-white rounded-2xl border-2 border-pink-200 p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">2b. Disease Details</h2>
+            <p className="text-sm text-gray-500 mb-4">This information is shared directly with health authorities to trigger a response.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Disease Type *</label>
+                <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white capitalize">
+                  {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Number of Cases *</label>
+                <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white" placeholder="How many people affected?" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Deaths</label>
+                <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white" placeholder="0" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Hospitalizations</label>
+                <input type="number" min="0" value={disease.hospitalizations} onChange={e => setDisease(p => ({ ...p, hospitalizations: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:bg-white" placeholder="0" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-3 px-4 py-3 bg-pink-50 rounded-xl cursor-pointer hover:bg-pink-100 transition-colors">
+                  <input type="checkbox" checked={disease.water_source_linked} onChange={e => setDisease(p => ({ ...p, water_source_linked: e.target.checked }))}
+                    className="w-4 h-4 accent-pink-600 flex-shrink-0" />
+                  <span className="text-sm text-gray-700">Illness is linked to a water source (contaminated water, borehole, river, etc.)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">3. Media & Channel</h2>
