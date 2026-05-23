@@ -14,8 +14,8 @@ const LANG_NAMES: Record<string, string> = {
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport, createHealthIncident } from '../api/client';
 import {
-  AlertCircle, CheckCircle, Camera, Mic, MapPin, Send,
-  Shield, Upload, Loader2, MessageSquare, Phone, Image
+  AlertCircle, CheckCircle, Camera, Send,
+  Shield, Loader2, MessageSquare, Phone, Image
 } from 'lucide-react';
 
 const INCIDENT_TYPES = [
@@ -34,9 +34,9 @@ const DISTRICTS = [
 export default function MultilingualReport() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t, translate, translateToEnglish, language } = useLanguage();
+  const { t, translateToEnglish, language } = useLanguage();
 
-  const [step, setStep] = useState(1);
+  const [step] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -48,7 +48,7 @@ export default function MultilingualReport() {
   });
 
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const [, setAudioDuration] = useState(0);
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -77,11 +77,6 @@ export default function MultilingualReport() {
     setVoiceActive(true);
     setVoiceRecording(true);
     setForm(prev => ({ ...prev, description: text }));
-  };
-
-  const handleVoicePhaseChange = (recording: boolean) => {
-    setVoiceRecording(recording);
-    if (!recording) setVoiceActive(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,37 +299,48 @@ export default function MultilingualReport() {
 
             {/* Disease details — shown only when disease_report is selected */}
             {form.incident_type === 'disease_report' && (
-              <div className="rounded-2xl border-2 border-pink-200 bg-pink-50 p-4 space-y-3">
-                <div className="text-sm font-bold text-pink-800">🏥 Disease Details — shared directly with health authorities</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-2xl overflow-hidden border-2 border-rose-400 shadow-md">
+                {/* Coloured header */}
+                <div className="px-4 py-3 flex items-center gap-2"
+                  style={{ background: 'linear-gradient(135deg,#be123c,#e11d48)' }}>
+                  <span className="text-lg">🏥</span>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Disease Type *</label>
-                    <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500 capitalize">
-                      {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
-                    </select>
+                    <div className="text-white font-bold text-sm">DISEASE / ILLNESS DETAILS</div>
+                    <div className="text-rose-200 text-xs">Triggers health authority alert if ≥ 10 cases</div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Cases *</label>
-                    <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="People affected" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Deaths</label>
-                    <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Hospitalizations</label>
-                    <input type="number" min="0" value={disease.hospitalizations} onChange={e => setDisease(p => ({ ...p, hospitalizations: e.target.value }))}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="0" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="flex items-center gap-3 px-3 py-2.5 bg-white rounded-xl cursor-pointer hover:bg-pink-50 transition-colors border border-pink-200">
-                      <input type="checkbox" checked={disease.water_source_linked} onChange={e => setDisease(p => ({ ...p, water_source_linked: e.target.checked }))}
-                        className="w-4 h-4 accent-pink-600 flex-shrink-0" />
-                      <span className="text-sm text-gray-700">Illness linked to a water source (borehole, river, well, etc.)</span>
-                    </label>
+                </div>
+                {/* Body */}
+                <div className="bg-rose-50 p-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">Disease Type *</label>
+                      <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
+                        {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">Cases *</label>
+                      <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="People affected" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">Deaths</label>
+                      <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">Hospitalizations</label>
+                      <input type="number" min="0" value={disease.hospitalizations} onChange={e => setDisease(p => ({ ...p, hospitalizations: e.target.value }))}
+                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="flex items-center gap-3 px-3 py-2.5 bg-white border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100 transition-colors">
+                        <input type="checkbox" checked={disease.water_source_linked} onChange={e => setDisease(p => ({ ...p, water_source_linked: e.target.checked }))}
+                          className="w-4 h-4 accent-rose-600 flex-shrink-0" />
+                        <span className="text-sm text-gray-700 font-medium">Illness linked to a water source (borehole, river, well, etc.)</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
