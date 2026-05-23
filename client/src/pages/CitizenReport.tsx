@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { submitCitizenReport } from '../api/client';
-import { AlertCircle, CheckCircle, Loader2, Upload, Camera, Mic, MessageSquare, Mail as MailIcon, Phone, Send } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2, Upload, Camera, Mic, MessageSquare, Mail as MailIcon, Phone, Send, Image as ImageIcon } from 'lucide-react';
 
 const incidentTypes = [
   { value: 'water_pollution', label: 'Water Pollution', icon: '💧', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -31,11 +31,11 @@ export default function CitizenReport() {
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
-  const handleMediaCapture = (type: string) => {
+  const handleMediaCapture = (type: string, useCamera = false) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = type === 'audio' ? 'audio/*' : type === 'video' ? 'video/*' : 'image/*';
-    input.capture = type === 'image' ? 'environment' : undefined;
+    if (useCamera) input.capture = 'environment';
     input.onchange = (e: any) => {
       const file = e.target.files?.[0];
       if (file) {
@@ -223,17 +223,32 @@ export default function CitizenReport() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Attach Media Evidence</label>
             <div className="flex flex-wrap gap-3 mb-3">
-              <button type="button" onClick={() => handleMediaCapture('image')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all bg-gray-50">
-                <Camera size={16} /> Take Photo
-              </button>
+
+              {/* Photo: two options side-by-side */}
+              <div className="flex rounded-xl border-2 border-dashed border-gray-300 overflow-hidden bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => handleMediaCapture('image', true)}
+                  title="Open device camera"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all border-r border-dashed border-gray-300"
+                >
+                  <Camera size={16} /> Take Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMediaCapture('image', false)}
+                  title="Choose from gallery"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                >
+                  <ImageIcon size={16} /> From Gallery
+                </button>
+              </div>
+
               <button type="button" onClick={() => handleMediaCapture('video')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all bg-gray-50">
                 <Upload size={16} /> Upload Video
               </button>
               <button type="button" onClick={() => handleMediaCapture('audio')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all bg-gray-50">
                 <Mic size={16} /> Record Audio
-              </button>
-              <button type="button" onClick={() => handleMediaCapture('image')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-all bg-gray-50">
-                <Upload size={16} /> Upload Image
               </button>
             </div>
 
