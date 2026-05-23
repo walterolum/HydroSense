@@ -104,20 +104,42 @@ router.post('/register', async (req, res) => {
   );
 
   const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
-    SECRET,
-    { expiresIn: '24h' }
-  );
+  const emailKey = email.toLowerCase().trim();
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
 
-  const { password_hash, ...safeUser } = user;
+  const raw = await generateAndStoreOTP(db, emailKey, 'registration', ip);
+
+  const [emailResult, smsResult] = await Promise.all([
+    sendRealEmail(emailKey, raw, 'registration').catch(() => null),
+    phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
+  ]);
+
+  const logDelivery = (channel, delResult, recipientPhone = null) => {
+    try {
+      db.prepare(`
+        INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id, error_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(emailKey, recipientPhone, channel, delResult?.provider || 'unknown', delResult?.status || 'failed', delResult?.messageId || null, delResult?.error || null);
+    } catch {}
+  };
+
+  logDelivery('email', emailResult);
+  if (phone) logDelivery('sms', smsResult, phone);
+
+  const emailDelivered = emailResult && emailResult.status !== 'mock';
+  const smsDelivered   = smsResult   && smsResult.status   !== 'mock';
+  const noneDelivered  = !emailDelivered && !smsDelivered;
+
+  console.log(`[OTP][REGISTER] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider} code:${raw}`);
 
   res.status(201).json({
     success: true,
-    message: 'Registration successful! Redirecting to dashboard...',
-    otp_required: false,
-    token,
-    user: safeUser
+    message: noneDelivered
+      ? 'Registration successful! No delivery service configured — use the code shown below.'
+      : `Registration successful! Verification code sent to your email${smsDelivered ? ' and phone' : ''}.`,
+    otp_required: true,
+    email: emailKey,
+    otp_display: noneDelivered ? raw : null,
   });
 });
 
@@ -228,7 +250,12 @@ router.post('/verify-otp', async (req, res) => {
     return res.status(400).json({ success: false, error: `Incorrect code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`, attemptsLeft: remaining });
   }
 
-  /* Valid — mark used and activate user */
+  /* Valid — check if it is for password reset */
+  if (record.purpose === 'password_reset') {
+    return res.json({ success: true, verified: true, message: 'OTP is valid' });
+  }
+
+  /* Valid for registration/login — mark used and activate user */
   db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
 
   const user = db.prepare(`SELECT * FROM users WHERE email = ?`).get(emailKey);
@@ -501,31 +528,30 @@ router.post('/forgot-password', async (req, res) => {
   if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
 
   const db = await getDb();
-  const user = await db.prepare('SELECT id, name, email FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  const emailKey = email.toLowerCase().trim();
+  const user = await db.prepare('SELECT id, name, email, phone FROM users WHERE email = ?').get(emailKey);
   if (!user) return res.status(404).json({ success: false, error: 'No account found with this email' });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-  await db.prepare(`DELETE FROM otp_codes WHERE email = ? AND purpose = 'password_reset'`).run(email.toLowerCase().trim());
-  await db.prepare(`INSERT INTO otp_codes (email, otp, purpose, expires_at) VALUES (?, ?, 'password_reset', ?)`).run(email.toLowerCase().trim(), otp, expires);
+  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const otp = await generateAndStoreOTP(db, emailKey, 'password_reset', ip);
 
   // Send real email asynchronously
-  sendRealEmail(email.toLowerCase().trim(), otp, 'password_reset').catch(console.error);
+  sendRealEmail(emailKey, otp, 'password_reset').catch(console.error);
 
   // Send SMS asynchronously if phone number exists
-  if (user && user.phone) {
-    sendSMS(user.phone, otp).catch(console.error);
+  const phone = user.phone || null;
+  if (phone) {
+    sendSMS(phone, otp).catch(console.error);
   } else {
-    // Fetch it if not in the 'user' object (the SELECT above might not include 'phone')
-    const userForPhone = await db.prepare('SELECT phone FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    // Fetch it if not in the 'user' object (fallback)
+    const userForPhone = await db.prepare('SELECT phone FROM users WHERE email = ?').get(emailKey);
     if (userForPhone && userForPhone.phone) {
       sendSMS(userForPhone.phone, otp).catch(console.error);
     }
   }
 
-  console.log(`[PASSWORD RESET] OTP for ${email}: ${otp}`);
-  res.json({ success: true, message: 'Password reset OTP sent to your email', otp_debug: otp });
+  console.log(`[PASSWORD RESET] OTP for ${emailKey}: ${otp}`);
+  res.json({ success: true, message: 'Password reset OTP sent to your email and phone', otp_debug: otp });
 });
 
 /* ── Reset Password (with OTP validation) ── */
@@ -535,13 +561,21 @@ router.post('/reset-password', async (req, res) => {
   if (password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
 
   const db = await getDb();
-  const record = await db.prepare(`SELECT * FROM otp_codes WHERE email = ? AND otp = ? AND purpose = 'password_reset' AND used = 0 AND expires_at > datetime('now') ORDER BY created_at DESC LIMIT 1`).get(email.toLowerCase().trim(), otp);
-  if (!record) return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+  const emailKey = email.toLowerCase().trim();
+  const record = db.prepare(`
+    SELECT * FROM otp_codes
+    WHERE email = ? AND purpose = 'password_reset' AND used = 0 AND expires_at > datetime('now')
+    ORDER BY created_at DESC LIMIT 1
+  `).get(emailKey);
 
-  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
+  if (!record || !bcrypt.compareSync(otp.trim(), record.otp)) {
+    return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+  }
+
+  db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
 
   const hash = bcrypt.hashSync(password, 10);
-  await db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, email.toLowerCase().trim());
+  db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, emailKey);
 
   res.json({ success: true, message: 'Password has been reset successfully. You can now log in.' });
 });

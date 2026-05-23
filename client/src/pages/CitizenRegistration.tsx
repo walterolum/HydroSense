@@ -253,13 +253,21 @@ export default function CitizenRegistration() {
         district: form.district, sub_county: form.sub_county, location: form.location,
         language: form.language,
       });
-      // Auto-login — store token and go directly to dashboard
-      if (res.data.token && res.data.user) {
-        sessionStorage.setItem('hs_token', res.data.token);
-        sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
+
+      if (res.data.otp_required) {
+        setSuccess(res.data.message || 'Account created! A verification code has been sent to your email and phone.');
+        setTimeout(() => {
+          navigate(`/otp-verification?email=${encodeURIComponent(form.email)}`);
+        }, 1500);
+      } else {
+        // Auto-login fallback — store token and go directly to dashboard
+        if (res.data.token && res.data.user) {
+          sessionStorage.setItem('hs_token', res.data.token);
+          sessionStorage.setItem('hs_user', JSON.stringify(res.data.user));
+        }
+        setSuccess('Account created! Taking you to your dashboard…');
+        setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
       }
-      setSuccess('Account created! Taking you to your dashboard…');
-      setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {

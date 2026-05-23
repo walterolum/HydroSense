@@ -40,7 +40,6 @@ export default function ForgotPassword() {
       await api.post('/auth/verify-otp', { email, otp });
       setSuccess('OTP verified. Please set your new password.');
       setStep('reset');
-      setOtp('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid or expired OTP. Please try again.');
     } finally {
@@ -58,6 +57,7 @@ export default function ForgotPassword() {
       await api.post('/auth/reset-password', { email, otp, password });
       setSuccess('Password reset successful! You can now log in with your new password.');
       setStep('done');
+      setOtp('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to reset password. Please try again.');
     } finally {
