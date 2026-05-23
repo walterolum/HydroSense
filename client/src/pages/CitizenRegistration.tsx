@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { registerCitizen } from '../api/client';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '../types/language';
+import { ALL_DISTRICTS } from '../constants/districts';
 import {
   AlertCircle, CheckCircle, Phone, Mail, User, MapPin, Lock, Shield,
   Fingerprint, Loader2, Eye, EyeOff, Globe,
@@ -28,10 +29,7 @@ export default function CitizenRegistration() {
   const update = (f: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [f]: e.target.value }));
 
-  const districts = [
-    'Kampala','Gulu','Lira','Moroto','Jinja','Soroti','Arua',
-    'Mbarara','Mbale','Tororo','Masaka','Fort Portal','Kabale','Busia','Adjumani',
-  ];
+  const districts = ALL_DISTRICTS;
 
   /* ── Register — direct activation, no OTP ── */
   const handleRegister = async (e: React.FormEvent) => {

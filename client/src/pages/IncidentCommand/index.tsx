@@ -13,7 +13,8 @@ const SEV_BG: Record<string,string>     = { emergency:'border-red-600 bg-red-50'
 const STATUS_BG: Record<string,string>  = { active:'bg-orange-100 text-orange-700', investigating:'bg-blue-100 text-blue-700', contained:'bg-yellow-100 text-yellow-700', escalated:'bg-purple-100 text-purple-700', monitoring:'bg-cyan-100 text-cyan-700', resolved:'bg-green-100 text-green-700' };
 const TYPES = ['industrial_discharge','sewage_overflow','illegal_dumping','agricultural_runoff','chemical_contamination','oil_spill'];
 const AGENCIES = ['NEMA','Ministry of Water','Uganda Police','Ministry of Health','National Forestry Authority','KCCA','District Water Office','MoH Lab Team','Uganda Red Cross','NWSC'];
-const DISTRICTS = ['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 const BLANK_INC = { incident_type:'industrial_discharge', title:'', description:'', district:'Gulu', sub_county:'', village:'', severity:'medium', affected_population:0 };
 const BLANK_AGN = { agency_name:'', agency_role:'support', officer_name:'', contact:'' };

@@ -51,11 +51,8 @@ const SEVERITY_LEVEL: Record<string, { label: string; color: string; bg: string;
   info:      { label: 'Minimal',   color: 'text-blue-700 dark:text-blue-300',   bg: 'bg-blue-50 dark:bg-blue-950/60',   border: 'border-blue-400 dark:border-blue-600',   dot: 'bg-blue-500',   text: 'text-blue-900 dark:text-blue-100',   sub: 'text-blue-700 dark:text-blue-300' },
 };
 
-const DISTRICTS = [
-  'Kampala', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Mbarara', 'Kotido', 
-  'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Kasese', 'Kabale', 'Hoima', 
-  'Adjumani', 'Yumbe'
-];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 /* Live clock */
 function useClock() {

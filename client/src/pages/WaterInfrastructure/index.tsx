@@ -8,7 +8,8 @@ import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import WaterMap from '../../components/map/WaterMap';
 
-const DISTRICTS = ['All', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Kotido', 'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Mbarara', 'Kasese', 'Kabale', 'Hoima', 'Adjumani', 'Yumbe'];
+import { ALL_DISTRICTS_WITH_ALL } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS_WITH_ALL;
 const STATUSES = ['All', 'functional', 'non_functional', 'needs_repair', 'under_maintenance'];
 const TYPES = ['All', 'borehole', 'spring', 'shallow_well', 'piped_scheme', 'rainwater_harvesting'];
 

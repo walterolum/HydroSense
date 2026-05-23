@@ -48,10 +48,8 @@ const ROLE_ICONS: Record<string, string> = {
   health_officer: '🏥', climate_scientist: '🌤️',
 };
 
-const DISTRICTS = [
-  'Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale',
-  'Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe',
-];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 const AVATAR_COLORS: Record<string, string> = {
   national_admin: '#7c3aed', district_officer: '#2563eb',

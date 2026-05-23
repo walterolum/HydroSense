@@ -6,7 +6,8 @@ import { WaterPoint } from '../../types';
 import WaterMap from '../../components/map/WaterMap';
 import StatusBadge from '../../components/common/StatusBadge';
 
-const DISTRICTS = ['All', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Kotido', 'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Mbarara', 'Kasese', 'Kabale', 'Hoima', 'Adjumani', 'Yumbe'];
+import { ALL_DISTRICTS_WITH_ALL } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS_WITH_ALL;
 const STATUSES = ['All', 'functional', 'non_functional', 'needs_repair', 'under_maintenance'];
 
 export default function GISMap() {

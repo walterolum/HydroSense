@@ -5,7 +5,8 @@ import { getHealthIncidents, getHealthStats, createHealthIncident, updateHealthI
 import StatCard from '../../components/common/StatCard';
 
 const DISEASES  = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
-const DISTRICTS = ['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 export default function HealthSurveillance() {
   const [incidents, setIncidents] = useState<any[]>([]);

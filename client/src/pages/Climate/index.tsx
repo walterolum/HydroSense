@@ -10,11 +10,8 @@ import { useWeather, weatherInfo } from '../../hooks/useWeather';
 const SEVERITY_COLORS: Record<string, string> = { extreme_drought: '#7f1d1d', severe_drought: '#dc2626', moderate_drought: '#ea580c', mild_drought: '#d97706', normal: '#16a34a', wet: '#2563eb' };
 const FLOOD_COLORS: Record<string, string> = { critical: '#dc2626', high: '#ea580c', moderate: '#d97706', low: '#16a34a' };
 
-const DISTRICTS = [
-  'Kampala', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Mbarara', 'Kotido', 
-  'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Kasese', 'Kabale', 'Hoima', 
-  'Adjumani', 'Yumbe'
-];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 export default function ClimateMonitor() {
   const { user } = useAuth();

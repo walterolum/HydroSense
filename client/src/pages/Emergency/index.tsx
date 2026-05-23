@@ -6,7 +6,8 @@ import StatusBadge from '../../components/common/StatusBadge';
 
 const ALERT_TYPES = ['drought','flood','contamination','infrastructure','health','climate','maintenance','security'];
 const SEVERITIES  = ['info','warning','critical','emergency'];
-const DISTRICTS   = ['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 const severityBg: Record<string,string>   = { emergency:'bg-red-600', critical:'bg-orange-500', warning:'bg-yellow-500', info:'bg-blue-500' };
 const severityCard: Record<string,string> = { emergency:'border-red-500 bg-red-50', critical:'border-orange-500 bg-orange-50', warning:'border-yellow-400 bg-yellow-50', info:'border-blue-400 bg-blue-50' };

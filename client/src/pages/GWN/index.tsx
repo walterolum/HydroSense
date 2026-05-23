@@ -32,10 +32,8 @@ const REPORT_TYPES = [
   { value: 'industrial_waste', label: '🏭 Industrial Waste',      color: '#9a3412' },
 ];
 
-const DISTRICTS = [
-  'Gulu', 'Arua', 'Lira', 'Moroto', 'Kotido', 'Soroti', 'Mbale',
-  'Jinja', 'Masaka', 'Mbarara', 'Kasese', 'Kabale', 'Hoima', 'Adjumani', 'Yumbe',
-];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 const COLORS = ['#dc2626', '#ea580c', '#d97706', '#16a34a', '#2563eb', '#7c3aed', '#0891b2', '#db2777', '#374151'];
 

@@ -13,6 +13,7 @@ const LANG_NAMES: Record<string, string> = {
 };
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport, createHealthIncident } from '../api/client';
+import { ALL_DISTRICTS } from '../constants/districts';
 import {
   AlertCircle, CheckCircle, Camera, Send,
   Shield, Loader2, MessageSquare, Phone, Image
@@ -26,10 +27,7 @@ const INCIDENT_TYPES = [
 
 const DISEASE_TYPES = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
 
-const DISTRICTS = [
-  'Kampala', 'Gulu', 'Lira', 'Moroto', 'Jinja', 'Soroti', 'Arua',
-  'Mbarara', 'Mbale', 'Tororo', 'Masaka', 'Fort Portal', 'Kabale', 'Busia', 'Adjumani',
-];
+const DISTRICTS = ALL_DISTRICTS;
 
 export default function MultilingualReport() {
   const navigate = useNavigate();

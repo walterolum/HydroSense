@@ -1,5 +1,6 @@
 export type LanguageCode =
-  | 'en' | 'lug' | 'nyn' | 'teo' | 'luo' | 'lgg' | 'xog' | 'cgg' | 'ach' | 'swa';
+  | 'en' | 'lug' | 'nyn' | 'teo' | 'luo' | 'lgg' | 'xog' | 'cgg' | 'ach' | 'swa'
+  | 'nyo' | 'ttj' | 'laj' | 'alz' | 'myx' | 'kdj';
 
 export interface LanguageDef {
   code: LanguageCode;
@@ -10,16 +11,22 @@ export interface LanguageDef {
 }
 
 export const SUPPORTED_LANGUAGES: LanguageDef[] = [
-  { code: 'en',  name: 'English',     nativeName: 'English',    flag: '🇬🇧', direction: 'ltr' },
-  { code: 'lug', name: 'Luganda',     nativeName: 'Luganda',    flag: '🇺🇬', direction: 'ltr' },
-  { code: 'nyn', name: 'Runyankole',  nativeName: 'Runyankole', flag: '🇺🇬', direction: 'ltr' },
-  { code: 'teo', name: 'Ateso',       nativeName: 'Ateso',      flag: '🇺🇬', direction: 'ltr' },
-  { code: 'luo', name: 'Luo',         nativeName: 'Luo',        flag: '🇺🇬', direction: 'ltr' },
-  { code: 'lgg', name: 'Lugbara',     nativeName: 'Lugbara',    flag: '🇺🇬', direction: 'ltr' },
-  { code: 'xog', name: 'Lusoga',      nativeName: 'Lusoga',     flag: '🇺🇬', direction: 'ltr' },
-  { code: 'cgg', name: 'Rukiga',      nativeName: 'Rukiga',     flag: '🇺🇬', direction: 'ltr' },
-  { code: 'ach', name: 'Acholi',      nativeName: 'Acholi',     flag: '🇺🇬', direction: 'ltr' },
-  { code: 'swa', name: 'Swahili',     nativeName: 'Kiswahili',  flag: '🇹🇿', direction: 'ltr' },
+  { code: 'en',  name: 'English',       nativeName: 'English',      flag: '🇬🇧', direction: 'ltr' },
+  { code: 'lug', name: 'Luganda',       nativeName: 'Luganda',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'nyn', name: 'Runyankole',    nativeName: 'Runyankore',   flag: '🇺🇬', direction: 'ltr' },
+  { code: 'cgg', name: 'Rukiga',        nativeName: 'Rukiga',       flag: '🇺🇬', direction: 'ltr' },
+  { code: 'nyo', name: 'Runyoro',       nativeName: 'Runyoro',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'ttj', name: 'Rutoro',        nativeName: 'Rutooro',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'xog', name: 'Lusoga',        nativeName: 'Lusoga',       flag: '🇺🇬', direction: 'ltr' },
+  { code: 'myx', name: 'Lumasaba',      nativeName: 'Lumasaba',     flag: '🇺🇬', direction: 'ltr' },
+  { code: 'luo', name: 'Luo',           nativeName: 'Dho Lwo',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'ach', name: 'Acholi',        nativeName: 'Luo Acholi',   flag: '🇺🇬', direction: 'ltr' },
+  { code: 'laj', name: 'Langi',         nativeName: 'Leb Lango',    flag: '🇺🇬', direction: 'ltr' },
+  { code: 'alz', name: 'Alur',          nativeName: 'Dho Alur',     flag: '🇺🇬', direction: 'ltr' },
+  { code: 'teo', name: 'Ateso',         nativeName: 'Ateso',        flag: '🇺🇬', direction: 'ltr' },
+  { code: 'kdj', name: 'Ngakarimojong', nativeName: 'Ngakarimojong',flag: '🇺🇬', direction: 'ltr' },
+  { code: 'lgg', name: 'Lugbara',       nativeName: 'Lugbara',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'swa', name: 'Swahili',       nativeName: 'Kiswahili',    flag: '🇹🇿', direction: 'ltr' },
 ];
 
 export const LANGUAGE_MAP = Object.fromEntries(

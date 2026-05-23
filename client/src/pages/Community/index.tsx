@@ -8,7 +8,8 @@ import StatusBadge from '../../components/common/StatusBadge';
 const CHANNELS = ['sms', 'ussd', 'app', 'voice', 'in_person'];
 const ISSUE_TYPES = ['breakdown', 'water_quality', 'contamination', 'shortage', 'infrastructure', 'pump_failure', 'vandalism', 'other'];
 const COLORS = ['#3b82f6', '#16a34a', '#ea580c', '#8b5cf6', '#d97706', '#06b6d4'];
-const DISTRICTS = ['Gulu', 'Arua', 'Lira', 'Moroto', 'Kotido', 'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Mbarara', 'Kasese', 'Kabale', 'Hoima', 'Adjumani', 'Yumbe'];
+import { ALL_DISTRICTS } from '../../constants/districts';
+const DISTRICTS = ALL_DISTRICTS;
 
 export default function CommunityReports() {
   const [reports, setReports] = useState<any[]>([]);

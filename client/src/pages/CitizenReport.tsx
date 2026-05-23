@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { submitCitizenReport, createHealthIncident } from '../api/client';
+import { ALL_DISTRICTS } from '../constants/districts';
 import { AlertCircle, CheckCircle, Loader2, Upload, Camera, Mic, MessageSquare, Mail as MailIcon, Phone, Send, Image as ImageIcon } from 'lucide-react';
 import CameraCapture from '../components/common/CameraCapture';
 
@@ -16,7 +17,7 @@ const incidentTypes = [
 
 const DISEASE_TYPES = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
 
-const districts = ['Kampala', 'Gulu', 'Lira', 'Moroto', 'Jinja', 'Soroti', 'Arua', 'Mbarara', 'Mbale', 'Tororo', 'Masaka', 'Fort Portal', 'Kabale', 'Busia', 'Adjumani'];
+const districts = ALL_DISTRICTS;
 
 export default function CitizenReport() {
   const [loading, setLoading] = useState(false);
