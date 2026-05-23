@@ -22,6 +22,7 @@ interface NavItem {
   to: string;
   icon: React.ElementType;
   label: string;
+  citizenLabel?: string;
   roles: Role[];
   group: string;
   badge?: string;
@@ -101,7 +102,7 @@ const navItems: NavItem[] = [
     roles:[...ALL], group:'citizen', badge:'NEW' },
 
   // ── My Tasks — ALL authenticated users ───────────────────
-  { to:'/technician-portal',  icon:Hammer,  label:'My Tasks',
+  { to:'/technician-portal',  icon:Hammer,  label:'My Tasks', citizenLabel:'Tasks',
     roles:[...ALL], group:'tools' },
 
   // ── Administration & AI ───────────────────────────────────
@@ -278,7 +279,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     }
                   >
                     <item.icon size={16} className="flex-shrink-0"/>
-                    <span className="truncate flex-1">{item.label}</span>
+                    <span className="truncate flex-1">{userRole === 'citizen' && item.citizenLabel ? item.citizenLabel : item.label}</span>
                     {item.badge && (
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${badgeStyle[item.badge] || badgeStyle.NEW}`}>
                         {item.badge}

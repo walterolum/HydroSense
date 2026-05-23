@@ -18,6 +18,7 @@ const TYPE_ICONS: Record<string,string> = {
 
 export default function TechnicianPortal() {
   const { user } = useAuth();
+  const isCitizen = user?.role === 'citizen';
   const [tasks, setTasks]         = useState<any[]>([]);
   const [sensors, setSensors]     = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -62,11 +63,17 @@ export default function TechnicianPortal() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Wrench size={17} className="text-yellow-300" />
-              <span className="text-yellow-300 text-sm font-semibold tracking-wide">FIELD TECHNICIAN PORTAL</span>
+              <span className="text-yellow-300 text-sm font-semibold tracking-wide">
+                {isCitizen ? 'FIELD OPERATIONS' : 'FIELD TECHNICIAN PORTAL'}
+              </span>
             </div>
-            <h2 className="text-2xl font-extrabold">My Tasks &amp; Work Orders</h2>
+            <h2 className="text-2xl font-extrabold">
+              {isCitizen ? 'Tasks & Work Orders' : 'My Tasks & Work Orders'}
+            </h2>
             <p className="text-orange-100 text-sm mt-1">
-              {user?.name} · {user?.district || 'All Zones'} · {new Date().toLocaleDateString('en-UG', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}
+              {isCitizen
+                ? `${user?.district || 'All Zones'} · ${new Date().toLocaleDateString('en-UG', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`
+                : `${user?.name} · ${user?.district || 'All Zones'} · ${new Date().toLocaleDateString('en-UG', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`}
             </p>
           </div>
           <button onClick={load} className="p-2.5 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-colors">
@@ -162,8 +169,8 @@ export default function TechnicianPortal() {
                       </div>
                     </div>
 
-                    {/* Action buttons */}
-                    {task.status !== 'completed' && (
+                    {/* Action buttons — technicians/admins only */}
+                    {task.status !== 'completed' && !isCitizen && (
                       <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                         {(task.status === 'pending' || task.status === 'assigned') && (
                           <button
@@ -200,13 +207,14 @@ export default function TechnicianPortal() {
               </div>
               <div className="space-y-2">
                 {[
-                  ['Water Point', selected.water_point_name || `#${selected.water_point_id}`],
-                  ['District',    selected.district],
-                  ['Issue Type',  selected.issue_type?.replace(/_/g,' ')],
-                  ['Priority',    selected.priority],
-                  ['Status',      selected.status?.replace(/_/g,' ')],
-                  ['Cost Est.',   selected.estimated_cost ? `UGX ${parseInt(selected.estimated_cost).toLocaleString()}` : '—'],
-                  ['Created',     new Date(selected.created_at).toLocaleString()],
+                  ['Water Point',      selected.water_point_name || `#${selected.water_point_id}`],
+                  ['District',         selected.district],
+                  ['Issue Type',       selected.issue_type?.replace(/_/g,' ')],
+                  ['Priority',         selected.priority],
+                  ['Status',           selected.status?.replace(/_/g,' ')],
+                  ...(selected.assigned_to_name ? [['Assigned To', selected.assigned_to_name]] : []),
+                  ['Cost Est.',        selected.estimated_cost ? `UGX ${parseInt(selected.estimated_cost).toLocaleString()}` : '—'],
+                  ['Created',          new Date(selected.created_at).toLocaleString()],
                 ].map(([k,v]) => (
                   <div key={k} className="flex items-start gap-2 text-sm">
                     <span className="text-gray-400 w-24 flex-shrink-0 text-xs">{k}</span>
