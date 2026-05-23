@@ -312,27 +312,31 @@ export default function MultilingualReport() {
                 {/* Body */}
                 <div className="bg-rose-50 dark:bg-rose-950 p-4 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className={disease.disease_type === 'other' ? 'sm:col-span-2' : ''}>
+                    <div>
                       <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Disease Type *</label>
                       <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value, other_name: '' }))}
                         className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
                         {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
                       </select>
-                      {disease.disease_type === 'other' && (
-                        <input
-                          type="text"
-                          value={disease.other_name}
-                          onChange={e => setDisease(p => ({ ...p, other_name: e.target.value }))}
-                          placeholder="Type the disease name…"
-                          className="mt-2 w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                        />
-                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Cases *</label>
                       <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
                         className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="People affected" />
                     </div>
+                    {disease.disease_type === 'other' && (
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Specify Disease Name *</label>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={disease.other_name}
+                          onChange={e => setDisease(p => ({ ...p, other_name: e.target.value }))}
+                          placeholder="Enter the name of the disease or illness…"
+                          className="w-full px-3 py-2.5 border-2 border-rose-400 dark:border-rose-500 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Deaths</label>
                       <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
@@ -466,7 +470,7 @@ export default function MultilingualReport() {
 
             {/* Submit */}
             <button type="submit" disabled={loading || !form.incident_type || !form.description || !form.district}
-              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-60">
+              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 flex items-center justify-center gap-2 disabled:opacity-60">
               {loading ? <><Loader2 size={16} className="animate-spin" /> Submitting...</> : <><Send size={16} /> {t('common.submit')}</>}
             </button>
 
