@@ -310,35 +310,35 @@ export default function MultilingualReport() {
                   </div>
                 </div>
                 {/* Body */}
-                <div className="bg-rose-50 p-4 space-y-3">
+                <div className="bg-rose-50 dark:bg-rose-950 p-4 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-800 mb-1">Disease Type *</label>
+                      <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Disease Type *</label>
                       <select value={disease.disease_type} onChange={e => setDisease(p => ({ ...p, disease_type: e.target.value }))}
-                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
+                        className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-rose-500 capitalize">
                         {DISEASE_TYPES.map(d => <option key={d} value={d}>{d.replace(/_/g, ' ')}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-800 mb-1">Cases *</label>
+                      <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Cases *</label>
                       <input type="number" min="1" value={disease.cases} onChange={e => setDisease(p => ({ ...p, cases: e.target.value }))}
-                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="People affected" />
+                        className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="People affected" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-800 mb-1">Deaths</label>
+                      <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Deaths</label>
                       <input type="number" min="0" value={disease.deaths} onChange={e => setDisease(p => ({ ...p, deaths: e.target.value }))}
-                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
+                        className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-800 mb-1">Hospitalizations</label>
+                      <label className="block text-xs font-semibold text-gray-800 dark:text-rose-100 mb-1">Hospitalizations</label>
                       <input type="number" min="0" value={disease.hospitalizations} onChange={e => setDisease(p => ({ ...p, hospitalizations: e.target.value }))}
-                        className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
+                        className="w-full px-3 py-2.5 border border-rose-200 dark:border-rose-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500" placeholder="0" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="flex items-center gap-3 px-3 py-2.5 bg-white border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100 transition-colors">
+                      <label className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-gray-800 border border-rose-200 dark:border-rose-700 rounded-xl cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900 transition-colors">
                         <input type="checkbox" checked={disease.water_source_linked} onChange={e => setDisease(p => ({ ...p, water_source_linked: e.target.checked }))}
                           className="w-4 h-4 accent-rose-600 flex-shrink-0" />
-                        <span className="text-sm text-gray-700 font-medium">Illness linked to a water source (borehole, river, well, etc.)</span>
+                        <span className="text-sm text-gray-700 dark:text-rose-100 font-medium">Illness linked to a water source (borehole, river, well, etc.)</span>
                       </label>
                     </div>
                   </div>
