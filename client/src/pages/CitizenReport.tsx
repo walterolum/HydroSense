@@ -303,11 +303,7 @@ export default function CitizenReport() {
       {showCamera && (
         <CameraCapture
           onCapture={(dataUrl, file) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              setMediaFiles(prev => [...prev, { type: 'image', data: reader.result as string, mime: file.type }]);
-            };
-            reader.readAsDataURL(file);
+            setMediaFiles(prev => [...prev, { type: 'image', data: dataUrl, mime: file.type }]);
             setShowCamera(false);
           }}
           onClose={() => setShowCamera(false)}

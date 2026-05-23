@@ -157,6 +157,7 @@ export default function MultilingualReport() {
   };
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-700 px-4 py-4">
@@ -430,5 +431,6 @@ export default function MultilingualReport() {
         onClose={() => setShowCamera(false)}
       />
     )}
+    </>
   );
 }
