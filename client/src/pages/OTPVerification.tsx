@@ -9,6 +9,7 @@ export default function OTPVerification() {
   const email = searchParams.get('email') || '';
 
   const [otp, setOtp] = useState('');
+  const [localOtpDisplay, setLocalOtpDisplay] = useState(searchParams.get('otp_display') || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -26,6 +27,14 @@ export default function OTPVerification() {
     }
     if (timer === 0) setCanResend(true);
   }, [timer, canResend]);
+
+  useEffect(() => {
+    const otpParam = searchParams.get('otp_display') || '';
+    if (otpParam) {
+      setOtp(otpParam);
+      setLocalOtpDisplay(otpParam);
+    }
+  }, [searchParams]);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,8 +64,14 @@ export default function OTPVerification() {
     setLoading(true);
     setError('');
     try {
-      await api.post('/auth/send-otp', { email });
-      setSuccess('OTP resent successfully!');
+      const res = await api.post('/auth/send-otp', { email });
+      setSuccess(res.data.message || 'OTP resent successfully!');
+      if (res.data.otp_display) {
+        setOtp(res.data.otp_display);
+        setLocalOtpDisplay(res.data.otp_display);
+      } else {
+        setLocalOtpDisplay('');
+      }
       setTimer(60);
       setCanResend(false);
     } catch (err: any) {
@@ -126,6 +141,21 @@ export default function OTPVerification() {
             <div className="mb-5 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-sm text-green-700 animate-fade-in">
               <CheckCircle size={16} className="flex-shrink-0 text-green-500" />
               <span>{success}</span>
+            </div>
+          )}
+
+          {localOtpDisplay && (
+            <div className="mb-5 px-4 py-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm animate-fade-in">
+              <div className="flex gap-2.5 items-start">
+                <span className="text-lg mt-0.5">🔧</span>
+                <div>
+                  <strong className="font-bold block mb-1">Developer Mode / Mock Delivery</strong>
+                  No SMS or Email delivery provider is configured. Use the verification code below to activate your account:
+                  <div className="mt-3 font-mono text-2xl font-extrabold tracking-widest text-center bg-white border border-amber-100 rounded-lg py-2 select-all">
+                    {localOtpDisplay}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

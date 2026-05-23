@@ -257,7 +257,7 @@ export default function CitizenRegistration() {
       if (res.data.otp_required) {
         setSuccess(res.data.message || 'Account created! A verification code has been sent to your email and phone.');
         setTimeout(() => {
-          navigate(`/otp-verification?email=${encodeURIComponent(form.email)}`);
+          navigate(`/otp-verification?email=${encodeURIComponent(form.email)}&otp_display=${encodeURIComponent(res.data.otp_display || '')}`);
         }, 1500);
       } else {
         // Auto-login fallback — store token and go directly to dashboard
