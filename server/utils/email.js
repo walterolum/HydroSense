@@ -180,7 +180,7 @@ function getTransporter() {
 }
 
 async function sendViaNodemailer(to, otp, purpose) {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'YOUR_GMAIL_APP_PASSWORD_HERE') return null;
 
   try {
     const info = await getTransporter().sendMail({
