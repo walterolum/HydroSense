@@ -1,14 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { CloudRain, Thermometer, Droplets, AlertTriangle, TrendingDown, Wind } from 'lucide-react';
+import { CloudRain, Thermometer, Droplets, AlertTriangle, TrendingDown, Wind, MapPin } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, Radar, Legend, Cell } from 'recharts';
 import { getDroughtIndex, getFloodAlerts, getClimateForecast, getClimateSummary, getResilienceScores } from '../../api/client';
 import StatCard from '../../components/common/StatCard';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useAuth } from '../../contexts/AuthContext';
+import { useWeather, weatherInfo } from '../../hooks/useWeather';
 
 const SEVERITY_COLORS: Record<string, string> = { extreme_drought: '#7f1d1d', severe_drought: '#dc2626', moderate_drought: '#ea580c', mild_drought: '#d97706', normal: '#16a34a', wet: '#2563eb' };
 const FLOOD_COLORS: Record<string, string> = { critical: '#dc2626', high: '#ea580c', moderate: '#d97706', low: '#16a34a' };
 
+const DISTRICTS = [
+  'Kampala', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Mbarara', 'Kotido', 
+  'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Kasese', 'Kabale', 'Hoima', 
+  'Adjumani', 'Yumbe'
+];
+
 export default function ClimateMonitor() {
+  const { user } = useAuth();
+  const { weather, wError, loading: wLoading, fetchWeatherByDistrict } = useWeather(user?.district || 'Kampala');
+
   const [drought, setDrought] = useState<any[]>([]);
   const [flood, setFlood] = useState<any[]>([]);
   const [forecast, setForecast] = useState<any[]>([]);
@@ -35,14 +46,80 @@ export default function ClimateMonitor() {
     'Community': r.community_capacity_score,
   }));
 
+  const weatherInfo_ = weather ? weatherInfo(weather.code) : null;
+
   return (
     <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Districts in Drought" value={summary?.districts_in_drought || 0} subtitle="Requiring water intervention" icon={TrendingDown} color="orange" />
-        <StatCard loading={loading} title="Districts Flood Risk" value={summary?.districts_flood_risk || 0} subtitle="High/critical flood alert" icon={CloudRain} color="blue" />
-        <StatCard loading={loading} title="Avg Recent Rainfall" value={`${summary?.avg_recent_rainfall_mm || 0} mm`} subtitle="Last 3 months average" icon={Droplets} color="cyan" />
-        <StatCard loading={loading} title="Critical Alerts" value={flood.filter(f => f.flood_risk === 'critical').length + drought.filter(d => d.severity === 'extreme_drought').length} subtitle="Extreme drought + flood" icon={AlertTriangle} color="red" />
+      {/* MASTER TOP GRID: Stats + Weather Widget */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
+        {/* Stats Grid */}
+        <div className="xl:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard loading={loading} title="Districts in Drought" value={summary?.districts_in_drought || 0} subtitle="Requiring water intervention" icon={TrendingDown} color="orange" />
+          <StatCard loading={loading} title="Districts Flood Risk" value={summary?.districts_flood_risk || 0} subtitle="High/critical flood alert" icon={CloudRain} color="blue" />
+          <StatCard loading={loading} title="Avg Recent Rainfall" value={`${summary?.avg_recent_rainfall_mm || 0} mm`} subtitle="Last 3 months average" icon={Droplets} color="cyan" />
+          <StatCard loading={loading} title="Critical Alerts" value={flood.filter(f => f.flood_risk === 'critical').length + drought.filter(d => d.severity === 'extreme_drought').length} subtitle="Extreme drought + flood" icon={AlertTriangle} color="red" />
+        </div>
+
+        {/* Live Weather Widget */}
+        <div className="xl:col-span-1 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm p-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                <CloudRain size={13} className="text-blue-500 animate-pulse" /> Live Weather
+              </span>
+              {wLoading && (
+                <div className="w-4 h-4 rounded-full border-2 border-gray-200 border-t-blue-500 animate-spin" />
+              )}
+            </div>
+            
+            {!weather && wLoading && (
+              <div className="flex items-center justify-center h-20 text-xs text-gray-400">
+                Fetching weather data...
+              </div>
+            )}
+
+            {!weather && !wLoading && wError && (
+              <div className="flex items-center justify-center h-20 text-xs text-red-500 font-medium">
+                Weather information unavailable
+              </div>
+            )}
+
+            {weather && weatherInfo_ && (
+              <div className="mt-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-end gap-0.5">
+                      <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{weather.temp}°</span>
+                      <span className="text-sm font-semibold text-gray-400 pb-0.5">C</span>
+                    </div>
+                    <p className="text-xs font-bold text-gray-600 dark:text-gray-300 mt-0.5">{weatherInfo_.label}</p>
+                  </div>
+                  <weatherInfo_.Icon size={38} className="text-blue-500 opacity-80" />
+                </div>
+                
+                <div className="flex items-center gap-3 mt-3 text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                  <span className="flex items-center gap-1"><Wind size={12} /> {weather.windspeed} km/h</span>
+                  <span className="flex items-center gap-1"><MapPin size={12} className="text-gray-400" /> {weather.placeName}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-extrabold text-gray-400 dark:text-gray-500">Area:</span>
+            <select
+              value={weather?.placeName || user?.district || 'Kampala'}
+              onChange={(e) => fetchWeatherByDistrict(e.target.value)}
+              className="text-[11px] font-bold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer flex-1 w-full"
+            >
+              {DISTRICTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Drought Index Table */}

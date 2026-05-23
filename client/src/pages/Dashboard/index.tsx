@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
 } from 'recharts';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWeather, weatherInfo } from '../../hooks/useWeather';
 import StatusBadge from '../../components/common/StatusBadge';
 import {
   getAnalyticsOverview, getAlerts, getMaintenanceRequests,
@@ -50,48 +51,11 @@ const SEVERITY_LEVEL: Record<string, { label: string; color: string; bg: string;
   info:      { label: 'Minimal',   color: 'text-blue-700 dark:text-blue-300',   bg: 'bg-blue-50 dark:bg-blue-950/60',   border: 'border-blue-400 dark:border-blue-600',   dot: 'bg-blue-500',   text: 'text-blue-900 dark:text-blue-100',   sub: 'text-blue-700 dark:text-blue-300' },
 };
 
-/* ── WMO weather code → label + icon component ── */
-function weatherInfo(code: number, size = 20) {
-  if (code === 0)                        return { label: 'Clear Sky',        Icon: Sun };
-  if (code <= 3)                         return { label: 'Partly Cloudy',    Icon: Cloud };
-  if (code <= 48)                        return { label: 'Foggy',            Icon: Cloud };
-  if (code <= 57)                        return { label: 'Drizzle',          Icon: CloudRain };
-  if (code <= 67)                        return { label: 'Rain',             Icon: CloudRain };
-  if (code <= 77)                        return { label: 'Snow',             Icon: Snowflake };
-  if (code <= 82)                        return { label: 'Rain Showers',     Icon: CloudRain };
-  if (code <= 86)                        return { label: 'Snow Showers',     Icon: Snowflake };
-  return                                        { label: 'Thunderstorm',     Icon: CloudLightning };
-}
-
-interface WeatherData {
-  temp: number; windspeed: number; code: number;
-  placeName: string; lat: number; lon: number;
-}
-
-function useWeather() {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [wError, setWError] = useState(false);
-
-  useEffect(() => {
-    if (!navigator.geolocation) { setWError(true); return; }
-    navigator.geolocation.getCurrentPosition(async pos => {
-      try {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        const [wRes, gRes] = await Promise.all([
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`),
-          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`),
-        ]);
-        const wJson = await wRes.json();
-        const gJson = await gRes.json();
-        const cw = wJson.current_weather;
-        const place = gJson.address?.city || gJson.address?.town || gJson.address?.county || gJson.address?.state || 'Your Location';
-        setWeather({ temp: Math.round(cw.temperature), windspeed: Math.round(cw.windspeed), code: cw.weathercode, placeName: place, lat, lon });
-      } catch { setWError(true); }
-    }, () => setWError(true), { timeout: 8000 });
-  }, []);
-
-  return { weather, wError };
-}
+const DISTRICTS = [
+  'Kampala', 'Gulu', 'Arua', 'Lira', 'Moroto', 'Mbarara', 'Kotido', 
+  'Soroti', 'Mbale', 'Jinja', 'Masaka', 'Kasese', 'Kabale', 'Hoima', 
+  'Adjumani', 'Yumbe'
+];
 
 /* Live clock */
 function useClock() {
@@ -242,7 +206,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const now = useClock();
-  const { weather, wError } = useWeather();
+  const { weather, wError, loading: wLoading, fetchWeatherByDistrict } = useWeather(user?.district || 'Kampala');
 
   const [overview, setOverview]       = useState<any>(null);
   const [alerts, setAlerts]           = useState<any[]>([]);
@@ -414,13 +378,13 @@ export default function Dashboard() {
 
           {/* Weather */}
           <div className="px-4 py-3">
-            {!weather && !wError && (
+            {wLoading && !weather && (
               <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                 <div className="w-4 h-4 rounded-full border-2 border-gray-300 border-t-blue-500 animate-spin" />
                 Fetching weather…
               </div>
             )}
-            {wError && (
+            {!wLoading && !weather && wError && (
               <p className="text-xs text-gray-400 dark:text-gray-500">Weather unavailable</p>
             )}
             {weather && weatherInfo_ && (
@@ -438,10 +402,26 @@ export default function Dashboard() {
                 <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
                   <Wind size={11} /> {weather.windspeed} km/h
                   <span className="mx-1">·</span>
-                  <MapPin size={11} /> {weather.placeName}
+                  <MapPin size={11} className="text-gray-400" /> <span className="truncate max-w-[100px]">{weather.placeName}</span>
                 </div>
               </>
             )}
+            
+            {/* Premium Area Selector Dropdown */}
+            <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-extrabold text-gray-400 dark:text-gray-500 flex-shrink-0">Area:</span>
+              <select
+                value={weather?.placeName || user?.district || 'Kampala'}
+                onChange={(e) => fetchWeatherByDistrict(e.target.value)}
+                className="text-[11px] font-bold text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer flex-1 w-full"
+              >
+                {DISTRICTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
