@@ -176,7 +176,7 @@ export default function MultilingualReport() {
 
   return (
     <>
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-700 px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -190,12 +190,12 @@ export default function MultilingualReport() {
 
       <div className="max-w-2xl mx-auto p-4">
         {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-sm text-red-700">
+          <div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-3 text-sm text-red-700 dark:text-red-300">
             <AlertCircle size={16} /> <span>{error}</span>
           </div>
         )}
         {success && (
-          <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-sm text-green-700">
+          <div className="mb-4 px-4 py-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-3 text-sm text-green-700 dark:text-green-300">
             <CheckCircle size={16} /> <span>{success}</span>
           </div>
         )}
@@ -204,7 +204,7 @@ export default function MultilingualReport() {
         <div className="flex items-center gap-2 mb-6">
           {[1, 2].map(s => (
             <div key={s} className={`flex items-center gap-2 ${s < step ? 'text-green-600' : s === step ? 'text-blue-600' : 'text-gray-300'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${s < step ? 'bg-green-100 border-green-400' : s === step ? 'bg-blue-100 border-blue-400' : 'bg-gray-100 border-gray-300'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${s < step ? 'bg-green-100 dark:bg-green-900 border-green-400' : s === step ? 'bg-blue-100 dark:bg-blue-900 border-blue-400' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'}`}>
                 {s < step ? '✓' : s}
               </div>
               <span className="text-sm font-medium hidden sm:inline">{s === 1 ? t('report.title') : t('report.track')}</span>
@@ -216,9 +216,9 @@ export default function MultilingualReport() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Source Language */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Report Language</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Report Language</label>
               <select value={sourceLang} onChange={e => setSourceLang(e.target.value as LanguageCode)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 {[{ code: language, nativeName: `Current (${language.toUpperCase()})` }, ...useLanguage().supportedLanguages.filter(l => l.code !== language)].map(l => (
                   <option key={l.code} value={l.code}>{l.nativeName}</option>
                 ))}
@@ -227,9 +227,9 @@ export default function MultilingualReport() {
 
             {/* Incident Type */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.type')}</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.type')}</label>
               <select value={form.incident_type} onChange={update('incident_type')} required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Select type...</option>
                 {INCIDENT_TYPES.map(type => (
                   <option key={type} value={type}>{t(`incident.${type}`)}</option>
@@ -240,7 +240,7 @@ export default function MultilingualReport() {
             {/* Description */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-semibold text-gray-700">{t('report.description')}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">{t('report.description')}</label>
                 {voiceRecording && (
                   <span className="flex items-center gap-1.5 text-xs font-bold text-red-600 animate-pulse">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
@@ -259,12 +259,12 @@ export default function MultilingualReport() {
                   rows={5}
                   required
                   readOnly={voiceRecording}
-                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white focus:outline-none transition-all duration-300 ${
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-300 ${
                     voiceRecording && !form.description
-                      ? 'border-red-400 ring-2 ring-red-100'
+                      ? 'border-red-400 ring-2 ring-red-100 dark:ring-red-900'
                       : voiceActive
-                      ? 'border-green-400 ring-2 ring-green-100'
-                      : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                      ? 'border-green-400 ring-2 ring-green-100 dark:ring-green-900'
+                      : 'border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                   }`}
                   placeholder={
                     sourceLang !== 'en'
@@ -348,36 +348,36 @@ export default function MultilingualReport() {
 
             {/* Photo upload */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.photo')}</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.photo')}</label>
 
               {/* Gallery-only file input (no capture attr) */}
               <input ref={galleryRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
 
               {imagePreview ? (
                 /* already has a photo — show two replace options */
-                <div className="flex rounded-xl border-2 border-dashed border-blue-300 overflow-hidden bg-blue-50 w-full">
+                <div className="flex rounded-xl border-2 border-dashed border-blue-300 dark:border-blue-700 overflow-hidden bg-blue-50 dark:bg-blue-950 w-full">
                   <button type="button" onClick={() => setShowCamera(true)}
                     title="Retake with camera"
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-colors border-r border-dashed border-blue-300">
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors border-r border-dashed border-blue-300 dark:border-blue-700">
                     <Camera size={16} /> Retake
                   </button>
                   <button type="button" onClick={() => galleryRef.current?.click()}
                     title="Choose different photo from gallery"
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-100 transition-colors">
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors">
                     <Image size={16} /> Change
                   </button>
                 </div>
               ) : (
                 /* no photo yet — camera + gallery side by side */
-                <div className="flex rounded-xl border-2 border-dashed border-gray-300 overflow-hidden bg-gray-50 w-full">
+                <div className="flex rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden bg-gray-50 dark:bg-gray-800 w-full">
                   <button type="button" onClick={() => setShowCamera(true)}
                     title="Open device camera"
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors border-r border-dashed border-gray-300">
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 transition-colors border-r border-dashed border-gray-300 dark:border-gray-600">
                     <Camera size={16} /> Take Photo
                   </button>
                   <button type="button" onClick={() => galleryRef.current?.click()}
                     title="Choose from gallery"
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                     <Image size={16} /> From Gallery
                   </button>
                 </div>
@@ -394,40 +394,40 @@ export default function MultilingualReport() {
             {/* Location */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.district')}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.district')}</label>
                 <select value={form.district} onChange={update('district')} required
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Select...</option>
                   {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.subcounty')}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.subcounty')}</label>
                 <input type="text" value={form.sub_county} onChange={update('sub_county')}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('report.village')}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.village')}</label>
                 <input type="text" value={form.village} onChange={update('village')}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Latitude</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Latitude</label>
                   <input type="number" step="any" value={form.lat} onChange={update('lat')}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Longitude</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Longitude</label>
                   <input type="number" step="any" value={form.lng} onChange={update('lng')}
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                    className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                 </div>
               </div>
             </div>
 
             {/* Severity */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Severity</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Severity</label>
               <div className="flex gap-2">
                 {['low', 'medium', 'high', 'critical'].map(s => (
                   <button key={s} type="button" onClick={() => setForm(p => ({ ...p, severity: s }))}
@@ -437,7 +437,7 @@ export default function MultilingualReport() {
                           : s === 'high' ? 'bg-orange-500 text-white border-orange-500'
                           : s === 'medium' ? 'bg-yellow-500 text-white border-yellow-500'
                           : 'bg-green-500 text-white border-green-500'
-                        : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'}`}>
+                        : 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'}`}>
                     {s}
                   </button>
                 ))}
@@ -445,14 +445,14 @@ export default function MultilingualReport() {
             </div>
 
             {/* Anonymous toggle */}
-            <label className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+            <label className="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <input type="checkbox" checked={form.is_anonymous} onChange={e => setForm(p => ({ ...p, is_anonymous: e.target.checked }))}
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
               <div className="flex-1">
-                <div className="text-sm font-semibold text-gray-700">{t('report.anonymous')}</div>
-                <div className="text-xs text-gray-400">Your identity will not be shared</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t('report.anonymous')}</div>
+                <div className="text-xs text-gray-400 dark:text-gray-500">Your identity will not be shared</div>
               </div>
-              <Shield size={16} className="text-gray-400" />
+              <Shield size={16} className="text-gray-400 dark:text-gray-500" />
             </label>
 
             {/* Submit */}
@@ -462,7 +462,7 @@ export default function MultilingualReport() {
             </button>
 
             {/* Alternative channels */}
-            <div className="text-center text-xs text-gray-400 pt-2 border-t border-gray-100">
+            <div className="text-center text-xs text-gray-400 dark:text-gray-500 pt-2 border-t border-gray-100 dark:border-gray-800">
               <p className="mb-1">You can also report via:</p>
               <div className="flex items-center justify-center gap-4">
                 <span className="flex items-center gap-1"><MessageSquare size={12} /> SMS: 8002</span>
