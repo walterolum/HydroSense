@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Circle,
   ZoomControl, GeoJSON, useMap, useMapEvents,
@@ -72,6 +72,12 @@ function MapClickHandler({ active, onPin }: { active: boolean; onPin: (lat: numb
 /** Normalize string for fuzzy district matching */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
+/** Deactivates follow-me when the user manually drags the map */
+function FollowMapHandler({ onDrag }: { onDrag: () => void }) {
+  useMapEvents({ dragstart: onDrag });
+  return null;
+}
+
 /** Flies the map to the selected district's bounding box */
 function FlyToDistrict({ district, geo }: { district?: string; geo: any }) {
   const map = useMap();
@@ -122,6 +128,9 @@ export default function WaterMap({
   const [isWatching, setIsWatching] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
+  const [userSpeed, setUserSpeed] = useState<number | null>(null);
+  const [followMode, setFollowMode] = useState(false);
   const [locationLabel, setLocationLabel] = useState<{ place: string; road: string; district: string } | null>(null);
   const [isManualPin, setIsManualPin] = useState(false);
   const [dropPinMode, setDropPinMode] = useState(false);
@@ -132,8 +141,23 @@ export default function WaterMap({
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Tracks the coordinates at the time of the best (most accurate) GPS fix for sharing
   const bestLocationRef = useRef<[number, number] | null>(null);
+  // Ref mirrors followMode so the watchPosition closure always sees the current value
+  const followModeRef = useRef(false);
+
+  // Inject pulse-ring keyframe once into <head> for the live location icon
+  useEffect(() => {
+    if (document.getElementById('hydro-loc-style')) return;
+    const s = document.createElement('style');
+    s.id = 'hydro-loc-style';
+    s.textContent = `
+      @keyframes hydro-loc-pulse {
+        0%   { opacity: .65; transform: translate(-50%,-50%) scale(1); }
+        100% { opacity: 0;   transform: translate(-50%,-50%) scale(3.8); }
+      }
+    `;
+    document.head.appendChild(s);
+  }, []);
 
   // Clean up GPS watch on unmount
   useEffect(() => () => {
@@ -185,67 +209,94 @@ export default function WaterMap({
     }
   }, []);
 
-  // Step 1 — getCurrentPosition: immediate zoom + name card
-  // Step 2 — watchPosition: continuously refines accuracy; re-geocodes on any improvement
   const handleLocate = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
     setIsWatching(false);
     setUserLocation(null);
     setUserAccuracy(null);
+    setUserHeading(null);
+    setUserSpeed(null);
     setLocationLabel(null);
+    setFollowMode(false);
+    followModeRef.current = false;
     bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        let bestAccuracy = pos.coords.accuracy;
-        bestLocationRef.current = latlng;
-        setUserLocation(latlng);
-        setUserAccuracy(bestAccuracy);
-        setIsManualPin(false);
-        setLocating(false);
-        setIsWatching(true);
-        mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
-        geocode(latlng[0], latlng[1]);
+    let firstFix = true;
+    let bestAccuracy = Infinity;
 
-        // Step 2: watch indefinitely — update pin + place name on every accuracy gain
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          wp => {
-            const newLatlng: [number, number] = [wp.coords.latitude, wp.coords.longitude];
-            const newAcc = wp.coords.accuracy;
-            setUserLocation(newLatlng);
-            setUserAccuracy(newAcc);
-            if (newAcc < bestAccuracy) {
-              const majorImprovement = newAcc < bestAccuracy * 0.6;
-              bestAccuracy = newAcc;
-              bestLocationRef.current = newLatlng;
-              geocode(newLatlng[0], newLatlng[1]);
-              if (majorImprovement) {
-                mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
-              }
+    // Single watchPosition handles both the initial fix and continuous refinement.
+    // enableHighAccuracy=true uses GPS chip; maximumAge=0 never serves a cached position.
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      wp => {
+        const newLatlng: [number, number] = [wp.coords.latitude, wp.coords.longitude];
+        const newAcc  = wp.coords.accuracy;
+        const hdg     = wp.coords.heading;   // degrees 0-360 clockwise from north, or null
+        const spd     = wp.coords.speed;     // m/s or null
+
+        // Always display the latest position so the dot tracks real movement
+        setUserLocation(newLatlng);
+        setUserAccuracy(newAcc);
+        if (hdg !== null && !isNaN(hdg)) setUserHeading(hdg);
+        if (spd !== null && !isNaN(spd))  setUserSpeed(Math.round(spd * 3.6)); // → km/h
+
+        if (firstFix) {
+          // First result: zoom in, start geocoding, switch to watching state
+          firstFix = false;
+          bestAccuracy = newAcc;
+          bestLocationRef.current = newLatlng;
+          setLocating(false);
+          setIsWatching(true);
+          setIsManualPin(false);
+          mapRef.current?.flyTo(newLatlng, 17, { duration: 1.5 });
+          geocode(newLatlng[0], newLatlng[1]);
+        } else {
+          // Subsequent fixes: track accuracy, pan when follow mode is on
+          if (newAcc < bestAccuracy) {
+            const majorImprovement = newAcc < bestAccuracy * 0.6;
+            bestAccuracy = newAcc;
+            bestLocationRef.current = newLatlng;
+            geocode(newLatlng[0], newLatlng[1]);
+            // Pan on major accuracy jump if not already following
+            if (!followModeRef.current && majorImprovement) {
+              mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
             }
-          },
-          () => setIsWatching(false),
-          { enableHighAccuracy: true, maximumAge: 0 }
-        );
+          }
+          // Follow-me mode: smoothly pan the map to keep the user centred
+          if (followModeRef.current) {
+            mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.4 });
+          }
+        }
       },
       () => { setLocating(false); setIsWatching(false); },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
     );
   };
+
+  const toggleFollow = useCallback(() => {
+    const next = !followModeRef.current;
+    followModeRef.current = next;
+    setFollowMode(next);
+    if (next && userLocation) {
+      mapRef.current?.panTo(userLocation, { animate: true, duration: 0.8 });
+    }
+  }, [userLocation]);
 
   const dismissLocation = () => {
     setLocationLabel(null);
     setUserLocation(null);
     setUserAccuracy(null);
+    setUserHeading(null);
+    setUserSpeed(null);
     setIsManualPin(false);
     setDropPinMode(false);
     setIsWatching(false);
+    setFollowMode(false);
+    followModeRef.current = false;
     bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -335,29 +386,36 @@ export default function WaterMap({
     mapRef.current?.flyTo(latlng, 16, { duration: 1.5 });
   }, []);
 
-  const liveLocationIcon = L.divIcon({
-    className: '',
-    html: `<div style="position:relative;width:22px;height:22px;">
-      <div style="
-        position:absolute;inset:0;border-radius:50%;
-        background:rgba(37,99,235,0.25);
-        animation:pulse-ring 1.8s ease-out infinite;
-        pointer-events:none;
-      "></div>
-      <div style="
-        position:absolute;top:50%;left:50%;
-        transform:translate(-50%,-50%);
-        width:14px;height:14px;border-radius:50%;
-        background:#2563eb;
-        border:2.5px solid white;
-        box-shadow:0 0 0 2px #2563eb;
-        cursor:pointer;
-      "></div>
-    </div>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -14],
-  });
+  // Heading-aware live location icon — directional arrow appears when GPS provides bearing
+  const liveLocationIcon = useMemo(() => {
+    const arrow = userHeading !== null && !isNaN(userHeading)
+      ? `<g transform="rotate(${Math.round(userHeading)})">
+           <polygon points="0,-13 -5.5,-5 5.5,-5" fill="#2563eb" opacity="0.9"/>
+         </g>`
+      : '';
+    return L.divIcon({
+      className: '',
+      html: `
+        <div style="position:relative;width:28px;height:28px;">
+          <div style="
+            position:absolute;top:50%;left:50%;
+            width:28px;height:28px;border-radius:50%;
+            background:rgba(37,99,235,0.22);
+            animation:hydro-loc-pulse 2s ease-out infinite;
+            pointer-events:none;
+          "></div>
+          <svg style="position:absolute;top:0;left:0"
+               xmlns="http://www.w3.org/2000/svg"
+               viewBox="-14 -14 28 28" width="28" height="28">
+            ${arrow}
+            <circle r="7" fill="#2563eb" stroke="white" stroke-width="2.5"/>
+          </svg>
+        </div>`,
+      iconSize:    [28, 28],
+      iconAnchor:  [14, 14],
+      popupAnchor: [0, -18],
+    });
+  }, [userHeading]);
 
   const base = BASE_LAYERS[activeLayer];
 
@@ -378,6 +436,7 @@ export default function WaterMap({
       >
         <CaptureMap mapRef={mapRef} />
         <MapClickHandler active={dropPinMode} onPin={handleManualPin} />
+        <FollowMapHandler onDrag={() => { followModeRef.current = false; setFollowMode(false); }} />
         <ZoomControl position="bottomright" />
 
         {/* Base tile layer */}
@@ -610,7 +669,7 @@ export default function WaterMap({
         <div style={{
           position: 'absolute', bottom: 140, right: 10, zIndex: 1000,
           background: 'white', borderRadius: 14, padding: '10px 12px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.22)', width: 230,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.22)', width: 236,
         }}>
           {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
@@ -625,17 +684,19 @@ export default function WaterMap({
               {locationLabel.district && (
                 <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
               )}
-              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2, fontFamily: 'monospace' }}>
                 {userLocation[0].toFixed(6)}°N, {userLocation[1].toFixed(6)}°E
               </div>
+
+              {/* GPS accuracy row */}
               {!isManualPin && userAccuracy && (() => {
-                const acc = Math.round(userAccuracy);
-                const good = userAccuracy <= 30;
-                const ok   = userAccuracy <= 100;
+                const acc   = Math.round(userAccuracy);
+                const good  = userAccuracy <= 30;
+                const ok    = userAccuracy <= 100;
                 const color = good ? '#16a34a' : ok ? '#d97706' : '#dc2626';
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, ...(isWatching && !good ? { animation: 'pulse-ring 1.4s ease-out infinite', display: 'inline-block' } : {}) }} />
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
                     <span style={{ fontSize: 10, color, fontWeight: 600 }}>
                       ±{acc}m · {good ? 'Excellent' : ok ? 'Good' : 'Poor'}
                     </span>
@@ -645,6 +706,24 @@ export default function WaterMap({
                   </div>
                 );
               })()}
+
+              {/* Speed + heading row — only when moving */}
+              {!isManualPin && (userSpeed !== null || userHeading !== null) && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                  {userSpeed !== null && userSpeed > 0.5 && (
+                    <span style={{ fontSize: 10, color: '#2563eb', fontWeight: 600 }}>
+                      🏃 {userSpeed} km/h
+                    </span>
+                  )}
+                  {userHeading !== null && !isNaN(userHeading) && (
+                    <span style={{ fontSize: 10, color: '#7c3aed', fontWeight: 600 }}>
+                      🧭 {(['N','NE','E','SE','S','SW','W','NW'])[Math.round(userHeading / 45) % 8]}
+                      {' '}({Math.round(userHeading)}°)
+                    </span>
+                  )}
+                </div>
+              )}
+
               {isManualPin && (
                 <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 1 }}>📌 Manually placed</div>
               )}
@@ -653,32 +732,39 @@ export default function WaterMap({
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons row 1 */}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {/* Share — colour reflects accuracy quality */}
             {(() => {
               const poor = !isManualPin && userAccuracy != null && userAccuracy > 100;
-              const bg = shareCopied ? '#16a34a' : poor ? '#dc2626' : '#2563eb';
+              const bg   = shareCopied ? '#16a34a' : poor ? '#dc2626' : '#2563eb';
               return (
-                <button onClick={handleShare} title={poor ? `GPS accuracy is ±${Math.round(userAccuracy!)}m — consider waiting or using Fix Pin` : undefined} style={{
-                  flex: 1, padding: '5px 0', borderRadius: 8, border: 'none',
-                  background: bg, color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  transition: 'background 0.3s',
-                }}>
+                <button onClick={handleShare}
+                  title={poor ? `GPS accuracy ±${Math.round(userAccuracy!)}m — wait or use Fix Pin` : undefined}
+                  style={{ flex: 1, padding: '5px 0', borderRadius: 8, border: 'none', background: bg, color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'background 0.3s' }}>
                   {shareCopied ? '✓ Copied!' : poor ? `⚠ Share (±${Math.round(userAccuracy!)}m)` : '🔗 Share'}
                 </button>
               );
             })()}
-            {/* Fix pin manually if GPS is inaccurate */}
             {!isManualPin && (
-              <button onClick={() => setDropPinMode(true)} style={{
-                flex: 1, padding: '5px 0', borderRadius: 8, border: '1.5px solid #e2e8f0',
-                background: 'white', color: '#374151', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              }}>
+              <button onClick={() => setDropPinMode(true)} style={{ flex: 1, padding: '5px 0', borderRadius: 8, border: '1.5px solid #e2e8f0', background: 'white', color: '#374151', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                 📌 Fix Pin
               </button>
             )}
           </div>
+
+          {/* Follow Me toggle — only available on live GPS fix */}
+          {!isManualPin && (
+            <button onClick={toggleFollow} style={{
+              width: '100%', marginTop: 5, padding: '5px 0', borderRadius: 8,
+              border: followMode ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
+              background: followMode ? '#eff6ff' : 'white',
+              color: followMode ? '#2563eb' : '#374151',
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}>
+              {followMode ? '🧭 Following — tap to stop' : '🧭 Follow Me'}
+            </button>
+          )}
         </div>
       )}
 
