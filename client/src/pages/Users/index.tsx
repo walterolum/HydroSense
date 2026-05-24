@@ -465,9 +465,12 @@ export default function UserManagement() {
                       </td>
                       {/* Role */}
                       <td className="td">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ROLE_COLORS[u.role] || 'bg-gray-100 text-gray-600'}`}>
-                          {ROLE_ICONS[u.role]} {ROLE_LABELS[u.role] || u.role}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${ROLE_COLORS[u.role] || 'bg-gray-100 text-gray-600'}`}>
+                            <span>{ROLE_ICONS[u.role]}</span>
+                            <span>{ROLE_LABELS[u.role] || u.role}</span>
+                          </span>
+                        </div>
                       </td>
                       {/* District */}
                       <td className="td text-sm">
