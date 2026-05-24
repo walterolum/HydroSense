@@ -32,19 +32,23 @@ function createIcon(status: string) {
 }
 
 // ── Tile layer definitions ────────────────────────────────────────────────────
-type LayerKey = 'hybrid' | 'satellite' | 'street' | 'terrain' | 'hot';
+type LayerKey = 'street' | 'hot' | 'hybrid' | 'satellite' | 'terrain';
 
-const GM = (lyrs: string) => `https://mt{s}.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`;
+const ESRI_SAT   = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const ESRI_TOPO  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+const CARTO_LABELS = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png';
 
-const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: string; subdomains: string; maxNativeZoom: number }> = {
-  hybrid:    { label: '🛰 Hybrid',    url: GM('y'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
-  satellite: { label: '🌍 Satellite', url: GM('s'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
-  terrain:   { label: '⛰ Terrain',   url: GM('p'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
-  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',       attribution: '© OpenStreetMap contributors',    subdomains: 'abc',  maxNativeZoom: 19 },
-  hot:       { label: '❤ HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',   attribution: '© OpenStreetMap, HOT',            subdomains: 'abc',  maxNativeZoom: 19 },
+interface LayerDef { label: string; url: string; attribution: string; subdomains: string; maxNativeZoom: number; labelsUrl?: string; }
+
+const BASE_LAYERS: Record<LayerKey, LayerDef> = {
+  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc',  maxNativeZoom: 19 },
+  hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc',  maxNativeZoom: 19 },
+  hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_LABELS },
+  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19 },
+  terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19 },
 };
 
-const LAYER_ORDER: LayerKey[] = ['hybrid', 'satellite', 'street', 'terrain', 'hot'];
+const LAYER_ORDER: LayerKey[] = ['street', 'hot', 'hybrid', 'satellite', 'terrain'];
 
 // ── Helpers that must render inside MapContainer ──────────────────────────────
 
@@ -100,7 +104,7 @@ export default function WaterMap({
   showHeatmap = false,
   selectedDistrict,
 }: WaterMapProps) {
-  const [activeLayer, setActiveLayer] = useState<LayerKey>('hybrid');
+  const [activeLayer, setActiveLayer] = useState<LayerKey>('street');
   const [districtGeo, setDistrictGeo] = useState<any>(null);
   const [geoLoading, setGeoLoading] = useState(true);
   const [locating, setLocating] = useState(false);
@@ -222,6 +226,19 @@ export default function WaterMap({
           maxZoom={20}
           maxNativeZoom={base.maxNativeZoom}
         />
+
+        {/* Village / place-name labels overlay for satellite and hybrid */}
+        {base.labelsUrl && (
+          <TileLayer
+            key={`${activeLayer}-labels`}
+            url={base.labelsUrl}
+            subdomains="abcd"
+            maxZoom={20}
+            maxNativeZoom={19}
+            attribution=""
+            pane="shadowPane"
+          />
+        )}
 
         {/* Uganda district boundary polygons */}
         {districtGeo && (
