@@ -82,9 +82,9 @@ export default function WaterQuality() {
 
       {/* Contaminated Sources */}
       {stats?.contaminated_sources?.length > 0 && (
-        <div className="card border-2 border-red-200">
+        <div className="card border-2 border-red-200 dark:border-red-800 dark:bg-red-950/10">
           <div className="card-header">
-            <h3 className="section-title text-red-700"><AlertTriangle size={18} /> Contaminated Water Sources — Urgent Action Required</h3>
+            <h3 className="section-title text-red-700 dark:text-red-400"><AlertTriangle size={18} /> Contaminated Water Sources — Urgent Action Required</h3>
           </div>
           <div className="table-container">
             <table className="table">
@@ -93,16 +93,16 @@ export default function WaterQuality() {
                 <th className="th">E.Coli</th><th className="th">Turbidity</th>
                 <th className="th">pH</th><th className="th">Score</th><th className="th">Last Tested</th>
               </tr></thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-red-900/40">
                 {stats.contaminated_sources.slice(0, 10).map((t: any) => (
-                  <tr key={`${t.id}-${t.tested_at}`} className="tr bg-red-50">
-                    <td className="td font-semibold text-red-800">{t.name}</td>
-                    <td className="td">{t.district}</td>
-                    <td className="td"><span className={`font-bold ${t.e_coli_cfu > 50 ? 'text-red-600' : 'text-orange-600'}`}>{t.e_coli_cfu?.toFixed(1)} CFU</span></td>
-                    <td className="td">{t.turbidity_ntu?.toFixed(1)} NTU</td>
-                    <td className="td">{t.ph?.toFixed(1)}</td>
-                    <td className="td"><span className="font-bold text-red-700">{t.water_safety_score}</span></td>
-                    <td className="td text-xs">{new Date(t.tested_at).toLocaleDateString()}</td>
+                  <tr key={`${t.id}-${t.tested_at}`} className="tr bg-red-50 dark:bg-red-950/30">
+                    <td className="td font-semibold text-red-800 dark:text-red-300">{t.name}</td>
+                    <td className="td text-gray-700 dark:text-gray-300">{t.district}</td>
+                    <td className="td"><span className={`font-bold ${t.e_coli_cfu > 50 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>{t.e_coli_cfu?.toFixed(1)} CFU</span></td>
+                    <td className="td text-gray-700 dark:text-gray-300">{t.turbidity_ntu?.toFixed(1)} NTU</td>
+                    <td className="td text-gray-700 dark:text-gray-300">{t.ph?.toFixed(1)}</td>
+                    <td className="td"><span className="font-bold text-red-700 dark:text-red-400">{t.water_safety_score}</span></td>
+                    <td className="td text-xs text-gray-600 dark:text-gray-400">{new Date(t.tested_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -130,7 +130,7 @@ export default function WaterQuality() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex gap-4 text-xs mt-1 flex-wrap">
+          <div className="flex gap-4 text-xs mt-1 flex-wrap text-gray-600 dark:text-gray-300">
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-green-600" /> ≥80 Excellent</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-yellow-500" /> 60–79 Acceptable</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-red-600" /> &lt;60 Poor</span>
@@ -152,23 +152,23 @@ export default function WaterQuality() {
               <th className="th">E.coli</th><th className="th">Safe</th>
               <th className="th">Score</th><th className="th">Tester</th><th className="th">Date</th>
             </tr></thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {tests.map(t => (
-                <tr key={t.id} className={`tr ${!t.overall_safe ? 'bg-red-50' : ''}`}>
-                  <td className="td font-medium text-sm">{t.water_point_name}</td>
-                  <td className="td text-xs">{t.district}</td>
-                  <td className="td">{t.ph?.toFixed(1)}</td>
-                  <td className="td">{t.turbidity_ntu?.toFixed(1)}</td>
-                  <td className="td">{t.tds_ppm?.toFixed(0)}</td>
-                  <td className="td"><span className={t.e_coli_cfu > 10 ? 'text-red-600 font-bold' : 'text-gray-700'}>{t.e_coli_cfu?.toFixed(1)}</span></td>
-                  <td className="td"><span className={`badge ${t.overall_safe ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{t.overall_safe ? '✓ Safe' : '✗ Unsafe'}</span></td>
-                  <td className="td"><span className={`font-bold ${t.water_safety_score >= 80 ? 'text-green-600' : t.water_safety_score >= 60 ? 'text-orange-500' : 'text-red-600'}`}>{t.water_safety_score}</span></td>
-                  <td className="td text-xs">{t.tester_name || '—'}</td>
-                  <td className="td text-xs">{new Date(t.tested_at).toLocaleDateString()}</td>
+                <tr key={t.id} className={`tr ${!t.overall_safe ? 'bg-red-50 dark:bg-red-950/30' : ''}`}>
+                  <td className="td font-medium text-sm text-gray-800 dark:text-gray-100">{t.water_point_name}</td>
+                  <td className="td text-xs text-gray-600 dark:text-gray-300">{t.district}</td>
+                  <td className="td text-gray-700 dark:text-gray-200">{t.ph?.toFixed(1)}</td>
+                  <td className="td text-gray-700 dark:text-gray-200">{t.turbidity_ntu?.toFixed(1)}</td>
+                  <td className="td text-gray-700 dark:text-gray-200">{t.tds_ppm?.toFixed(0)}</td>
+                  <td className="td"><span className={t.e_coli_cfu > 10 ? 'text-red-600 dark:text-red-400 font-bold' : 'text-gray-700 dark:text-gray-200'}>{t.e_coli_cfu?.toFixed(1)}</span></td>
+                  <td className="td"><span className={`badge ${t.overall_safe ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400'}`}>{t.overall_safe ? '✓ Safe' : '✗ Unsafe'}</span></td>
+                  <td className="td"><span className={`font-bold ${t.water_safety_score >= 80 ? 'text-green-600 dark:text-green-400' : t.water_safety_score >= 60 ? 'text-orange-500 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>{t.water_safety_score}</span></td>
+                  <td className="td text-xs text-gray-600 dark:text-gray-300">{t.tester_name || '—'}</td>
+                  <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(t.tested_at).toLocaleDateString()}</td>
                 </tr>
               ))}
               {tests.length === 0 && !loading && (
-                <tr><td colSpan={10} className="td text-center text-gray-400 py-8">No tests recorded yet.</td></tr>
+                <tr><td colSpan={10} className="td text-center text-gray-400 dark:text-gray-500 py-8">No tests recorded yet.</td></tr>
               )}
             </tbody>
           </table>
