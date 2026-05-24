@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, DollarSign, Activity, FileText, Plus } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getTransparency, getBudget, getAuditLog, getPerformance, createBudget } from '../../api/client';
 import StatCard from '../../components/common/StatCard';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -79,22 +79,22 @@ export default function Governance() {
                 <thead>
                   <tr><th className="th">Project</th><th className="th">District</th><th className="th">Allocated (UGX)</th><th className="th">Spent (UGX)</th><th className="th">Utilization</th><th className="th">Source</th><th className="th">Status</th></tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {(budget?.data || []).map((b: any) => (
                     <tr key={b.id} className="tr">
-                      <td className="td"><div className="font-medium text-sm">{b.project_name}</div><div className="text-xs text-gray-400">{b.project_type?.replace(/_/g, ' ')}</div></td>
-                      <td className="td">{b.district}</td>
-                      <td className="td font-semibold">{(b.allocated_amount || 0).toLocaleString()}</td>
-                      <td className="td">{(b.spent_amount || 0).toLocaleString()}</td>
+                      <td className="td"><div className="font-medium text-sm text-gray-800 dark:text-gray-100">{b.project_name}</div><div className="text-xs text-gray-500 dark:text-gray-400">{b.project_type?.replace(/_/g, ' ')}</div></td>
+                      <td className="td text-gray-700 dark:text-gray-200">{b.district}</td>
+                      <td className="td font-semibold text-gray-800 dark:text-gray-100">{(b.allocated_amount || 0).toLocaleString()}</td>
+                      <td className="td text-gray-700 dark:text-gray-200">{(b.spent_amount || 0).toLocaleString()}</td>
                       <td className="td">
                         <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-gray-200 rounded-full">
+                          <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
                             <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, (b.spent_amount / b.allocated_amount) * 100)}%` }} />
                           </div>
-                          <span className="text-xs">{Math.round((b.spent_amount / b.allocated_amount) * 100)}%</span>
+                          <span className="text-xs text-gray-700 dark:text-gray-200">{Math.round((b.spent_amount / b.allocated_amount) * 100)}%</span>
                         </div>
                       </td>
-                      <td className="td text-xs">{b.funding_source}</td>
+                      <td className="td text-xs text-gray-700 dark:text-gray-200">{b.funding_source}</td>
                       <td className="td"><StatusBadge status={b.status} type="budget" /></td>
                     </tr>
                   ))}
@@ -155,19 +155,19 @@ export default function Governance() {
             <div className="table-container">
               <table className="table">
                 <thead><tr><th className="th">District</th><th className="th">Total</th><th className="th">Functional</th><th className="th">Coverage</th><th className="th">Avg Score</th></tr></thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {(transparency.water_points_per_district || []).map((d: any) => (
                     <tr key={d.district} className="tr">
-                      <td className="td font-semibold">{d.district}</td>
-                      <td className="td">{d.total}</td>
-                      <td className="td text-green-700 font-semibold">{d.functional}</td>
+                      <td className="td font-semibold text-gray-800 dark:text-gray-100">{d.district}</td>
+                      <td className="td text-gray-700 dark:text-gray-200">{d.total}</td>
+                      <td className="td text-green-700 dark:text-green-400 font-semibold">{d.functional}</td>
                       <td className="td">
                         <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-gray-200 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${d.total > 0 ? (d.functional / d.total) * 100 : 0}%` }} /></div>
-                          <span className="text-xs">{d.total > 0 ? Math.round((d.functional / d.total) * 100) : 0}%</span>
+                          <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${d.total > 0 ? (d.functional / d.total) * 100 : 0}%` }} /></div>
+                          <span className="text-xs text-gray-700 dark:text-gray-200">{d.total > 0 ? Math.round((d.functional / d.total) * 100) : 0}%</span>
                         </div>
                       </td>
-                      <td className="td"><span className={`font-bold ${d.avg_score >= 70 ? 'text-green-600' : d.avg_score >= 50 ? 'text-orange-500' : 'text-red-600'}`}>{d.avg_score}/100</span></td>
+                      <td className="td"><span className={`font-bold ${d.avg_score >= 70 ? 'text-green-600 dark:text-green-400' : d.avg_score >= 50 ? 'text-orange-500' : 'text-red-600 dark:text-red-400'}`}>{d.avg_score}/100</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -186,19 +186,19 @@ export default function Governance() {
           <div className="table-container">
             <table className="table">
               <thead><tr><th className="th">Timestamp</th><th className="th">User</th><th className="th">Role</th><th className="th">Action</th><th className="th">Entity</th><th className="th">Details</th></tr></thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {audit.map(a => (
                   <tr key={a.id} className="tr">
-                    <td className="td text-xs">{new Date(a.timestamp).toLocaleString()}</td>
-                    <td className="td font-medium text-sm">{a.user_name}</td>
-                    <td className="td text-xs capitalize">{a.role?.replace(/_/g, ' ')}</td>
+                    <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(a.timestamp).toLocaleString()}</td>
+                    <td className="td font-medium text-sm text-gray-800 dark:text-gray-100">{a.user_name}</td>
+                    <td className="td text-xs capitalize text-gray-600 dark:text-gray-300">{a.role?.replace(/_/g, ' ')}</td>
                     <td className="td">
                       <span className="badge text-xs font-bold" style={{ background: (actionColors[a.action] || '#6b7280') + '20', color: actionColors[a.action] || '#6b7280' }}>
                         {a.action}
                       </span>
                     </td>
-                    <td className="td text-xs capitalize">{a.entity_type?.replace(/_/g, ' ')} #{a.entity_id}</td>
-                    <td className="td text-xs text-gray-500 max-w-xs truncate">{a.details}</td>
+                    <td className="td text-xs capitalize text-gray-600 dark:text-gray-300">{a.entity_type?.replace(/_/g, ' ')} #{a.entity_id}</td>
+                    <td className="td text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">{a.details}</td>
                   </tr>
                 ))}
               </tbody>
