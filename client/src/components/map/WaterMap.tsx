@@ -170,17 +170,21 @@ export default function WaterMap({
 
   const liveLocationIcon = L.divIcon({
     className: '',
-    html: `<div style="
-      width:22px;height:22px;border-radius:50%;
-      background:rgba(37,99,235,0.25);
-      display:flex;align-items:center;justify-content:center;
-      animation:pulse-ring 1.8s ease-out infinite;
-    ">
+    html: `<div style="position:relative;width:22px;height:22px;">
       <div style="
+        position:absolute;inset:0;border-radius:50%;
+        background:rgba(37,99,235,0.25);
+        animation:pulse-ring 1.8s ease-out infinite;
+        pointer-events:none;
+      "></div>
+      <div style="
+        position:absolute;top:50%;left:50%;
+        transform:translate(-50%,-50%);
         width:14px;height:14px;border-radius:50%;
         background:#2563eb;
         border:2.5px solid white;
         box-shadow:0 0 0 2px #2563eb;
+        cursor:pointer;
       "></div>
     </div>`,
     iconSize: [22, 22],
@@ -259,13 +263,17 @@ export default function WaterMap({
           </Marker>
         ))}
 
-        {/* Live user location marker */}
+        {/* Live user location marker — popup opens automatically on locate */}
         {userLocation && (
-          <Marker position={userLocation} icon={liveLocationIcon}>
-            <Popup>
-              <div className="p-1 text-center">
-                <div className="text-sm font-semibold text-blue-700 mb-0.5">📍 Your Location</div>
-                <div className="text-xs text-gray-500">{userLocation[0].toFixed(5)}, {userLocation[1].toFixed(5)}</div>
+          <Marker
+            position={userLocation}
+            icon={liveLocationIcon}
+            eventHandlers={{ add: e => e.target.openPopup() }}
+          >
+            <Popup autoClose={false} closeOnClick={false}>
+              <div style={{ textAlign: 'center', padding: '2px 4px' }}>
+                <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: 13, marginBottom: 2 }}>📍 Your Location</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E</div>
               </div>
             </Popup>
           </Marker>
