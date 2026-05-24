@@ -117,7 +117,7 @@ export default function WaterMap({
   const [locating, setLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
-  const [locationLabel, setLocationLabel] = useState<{ place: string; district: string } | null>(null);
+  const [locationLabel, setLocationLabel] = useState<{ place: string; road: string; district: string } | null>(null);
   const [isManualPin, setIsManualPin] = useState(false);
   const [dropPinMode, setDropPinMode] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
@@ -235,18 +235,19 @@ export default function WaterMap({
   // Reverse-geocode helper
   const geocode = useCallback((lat: number, lng: number) =>
     fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
       { headers: { 'Accept-Language': 'en' } }
     )
       .then(r => r.json())
       .then(data => {
         const a = data.address || {};
-        const place = a.village || a.hamlet || a.suburb || a.neighbourhood
+        const place = a.neighbourhood || a.suburb || a.village || a.hamlet
           || a.town || a.city || a.county || 'Your Location';
-        const district = a.county || a.state_district || a.state || '';
-        setLocationLabel({ place, district });
+        const road = a.road || a.pedestrian || a.path || '';
+        const district = a.city || a.city_district || a.county || a.state_district || '';
+        setLocationLabel({ place, road, district });
       })
-      .catch(() => setLocationLabel({ place: 'Your Location', district: '' }))
+      .catch(() => setLocationLabel({ place: 'Your Location', road: '', district: '' }))
   , []);
 
   // Manual pin — user taps exact spot on map
@@ -262,7 +263,8 @@ export default function WaterMap({
   const handleShare = useCallback(async () => {
     if (!userLocation || !locationLabel) return;
     const mapsUrl = `https://maps.google.com/?q=${userLocation[0]},${userLocation[1]}`;
-    const text = `📍 ${locationLabel.place}${locationLabel.district ? `, ${locationLabel.district}` : ''}\n${userLocation[0].toFixed(5)}°N, ${userLocation[1].toFixed(5)}°E\n\nOpen in Maps: ${mapsUrl}`;
+    const parts = [locationLabel.place, locationLabel.road, locationLabel.district].filter(Boolean).join(', ');
+    const text = `📍 ${parts}\n${userLocation[0].toFixed(5)}°N, ${userLocation[1].toFixed(5)}°E\n\nOpen in Maps: ${mapsUrl}`;
     if (navigator.share) {
       try { await navigator.share({ title: locationLabel.place, text, url: mapsUrl }); } catch {}
     } else {
@@ -499,6 +501,9 @@ export default function WaterMap({
               <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {locationLabel.place}
               </div>
+              {locationLabel.road && (
+                <div style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{locationLabel.road}</div>
+              )}
               {locationLabel.district && (
                 <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
               )}
