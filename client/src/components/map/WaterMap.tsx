@@ -110,6 +110,14 @@ export default function WaterMap({
   const [locating, setLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+
+  // Open the popup after React Leaflet has had time to bind it to the marker
+  useEffect(() => {
+    if (!userLocation) return;
+    const t = setTimeout(() => userMarkerRef.current?.openPopup(), 200);
+    return () => clearTimeout(t);
+  }, [userLocation]);
 
   // Fetch Uganda ADM1 (district) GeoJSON from geoBoundaries — two-step: metadata → download
   useEffect(() => {
@@ -289,7 +297,7 @@ export default function WaterMap({
           <Marker
             position={userLocation}
             icon={liveLocationIcon}
-            eventHandlers={{ add: e => e.target.openPopup() }}
+            ref={userMarkerRef}
           >
             <Popup autoClose={false} closeOnClick={false}>
               <div style={{ textAlign: 'center', padding: '2px 4px' }}>
