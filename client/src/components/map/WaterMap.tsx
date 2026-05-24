@@ -505,20 +505,25 @@ export default function WaterMap({
           )}
         </div>
         {searchResults.length > 0 && (
-          <div style={{ marginTop: 4, background: 'white', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
+          <div
+            onTouchStart={e => e.stopPropagation()}
+            onTouchMove={e => e.stopPropagation()}
+            onTouchEnd={e => e.stopPropagation()}
+            style={{ marginTop: 4, background: 'white', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}
+          >
             {searchResults.map((r, i) => {
               const label = r.display_name.split(',').slice(0, 3).join(', ');
               return (
                 <button
                   key={i}
-                  onClick={() => handleSelectPlace(r)}
+                  onPointerDown={e => { e.preventDefault(); handleSelectPlace(r); }}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
-                    padding: '8px 12px', border: 'none', background: 'none',
+                    padding: '10px 12px', border: 'none', background: 'none',
                     borderBottom: i < searchResults.length - 1 ? '1px solid #f1f5f9' : 'none',
                     cursor: 'pointer', fontSize: 12, color: '#1e293b',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f0f9ff')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                 >
                   📍 {label}
