@@ -72,12 +72,6 @@ function MapClickHandler({ active, onPin }: { active: boolean; onPin: (lat: numb
 /** Normalize string for fuzzy district matching */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
-/** Deactivates follow-me when the user manually drags the map */
-function FollowMapHandler({ onDrag }: { onDrag: () => void }) {
-  useMapEvents({ dragstart: onDrag });
-  return null;
-}
-
 /** Flies the map to the selected district's bounding box */
 function FlyToDistrict({ district, geo }: { district?: string; geo: any }) {
   const map = useMap();
@@ -130,7 +124,6 @@ export default function WaterMap({
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [userSpeed, setUserSpeed] = useState<number | null>(null);
-  const [followMode, setFollowMode] = useState(false);
   const [locationLabel, setLocationLabel] = useState<{ place: string; road: string; district: string } | null>(null);
   const [isManualPin, setIsManualPin] = useState(false);
   const [dropPinMode, setDropPinMode] = useState(false);
@@ -142,8 +135,6 @@ export default function WaterMap({
   const watchIdRef = useRef<number | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bestLocationRef = useRef<[number, number] | null>(null);
-  // Ref mirrors followMode so the watchPosition closure always sees the current value
-  const followModeRef = useRef(false);
 
   // Inject pulse-ring keyframe once into <head> for the live location icon
   useEffect(() => {
@@ -218,8 +209,6 @@ export default function WaterMap({
     setUserHeading(null);
     setUserSpeed(null);
     setLocationLabel(null);
-    setFollowMode(false);
-    followModeRef.current = false;
     bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -229,46 +218,34 @@ export default function WaterMap({
     let firstFix = true;
     let bestAccuracy = Infinity;
 
-    // Single watchPosition handles both the initial fix and continuous refinement.
-    // enableHighAccuracy=true uses GPS chip; maximumAge=0 never serves a cached position.
     watchIdRef.current = navigator.geolocation.watchPosition(
       wp => {
         const newLatlng: [number, number] = [wp.coords.latitude, wp.coords.longitude];
-        const newAcc  = wp.coords.accuracy;
-        const hdg     = wp.coords.heading;   // degrees 0-360 clockwise from north, or null
-        const spd     = wp.coords.speed;     // m/s or null
+        const newAcc = wp.coords.accuracy;
+        const hdg    = wp.coords.heading;
+        const spd    = wp.coords.speed;
 
-        // Always display the latest position so the dot tracks real movement
         setUserLocation(newLatlng);
         setUserAccuracy(newAcc);
         if (hdg !== null && !isNaN(hdg)) setUserHeading(hdg);
-        if (spd !== null && !isNaN(spd))  setUserSpeed(Math.round(spd * 3.6)); // → km/h
+        if (spd !== null && !isNaN(spd))  setUserSpeed(Math.round(spd * 3.6));
 
         if (firstFix) {
-          // First result: zoom in, start geocoding, switch to watching state
           firstFix = false;
           bestAccuracy = newAcc;
           bestLocationRef.current = newLatlng;
           setLocating(false);
           setIsWatching(true);
           setIsManualPin(false);
-          mapRef.current?.flyTo(newLatlng, 17, { duration: 1.5 });
+          mapRef.current?.flyTo(newLatlng, 18, { duration: 1.5 });
           geocode(newLatlng[0], newLatlng[1]);
-        } else {
-          // Subsequent fixes: track accuracy, pan when follow mode is on
-          if (newAcc < bestAccuracy) {
-            const majorImprovement = newAcc < bestAccuracy * 0.6;
-            bestAccuracy = newAcc;
-            bestLocationRef.current = newLatlng;
-            geocode(newLatlng[0], newLatlng[1]);
-            // Pan on major accuracy jump if not already following
-            if (!followModeRef.current && majorImprovement) {
-              mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
-            }
-          }
-          // Follow-me mode: smoothly pan the map to keep the user centred
-          if (followModeRef.current) {
-            mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.4 });
+        } else if (newAcc < bestAccuracy) {
+          const majorImprovement = newAcc < bestAccuracy * 0.6;
+          bestAccuracy = newAcc;
+          bestLocationRef.current = newLatlng;
+          geocode(newLatlng[0], newLatlng[1]);
+          if (majorImprovement) {
+            mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
           }
         }
       },
@@ -276,15 +253,6 @@ export default function WaterMap({
       { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
     );
   };
-
-  const toggleFollow = useCallback(() => {
-    const next = !followModeRef.current;
-    followModeRef.current = next;
-    setFollowMode(next);
-    if (next && userLocation) {
-      mapRef.current?.panTo(userLocation, { animate: true, duration: 0.8 });
-    }
-  }, [userLocation]);
 
   const dismissLocation = () => {
     setLocationLabel(null);
@@ -295,8 +263,6 @@ export default function WaterMap({
     setIsManualPin(false);
     setDropPinMode(false);
     setIsWatching(false);
-    setFollowMode(false);
-    followModeRef.current = false;
     bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -304,19 +270,25 @@ export default function WaterMap({
     }
   };
 
-  // Reverse-geocode helper
+  // Reverse-geocode: zoom=20 + namedetails gives the most granular OSM name available.
+  // Priority: named amenity/building/tourism/shop first, then neighbourhood/suburb/village.
   const geocode = useCallback((lat: number, lng: number) =>
     fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=20&addressdetails=1&namedetails=1`,
       { headers: { 'Accept-Language': 'en' } }
     )
       .then(r => r.json())
       .then(data => {
         const a = data.address || {};
-        const place = a.neighbourhood || a.suburb || a.village || a.hamlet
-          || a.town || a.city || a.county || 'Your Location';
-        const road = a.road || a.pedestrian || a.path || '';
-        const district = a.city || a.city_district || a.county || a.state_district || '';
+        // Named specific place (hostel, school, shop, hotel, clinic …) takes priority over area names
+        const place =
+          a.amenity || a.tourism || a.leisure || a.shop || a.building ||
+          a.house_name || a.office ||
+          a.neighbourhood || a.suburb || a.quarter ||
+          a.village || a.hamlet || a.town || a.city ||
+          a.county || data.name || 'Your Location';
+        const road = a.road || a.pedestrian || a.path || a.footway || '';
+        const district = a.city || a.city_district || a.town || a.county || a.state_district || '';
         setLocationLabel({ place, road, district });
       })
       .catch(() => setLocationLabel({ place: 'Your Location', road: '', district: '' }))
@@ -436,7 +408,6 @@ export default function WaterMap({
       >
         <CaptureMap mapRef={mapRef} />
         <MapClickHandler active={dropPinMode} onPin={handleManualPin} />
-        <FollowMapHandler onDrag={() => { followModeRef.current = false; setFollowMode(false); }} />
         <ZoomControl position="bottomright" />
 
         {/* Base tile layer */}
@@ -752,19 +723,6 @@ export default function WaterMap({
             )}
           </div>
 
-          {/* Follow Me toggle — only available on live GPS fix */}
-          {!isManualPin && (
-            <button onClick={toggleFollow} style={{
-              width: '100%', marginTop: 5, padding: '5px 0', borderRadius: 8,
-              border: followMode ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
-              background: followMode ? '#eff6ff' : 'white',
-              color: followMode ? '#2563eb' : '#374151',
-              fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}>
-              {followMode ? '🧭 Following — tap to stop' : '🧭 Follow Me'}
-            </button>
-          )}
         </div>
       )}
 
