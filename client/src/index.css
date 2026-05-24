@@ -39,6 +39,18 @@
 /* ─── Leaflet ─── */
 .leaflet-container { border-radius: 1rem; }
 
+.uga-district-tooltip {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  border-radius: 6px !important;
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+.uga-district-tooltip::before { display: none !important; }
+
 /* ══════════════════════════════════════════════════════════════
    DARK MODE — overrides for every custom component class
    Tailwind's dark: prefix handles inline JSX; these selectors

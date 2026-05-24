@@ -108,7 +108,7 @@ export default function WaterInfrastructure() {
       {/* Map View */}
       {view === 'map' && (
         <div className="card p-0 overflow-hidden">
-          <WaterMap waterPoints={filtered} height="550px" showHeatmap />
+          <WaterMap waterPoints={filtered} height="550px" showHeatmap selectedDistrict={district} />
         </div>
       )}
 

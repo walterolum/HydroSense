@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Circle,
-  LayersControl, ZoomControl,
+  ZoomControl, GeoJSON, useMap,
 } from 'react-leaflet';
 import L from 'leaflet';
 import { WaterPoint } from '../../types';
 import StatusBadge from '../common/StatusBadge';
 
-// Fix Leaflet default icon
+// Fix Leaflet default icon paths
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const statusColors: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   functional: '#16a34a',
   non_functional: '#dc2626',
   needs_repair: '#ea580c',
@@ -23,7 +23,7 @@ const statusColors: Record<string, string> = {
 };
 
 function createIcon(status: string) {
-  const color = statusColors[status] || '#6b7280';
+  const color = STATUS_COLORS[status] || '#6b7280';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
     <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
     <circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/>
@@ -31,63 +31,52 @@ function createIcon(status: string) {
   return L.divIcon({ html: svg, className: '', iconSize: [24, 36], iconAnchor: [12, 36], popupAnchor: [0, -36] });
 }
 
-type LayerKey = 'street' | 'satellite' | 'hybrid' | 'terrain' | 'dark' | 'light' | 'humanitarian';
+// ── Tile layer definitions ────────────────────────────────────────────────────
+type LayerKey = 'hybrid' | 'satellite' | 'street' | 'terrain' | 'hot';
 
-/* Google Maps tile URLs — reliable, globally available, no API key needed for tile access */
-const GM = (lyrs: string) =>
-  `https://mt{s}.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`;
+const GM = (lyrs: string) => `https://mt{s}.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`;
 
-const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: string; subdomains?: string; maxNativeZoom?: number }> = {
-  street: {
-    label: 'Street',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  },
-  // Google satellite only (no labels)
-  satellite: {
-    label: 'Satellite',
-    url: GM('s'),
-    attribution: '© Google',
-    subdomains: '0123',
-    maxNativeZoom: 20,
-  },
-  // Google hybrid = satellite imagery + road/place name labels
-  hybrid: {
-    label: 'Hybrid',
-    url: GM('y'),
-    attribution: '© Google',
-    subdomains: '0123',
-    maxNativeZoom: 20,
-  },
-  // Google terrain + labels
-  terrain: {
-    label: 'Terrain',
-    url: GM('p'),
-    attribution: '© Google',
-    subdomains: '0123',
-    maxNativeZoom: 20,
-  },
-  dark: {
-    label: 'Dark',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap © <a href="https://carto.com/">CARTO</a>',
-    maxNativeZoom: 19,
-  },
-  light: {
-    label: 'Light',
-    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap © <a href="https://carto.com/">CARTO</a>',
-    maxNativeZoom: 19,
-  },
-  humanitarian: {
-    label: 'HOT',
-    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-    attribution: '© OpenStreetMap, Tiles courtesy of <a href="https://hot.openstreetmap.org/">HOT</a>',
-    maxNativeZoom: 19,
-  },
+const BASE_LAYERS: Record<LayerKey, { label: string; url: string; attribution: string; subdomains: string; maxNativeZoom: number }> = {
+  hybrid:    { label: '🛰 Hybrid',    url: GM('y'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
+  satellite: { label: '🌍 Satellite', url: GM('s'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
+  terrain:   { label: '⛰ Terrain',   url: GM('p'),                                                    attribution: '© Google',                        subdomains: '0123', maxNativeZoom: 20 },
+  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',       attribution: '© OpenStreetMap contributors',    subdomains: 'abc',  maxNativeZoom: 19 },
+  hot:       { label: '❤ HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',   attribution: '© OpenStreetMap, HOT',            subdomains: 'abc',  maxNativeZoom: 19 },
 };
 
-const LAYER_ORDER: LayerKey[] = ['street', 'hybrid', 'satellite', 'terrain'];
+const LAYER_ORDER: LayerKey[] = ['hybrid', 'satellite', 'street', 'terrain', 'hot'];
+
+// ── Helpers that must render inside MapContainer ──────────────────────────────
+
+/** Captures the Leaflet map instance into a ref (must be inside MapContainer) */
+function CaptureMap({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  mapRef.current = useMap();
+  return null;
+}
+
+/** Normalize string for fuzzy district matching */
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+
+/** Flies the map to the selected district's bounding box */
+function FlyToDistrict({ district, geo }: { district?: string; geo: any }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!district || district === 'All' || !geo?.features) return;
+    const feature = geo.features.find((f: any) => {
+      const n = f.properties?.shapeName || f.properties?.NAME_1 || f.properties?.admin1Name || '';
+      return norm(n) === norm(district) ||
+             norm(n).includes(norm(district)) ||
+             norm(district).includes(norm(n));
+    });
+    if (!feature) return;
+    try {
+      map.flyToBounds(L.geoJSON(feature).getBounds(), { duration: 1.2, padding: [40, 40], maxZoom: 13 });
+    } catch { /* ignore invalid geometry */ }
+  }, [district, geo, map]);
+  return null;
+}
+
+// ── Component props ────────────────────────────────────────────────────────────
 
 interface WaterMapProps {
   waterPoints: WaterPoint[];
@@ -96,17 +85,86 @@ interface WaterMapProps {
   height?: string;
   onSelect?: (wp: WaterPoint) => void;
   showHeatmap?: boolean;
+  /** District name from filter dropdown — zooms map and highlights boundary */
+  selectedDistrict?: string;
 }
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export default function WaterMap({
   waterPoints,
   center = [1.37, 32.29],
-  zoom = 6,
+  zoom = 7,
   height = '500px',
   onSelect,
   showHeatmap = false,
+  selectedDistrict,
 }: WaterMapProps) {
   const [activeLayer, setActiveLayer] = useState<LayerKey>('hybrid');
+  const [districtGeo, setDistrictGeo] = useState<any>(null);
+  const [geoLoading, setGeoLoading] = useState(true);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef<L.Map | null>(null);
+
+  // Fetch Uganda ADM1 (district) GeoJSON from geoBoundaries — two-step: metadata → download
+  useEffect(() => {
+    setGeoLoading(true);
+    const FALLBACK = 'https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/UGA/ADM1/geoBoundaries-UGA-ADM1.geojson';
+    fetch('https://www.geoboundaries.org/api/current/gbOpen/UGA/ADM1/')
+      .then(r => r.json())
+      .then(meta => fetch(meta.gjDownloadURL))
+      .then(r => r.json())
+      .then(data => { setDistrictGeo(data); setGeoLoading(false); })
+      .catch(() =>
+        fetch(FALLBACK)
+          .then(r => r.json())
+          .then(data => { setDistrictGeo(data); setGeoLoading(false); })
+          .catch(() => setGeoLoading(false))
+      );
+  }, []);
+
+  // Style function for district polygons — highlights the selected one
+  const geoStyle = useCallback((feature: any) => {
+    const name = feature?.properties?.shapeName || feature?.properties?.NAME_1 || '';
+    const isSelected =
+      selectedDistrict && selectedDistrict !== 'All' &&
+      (norm(name) === norm(selectedDistrict) || norm(name).includes(norm(selectedDistrict)));
+    return {
+      color:       isSelected ? '#2563eb' : '#94a3b8',
+      weight:      isSelected ? 2.5 : 1,
+      fillColor:   isSelected ? '#3b82f6' : '#64748b',
+      fillOpacity: isSelected ? 0.18 : 0.04,
+      dashArray:   isSelected ? undefined : '4 7',
+    };
+  }, [selectedDistrict]);
+
+  // Bind tooltip showing district name on hover
+  const onEachFeature = useCallback((feature: any, layer: any) => {
+    const name = feature?.properties?.shapeName || feature?.properties?.NAME_1 || '';
+    if (name) {
+      layer.bindTooltip(`<span class="uga-district-label">${name} District</span>`, {
+        permanent: false,
+        direction: 'center',
+        className: 'uga-district-tooltip',
+        opacity: 0.95,
+      });
+    }
+  }, []);
+
+  // "Find My Location" — zooms to citizen's GPS position (village level)
+  const handleLocate = () => {
+    if (!navigator.geolocation || !mapRef.current) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        mapRef.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 17, { duration: 1.8 });
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
+
   const base = BASE_LAYERS[activeLayer];
 
   return (
@@ -114,24 +172,38 @@ export default function WaterMap({
       <MapContainer
         center={center}
         zoom={zoom}
-        minZoom={3}
+        minZoom={5}
         maxZoom={20}
         zoomControl={false}
         style={{ height: '100%', width: '100%' }}
         className="rounded-xl z-0"
       >
-        {/* Zoom control on bottom-right */}
+        {/* Capture map ref + helpers */}
+        <CaptureMap mapRef={mapRef} />
         <ZoomControl position="bottomright" />
 
-        {/* Base tile — subdomains vary by provider */}
+        {/* Base tile layer */}
         <TileLayer
           key={activeLayer}
           url={base.url}
           attribution={base.attribution}
-          subdomains={base.subdomains ?? 'abc'}
+          subdomains={base.subdomains}
           maxZoom={20}
-          maxNativeZoom={base.maxNativeZoom ?? 19}
+          maxNativeZoom={base.maxNativeZoom}
         />
+
+        {/* Uganda district boundary polygons */}
+        {districtGeo && (
+          <GeoJSON
+            key={`districts-${selectedDistrict ?? 'all'}`}
+            data={districtGeo}
+            style={geoStyle}
+            onEachFeature={onEachFeature}
+          />
+        )}
+
+        {/* Fly to selected district */}
+        <FlyToDistrict district={selectedDistrict} geo={districtGeo} />
 
         {/* Water point markers */}
         {waterPoints.map(wp => (
@@ -156,35 +228,30 @@ export default function WaterMap({
                   <StatusBadge status={wp.status} type="water_point" />
                   {wp.solar_powered === 1 && <span className="badge bg-yellow-100 text-yellow-700">☀ Solar</span>}
                 </div>
-                {wp.village && <div className="text-xs text-gray-500 mt-1">📍 {wp.village}, {wp.sub_county}</div>}
+                {wp.village && (
+                  <div className="text-xs text-gray-500 mt-1">📍 {wp.village}{wp.sub_county ? `, ${wp.sub_county}` : ''}</div>
+                )}
               </div>
             </Popup>
           </Marker>
         ))}
 
-        {/* Non-functional radius heatmap */}
-        {showHeatmap && waterPoints.filter(wp => wp.status === 'non_functional').map(wp => (
-          <Circle
-            key={`heat_${wp.id}`}
-            center={[wp.lat, wp.lng]}
-            radius={5000}
-            pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.15, weight: 1 }}
-          />
-        ))}
+        {/* Non-functional coverage radius */}
+        {showHeatmap && waterPoints
+          .filter(wp => wp.status === 'non_functional')
+          .map(wp => (
+            <Circle
+              key={`heat_${wp.id}`}
+              center={[wp.lat, wp.lng]}
+              radius={5000}
+              pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 0.15, weight: 1 }}
+            />
+          ))
+        }
       </MapContainer>
 
-      {/* ── Custom layer switcher (top-left, above map) ── */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 12,
-          left: 12,
-          zIndex: 1000,
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 6,
-        }}
-      >
+      {/* ── Layer switcher (top-left overlay) ── */}
+      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 1000, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {LAYER_ORDER.map(key => (
           <button
             key={key}
@@ -201,19 +268,50 @@ export default function WaterMap({
               boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
               backdropFilter: 'blur(4px)',
               transition: 'all 0.2s',
-              letterSpacing: '0.02em',
             }}
           >
-            {key === 'hybrid' ? '🛰 Hybrid' :
-             key === 'satellite' ? '🌍 Satellite' :
-             key === 'terrain' ? '⛰ Terrain' :
-             key === 'dark' ? '🌑 Dark' :
-             key === 'light' ? '☀ Light' :
-             key === 'humanitarian' ? '❤ HOT' :
-             '🗺 Street'}
+            {BASE_LAYERS[key].label}
           </button>
         ))}
       </div>
+
+      {/* ── Find My Location button (bottom-right, above zoom controls) ── */}
+      <button
+        onClick={handleLocate}
+        title="Find my location — zooms to your village"
+        style={{
+          position: 'absolute',
+          bottom: 90,
+          right: 10,
+          zIndex: 1000,
+          width: 38,
+          height: 38,
+          borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.9)',
+          background: locating ? '#2563eb' : 'white',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          cursor: locating ? 'wait' : 'pointer',
+          fontSize: 18,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s',
+        }}
+      >
+        {locating ? '⏳' : '📍'}
+      </button>
+
+      {/* District GeoJSON loading indicator */}
+      {geoLoading && (
+        <div style={{
+          position: 'absolute', bottom: 12, left: 12, zIndex: 1000,
+          background: 'rgba(255,255,255,0.92)', borderRadius: 8,
+          padding: '4px 12px', fontSize: 11, color: '#64748b',
+          backdropFilter: 'blur(4px)', boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+        }}>
+          🗺 Loading district boundaries…
+        </div>
+      )}
     </div>
   );
 }
