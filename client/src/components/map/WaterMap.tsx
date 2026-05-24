@@ -180,38 +180,52 @@ export default function WaterMap({
     navigator.geolocation.getCurrentPosition(
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        let bestAccuracy = pos.coords.accuracy;
         setUserLocation(latlng);
-        setUserAccuracy(pos.coords.accuracy);
+        setUserAccuracy(bestAccuracy);
         setLocating(false);
         mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
 
-        // Reverse geocode to get the actual village / place name
-        fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
-        )
-          .then(r => r.json())
-          .then(data => {
-            const a = data.address || {};
-            const place = a.village || a.hamlet || a.suburb || a.neighbourhood
-              || a.town || a.city || a.county || 'Your Location';
-            const district = a.county || a.state_district || a.state || '';
-            setLocationLabel({ place, district });
-          })
-          .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
+        // Reverse geocode for the initial position
+        const geocode = (lat: number, lng: number) =>
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+            .then(r => r.json())
+            .then(data => {
+              const a = data.address || {};
+              const place = a.village || a.hamlet || a.suburb || a.neighbourhood
+                || a.town || a.city || a.county || 'Your Location';
+              const district = a.county || a.state_district || a.state || '';
+              setLocationLabel({ place, district });
+            })
+            .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
 
-        // Step 2: keep watching to shrink the accuracy ring as GPS locks on
+        geocode(latlng[0], latlng[1]);
+
+        // Step 2: watch and auto-pan whenever GPS accuracy improves meaningfully
         watchIdRef.current = navigator.geolocation.watchPosition(
           wp => {
-            setUserLocation([wp.coords.latitude, wp.coords.longitude]);
-            setUserAccuracy(wp.coords.accuracy);
+            const newLatlng: [number, number] = [wp.coords.latitude, wp.coords.longitude];
+            const newAcc = wp.coords.accuracy;
+            setUserLocation(newLatlng);
+            setUserAccuracy(newAcc);
+
+            // If this fix is at least 40% more accurate than the best so far, re-centre
+            if (newAcc < bestAccuracy * 0.6) {
+              bestAccuracy = newAcc;
+              mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
+              // Re-geocode only if we moved more than ~20 m
+              geocode(newLatlng[0], newLatlng[1]);
+            }
           },
           () => {},
           { enableHighAccuracy: true, maximumAge: 0 }
         );
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
