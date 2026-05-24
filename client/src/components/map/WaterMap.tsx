@@ -165,7 +165,7 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — waits for GPS accuracy ≤ 50 m before flying (max 20 s wait)
+  // "Find My Location" — flies immediately on first fix, dot keeps improving as GPS settles
   const handleLocate = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     setLocating(true);
@@ -175,10 +175,6 @@ export default function WaterMap({
     hasFlewRef.current = false;
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
 
-    const GOOD_ACCURACY_M = 50;
-    const startTime = Date.now();
-    const MAX_WAIT_MS = 20_000;
-
     watchIdRef.current = navigator.geolocation.watchPosition(
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
@@ -186,8 +182,8 @@ export default function WaterMap({
         setUserLocation(latlng);
         setUserAccuracy(acc);
 
-        // Fly only once we have a good fix OR have waited long enough
-        if (!hasFlewRef.current && (acc <= GOOD_ACCURACY_M || Date.now() - startTime >= MAX_WAIT_MS)) {
+        if (!hasFlewRef.current) {
+          // First fix — zoom in immediately so the user gets a response right away
           hasFlewRef.current = true;
           setLocating(false);
           mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
@@ -204,6 +200,7 @@ export default function WaterMap({
             })
             .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
         }
+        // Subsequent fixes silently update the dot + accuracy ring as GPS improves
       },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
