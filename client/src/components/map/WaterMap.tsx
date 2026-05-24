@@ -165,24 +165,32 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — watches GPS so dot improves as signal settles
+  // "Find My Location" — waits for GPS accuracy ≤ 50 m before flying (max 20 s wait)
   const handleLocate = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     setLocating(true);
+    setUserLocation(null);
+    setUserAccuracy(null);
+    setLocationLabel(null);
     hasFlewRef.current = false;
     if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+
+    const GOOD_ACCURACY_M = 50;
+    const startTime = Date.now();
+    const MAX_WAIT_MS = 20_000;
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        const acc = pos.coords.accuracy;
         setUserLocation(latlng);
-        setUserAccuracy(pos.coords.accuracy);
+        setUserAccuracy(acc);
 
-        if (!hasFlewRef.current) {
+        // Fly only once we have a good fix OR have waited long enough
+        if (!hasFlewRef.current && (acc <= GOOD_ACCURACY_M || Date.now() - startTime >= MAX_WAIT_MS)) {
           hasFlewRef.current = true;
           setLocating(false);
-          mapRef.current?.flyTo(latlng, 17, { duration: 1.8 });
-          // Reverse geocode with Nominatim to get actual place/village name
+          mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
           fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
             { headers: { 'Accept-Language': 'en' } }
@@ -198,7 +206,7 @@ export default function WaterMap({
         }
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   };
 
@@ -378,27 +386,34 @@ export default function WaterMap({
       {/* ── Find My Location button (bottom-right, above zoom controls) ── */}
       <button
         onClick={handleLocate}
-        title="Find my location — zooms to your village"
+        title="Find my location — waits for accurate GPS fix"
         style={{
           position: 'absolute',
           bottom: 90,
           right: 10,
           zIndex: 1000,
-          width: 38,
+          minWidth: 38,
           height: 38,
-          borderRadius: '50%',
+          borderRadius: locating && userAccuracy ? 20 : '50%',
+          padding: locating && userAccuracy ? '0 10px' : '0',
           border: '2px solid rgba(255,255,255,0.9)',
           background: locating ? '#2563eb' : 'white',
+          color: locating ? 'white' : 'inherit',
           boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-          cursor: locating ? 'wait' : 'pointer',
-          fontSize: 18,
+          cursor: locating ? 'default' : 'pointer',
+          fontSize: locating && userAccuracy ? 11 : 18,
+          fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          transition: 'all 0.2s',
+          gap: 4,
+          transition: 'all 0.3s',
+          whiteSpace: 'nowrap',
         }}
       >
-        {locating ? '⏳' : '📍'}
+        {locating
+          ? (userAccuracy ? `±${Math.round(userAccuracy)}m` : '⏳')
+          : '📍'}
       </button>
 
       {/* ── Live location label card ── */}
