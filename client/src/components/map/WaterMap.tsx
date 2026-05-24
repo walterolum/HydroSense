@@ -44,7 +44,7 @@ const BASE_LAYERS: Record<LayerKey, LayerDef> = {
   street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc',  maxNativeZoom: 19 },
   hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc',  maxNativeZoom: 19 },
   hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_LABELS },
-  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19 },
+  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_LABELS },
   terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19 },
 };
 
@@ -109,8 +109,16 @@ export default function WaterMap({
   const [geoLoading, setGeoLoading] = useState(true);
   const [locating, setLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<{ place: string; district: string } | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const hasFlewRef = useRef(false);
+
+  // Clean up GPS watch on unmount
+  useEffect(() => () => {
+    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+  }, []);
 
   // Fetch Uganda ADM1 (district) GeoJSON from geoBoundaries — two-step: metadata → download
   useEffect(() => {
@@ -157,33 +165,51 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — zooms to GPS position, reverse-geocodes to get village name
+  // "Find My Location" — watches GPS so dot improves as signal settles
   const handleLocate = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
+    hasFlewRef.current = false;
+    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         setUserLocation(latlng);
-        mapRef.current?.flyTo(latlng, 17, { duration: 1.8 });
-        setLocating(false);
-        // Reverse geocode with Nominatim to get actual place name
-        fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
-        )
-          .then(r => r.json())
-          .then(data => {
-            const a = data.address || {};
-            const place = a.village || a.hamlet || a.suburb || a.town || a.city || a.county || 'Your Location';
-            const district = a.county || a.state_district || a.state || '';
-            setLocationLabel({ place, district });
-          })
-          .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
+        setUserAccuracy(pos.coords.accuracy);
+
+        if (!hasFlewRef.current) {
+          hasFlewRef.current = true;
+          setLocating(false);
+          mapRef.current?.flyTo(latlng, 17, { duration: 1.8 });
+          // Reverse geocode with Nominatim to get actual place/village name
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          )
+            .then(r => r.json())
+            .then(data => {
+              const a = data.address || {};
+              const place = a.village || a.hamlet || a.suburb || a.town || a.city || a.county || 'Your Location';
+              const district = a.county || a.state_district || a.state || '';
+              setLocationLabel({ place, district });
+            })
+            .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
+        }
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 12000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+  };
+
+  const dismissLocation = () => {
+    setLocationLabel(null);
+    setUserLocation(null);
+    setUserAccuracy(null);
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
   };
 
   const liveLocationIcon = L.divIcon({
@@ -298,7 +324,14 @@ export default function WaterMap({
           </Marker>
         ))}
 
-        {/* Live user location dot */}
+        {/* Live user location — accuracy circle + dot */}
+        {userLocation && userAccuracy && (
+          <Circle
+            center={userLocation}
+            radius={userAccuracy}
+            pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 0.1, weight: 1.5, dashArray: '4 4' }}
+          />
+        )}
         {userLocation && (
           <Marker position={userLocation} icon={liveLocationIcon} />
         )}
@@ -387,9 +420,14 @@ export default function WaterMap({
             <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
               {userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E
             </div>
+            {userAccuracy && (
+              <div style={{ fontSize: 10, color: userAccuracy < 30 ? '#16a34a' : userAccuracy < 100 ? '#d97706' : '#dc2626', marginTop: 1 }}>
+                ±{Math.round(userAccuracy)}m accuracy
+              </div>
+            )}
           </div>
           <button
-            onClick={() => { setLocationLabel(null); setUserLocation(null); }}
+            onClick={dismissLocation}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}
           >×</button>
         </div>
