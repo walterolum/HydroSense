@@ -109,15 +109,8 @@ export default function WaterMap({
   const [geoLoading, setGeoLoading] = useState(true);
   const [locating, setLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationLabel, setLocationLabel] = useState<{ place: string; district: string } | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const userMarkerRef = useRef<L.Marker | null>(null);
-
-  // Open the popup after React Leaflet has had time to bind it to the marker
-  useEffect(() => {
-    if (!userLocation) return;
-    const t = setTimeout(() => userMarkerRef.current?.openPopup(), 200);
-    return () => clearTimeout(t);
-  }, [userLocation]);
 
   // Fetch Uganda ADM1 (district) GeoJSON from geoBoundaries — two-step: metadata → download
   useEffect(() => {
@@ -164,7 +157,7 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — zooms to citizen's GPS position (village level) and drops live marker
+  // "Find My Location" — zooms to GPS position, reverse-geocodes to get village name
   const handleLocate = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     setLocating(true);
@@ -174,6 +167,19 @@ export default function WaterMap({
         setUserLocation(latlng);
         mapRef.current?.flyTo(latlng, 17, { duration: 1.8 });
         setLocating(false);
+        // Reverse geocode with Nominatim to get actual place name
+        fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+          .then(r => r.json())
+          .then(data => {
+            const a = data.address || {};
+            const place = a.village || a.hamlet || a.suburb || a.town || a.city || a.county || 'Your Location';
+            const district = a.county || a.state_district || a.state || '';
+            setLocationLabel({ place, district });
+          })
+          .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
       },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 12000 }
@@ -292,20 +298,9 @@ export default function WaterMap({
           </Marker>
         ))}
 
-        {/* Live user location marker — popup opens automatically on locate */}
+        {/* Live user location dot */}
         {userLocation && (
-          <Marker
-            position={userLocation}
-            icon={liveLocationIcon}
-            ref={userMarkerRef}
-          >
-            <Popup autoClose={false} closeOnClick={false}>
-              <div style={{ textAlign: 'center', padding: '2px 4px' }}>
-                <div style={{ fontWeight: 700, color: '#1d4ed8', fontSize: 13, marginBottom: 2 }}>📍 Your Location</div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>{userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E</div>
-              </div>
-            </Popup>
-          </Marker>
+          <Marker position={userLocation} icon={liveLocationIcon} />
         )}
 
         {/* Non-functional coverage radius */}
@@ -372,6 +367,33 @@ export default function WaterMap({
       >
         {locating ? '⏳' : '📍'}
       </button>
+
+      {/* ── Live location label card ── */}
+      {locationLabel && userLocation && (
+        <div style={{
+          position: 'absolute', bottom: 140, right: 10, zIndex: 1000,
+          background: 'white', borderRadius: 12, padding: '8px 12px',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.22)', maxWidth: 220,
+          display: 'flex', alignItems: 'flex-start', gap: 8,
+        }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>📍</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {locationLabel.place}
+            </div>
+            {locationLabel.district && (
+              <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
+            )}
+            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+              {userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E
+            </div>
+          </div>
+          <button
+            onClick={() => { setLocationLabel(null); setUserLocation(null); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}
+          >×</button>
+        </div>
+      )}
 
       {/* District GeoJSON loading indicator */}
       {geoLoading && (
