@@ -104,6 +104,7 @@ export default function WaterMap({
   const [districtGeo, setDistrictGeo] = useState<any>(null);
   const [geoLoading, setGeoLoading] = useState(true);
   const [locating, setLocating] = useState(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const mapRef = useRef<L.Map | null>(null);
 
   // Fetch Uganda ADM1 (district) GeoJSON from geoBoundaries — two-step: metadata → download
@@ -151,19 +152,41 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — zooms to citizen's GPS position (village level)
+  // "Find My Location" — zooms to citizen's GPS position (village level) and drops live marker
   const handleLocate = () => {
     if (!navigator.geolocation || !mapRef.current) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       pos => {
-        mapRef.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 17, { duration: 1.8 });
+        const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        setUserLocation(latlng);
+        mapRef.current?.flyTo(latlng, 17, { duration: 1.8 });
         setLocating(false);
       },
       () => setLocating(false),
       { enableHighAccuracy: true, timeout: 12000 }
     );
   };
+
+  const liveLocationIcon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:22px;height:22px;border-radius:50%;
+      background:rgba(37,99,235,0.25);
+      display:flex;align-items:center;justify-content:center;
+      animation:pulse-ring 1.8s ease-out infinite;
+    ">
+      <div style="
+        width:14px;height:14px;border-radius:50%;
+        background:#2563eb;
+        border:2.5px solid white;
+        box-shadow:0 0 0 2px #2563eb;
+      "></div>
+    </div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -14],
+  });
 
   const base = BASE_LAYERS[activeLayer];
 
@@ -235,6 +258,18 @@ export default function WaterMap({
             </Popup>
           </Marker>
         ))}
+
+        {/* Live user location marker */}
+        {userLocation && (
+          <Marker position={userLocation} icon={liveLocationIcon}>
+            <Popup>
+              <div className="p-1 text-center">
+                <div className="text-sm font-semibold text-blue-700 mb-0.5">📍 Your Location</div>
+                <div className="text-xs text-gray-500">{userLocation[0].toFixed(5)}, {userLocation[1].toFixed(5)}</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
 
         {/* Non-functional coverage radius */}
         {showHeatmap && waterPoints
