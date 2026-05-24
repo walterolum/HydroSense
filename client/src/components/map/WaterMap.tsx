@@ -113,7 +113,6 @@ export default function WaterMap({
   const [locationLabel, setLocationLabel] = useState<{ place: string; district: string } | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
-  const hasFlewRef = useRef(false);
 
   // Clean up GPS watch on unmount
   useEffect(() => () => {
@@ -165,45 +164,54 @@ export default function WaterMap({
     }
   }, []);
 
-  // "Find My Location" — flies immediately on first fix, dot keeps improving as GPS settles
+  // Step 1 — getCurrentPosition: zoom + name card (reliable one-shot, never hangs)
+  // Step 2 — watchPosition: silently improves dot accuracy in background
   const handleLocate = () => {
-    if (!navigator.geolocation || !mapRef.current) return;
+    if (!navigator.geolocation) return;
     setLocating(true);
     setUserLocation(null);
     setUserAccuracy(null);
     setLocationLabel(null);
-    hasFlewRef.current = false;
-    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
-        const acc = pos.coords.accuracy;
         setUserLocation(latlng);
-        setUserAccuracy(acc);
+        setUserAccuracy(pos.coords.accuracy);
+        setLocating(false);
+        mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
 
-        if (!hasFlewRef.current) {
-          // First fix — zoom in immediately so the user gets a response right away
-          hasFlewRef.current = true;
-          setLocating(false);
-          mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
-          fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-            .then(r => r.json())
-            .then(data => {
-              const a = data.address || {};
-              const place = a.village || a.hamlet || a.suburb || a.town || a.city || a.county || 'Your Location';
-              const district = a.county || a.state_district || a.state || '';
-              setLocationLabel({ place, district });
-            })
-            .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
-        }
-        // Subsequent fixes silently update the dot + accuracy ring as GPS improves
+        // Reverse geocode to get the actual village / place name
+        fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng[0]}&lon=${latlng[1]}&zoom=16&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+          .then(r => r.json())
+          .then(data => {
+            const a = data.address || {};
+            const place = a.village || a.hamlet || a.suburb || a.neighbourhood
+              || a.town || a.city || a.county || 'Your Location';
+            const district = a.county || a.state_district || a.state || '';
+            setLocationLabel({ place, district });
+          })
+          .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
+
+        // Step 2: keep watching to shrink the accuracy ring as GPS locks on
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          wp => {
+            setUserLocation([wp.coords.latitude, wp.coords.longitude]);
+            setUserAccuracy(wp.coords.accuracy);
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 0 }
+        );
       },
       () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
     );
   };
 
