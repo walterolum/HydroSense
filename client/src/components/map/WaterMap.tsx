@@ -202,7 +202,11 @@ export default function WaterMap({
         minZoom={5}
         maxZoom={20}
         zoomControl={false}
-        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom
+        dragging
+        touchZoom
+        doubleClickZoom
+        style={{ height: '100%', width: '100%', touchAction: 'none' }}
         className="rounded-xl z-0"
       >
         {/* Capture map ref + helpers */}

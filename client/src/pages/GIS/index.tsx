@@ -67,7 +67,7 @@ export default function GISMap() {
 
       <div className="grid lg:grid-cols-4 gap-4">
         {/* Map */}
-        <div className="lg:col-span-3 card p-0 overflow-hidden">
+        <div className="lg:col-span-3 card p-0">
           <WaterMap waterPoints={wps} height="580px" onSelect={setSelected} showHeatmap={layer === 'water_points'} selectedDistrict={district} />
         </div>
 
