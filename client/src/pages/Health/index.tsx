@@ -136,32 +136,37 @@ export default function HealthSurveillance() {
               <th className="th">Deaths</th><th className="th">Hosp.</th><th className="th">Water-linked</th>
               <th className="th">Status</th><th className="th">Reported</th><th className="th">Action</th>
             </tr></thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {incidents.map(i => (
-                <tr key={i.id} className={`tr ${i.outbreak_status === 'outbreak' ? 'bg-red-50' : i.outbreak_status === 'alert' ? 'bg-orange-50' : ''}`}>
+                <tr key={i.id} className={`tr ${
+                  i.outbreak_status === 'outbreak'  ? 'bg-red-50    dark:bg-red-950/40'    :
+                  i.outbreak_status === 'alert'     ? 'bg-amber-50  dark:bg-amber-950/40'  :
+                  i.outbreak_status === 'contained' ? 'bg-green-50/60 dark:bg-green-950/20' : ''
+                }`}>
                   <td className="td">
-                    <div className="font-semibold text-sm">{i.district}</div>
-                    <div className="text-xs text-gray-500">{i.village}, {i.sub_county}</div>
+                    <div className="font-semibold text-sm text-gray-800 dark:text-gray-100">{i.district}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{i.village}, {i.sub_county}</div>
                   </td>
-                  <td className="td font-medium capitalize">{i.disease_type}</td>
-                  <td className="td font-bold text-red-700">{i.cases.toLocaleString()}</td>
-                  <td className="td text-gray-800">{i.deaths}</td>
-                  <td className="td">{i.hospitalizations}</td>
+                  <td className="td font-medium text-gray-700 dark:text-gray-200 capitalize">{i.disease_type?.replace(/_/g, ' ')}</td>
+                  <td className="td font-bold text-red-600 dark:text-red-400">{i.cases.toLocaleString()}</td>
+                  <td className={`td font-semibold ${i.deaths > 0 ? 'text-red-700 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>{i.deaths}</td>
+                  <td className="td text-gray-700 dark:text-gray-200">{i.hospitalizations}</td>
                   <td className="td">
                     {i.water_source_linked
-                      ? <span className="badge bg-red-100 text-red-700">Yes</span>
-                      : <span className="badge bg-gray-100 text-gray-500">No</span>}
+                      ? <span className="badge bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400">Yes</span>
+                      : <span className="badge bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300">No</span>}
                   </td>
                   <td className="td">
-                    <span className="badge" style={{ background: outbreakColors[i.outbreak_status] + '20', color: outbreakColors[i.outbreak_status] }}>
+                    <span className="badge" style={{ background: outbreakColors[i.outbreak_status] + '22', color: outbreakColors[i.outbreak_status] }}>
                       {i.outbreak_status}
                     </span>
                   </td>
-                  <td className="td text-xs">{new Date(i.reported_date).toLocaleDateString()}</td>
+                  <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(i.reported_date).toLocaleDateString()}</td>
                   <td className="td">
-                    {i.outbreak_status === 'monitoring' && <button onClick={() => handleStatus(i.id, 'contained')} className="text-xs text-green-600 hover:underline">Contain</button>}
-                    {i.outbreak_status === 'outbreak'   && <button onClick={() => handleStatus(i.id, 'contained')} className="text-xs text-orange-600 hover:underline">Contain</button>}
-                    {i.outbreak_status === 'contained'  && <button onClick={() => handleStatus(i.id, 'resolved')}  className="text-xs text-blue-600 hover:underline">Resolve</button>}
+                    {(i.outbreak_status === 'monitoring' || i.outbreak_status === 'alert' || i.outbreak_status === 'outbreak') &&
+                      <button onClick={() => handleStatus(i.id, 'contained')} className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline">Contain</button>}
+                    {i.outbreak_status === 'contained' &&
+                      <button onClick={() => handleStatus(i.id, 'resolved')} className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">Resolve</button>}
                   </td>
                 </tr>
               ))}
