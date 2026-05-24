@@ -37,20 +37,24 @@ type LayerKey = 'street' | 'hot' | 'hybrid' | 'satellite' | 'terrain';
 const ESRI_SAT  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const ESRI_TOPO = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
 
-// CartoDB label-only overlays (OSM data — good Uganda/Kampala coverage)
-// dark_only_labels = white text → readable on satellite/imagery
-// voyager_only_labels = coloured text → readable on light basemaps
-const CARTO_DARK_LABELS  = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
-const CARTO_LIGHT_LABELS = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png';
+// CartoDB label-only overlays — white text on satellite, coloured text on light basemaps.
+// Used ONLY for satellite/hybrid where the base tile has zero text of its own.
+// Street/HOT/Terrain base tiles already include place names, road names and building names
+// natively — adding a CartoDB overlay on top would duplicate and obscure those labels.
+const CARTO_DARK_LABELS = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
 
 interface LayerDef { label: string; url: string; attribution: string; subdomains: string; maxNativeZoom: number; labelsUrl?: string; }
 
 const BASE_LAYERS: Record<LayerKey, LayerDef> = {
-  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
-  hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
-  hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
-  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
-  terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
+  // OSM/HOT tiles render place names, road names AND building names at zoom 17+.
+  // No extra label overlay — adding one hides the richer labels already in the tile.
+  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc', maxNativeZoom: 19 },
+  hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc', maxNativeZoom: 19 },
+  // ESRI imagery tiles contain no text — CartoDB dark labels supply place/road names.
+  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri', subdomains: 'a', maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
+  hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri', subdomains: 'a', maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
+  // ESRI World_Topo_Map already includes comprehensive place/road labels.
+  terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri', subdomains: 'a', maxNativeZoom: 19 },
 };
 
 const LAYER_ORDER: LayerKey[] = ['street', 'hot', 'hybrid', 'satellite', 'terrain'];
@@ -420,17 +424,19 @@ export default function WaterMap({
           maxNativeZoom={base.maxNativeZoom}
         />
 
-        {/* Place-name labels overlay — CartoDB OSM labels for all modes */}
+        {/* Label overlay — only for satellite/hybrid whose base tile has no text.
+            maxNativeZoom=19 matches CartoDB's actual tile cap; Leaflet upscales
+            the zoom-19 tile at zoom 20 so labels remain readable when zoomed in. */}
         {base.labelsUrl && (
           <TileLayer
             key={`${activeLayer}-labels`}
             url={base.labelsUrl}
             subdomains="abcd"
             maxZoom={20}
-            maxNativeZoom={20}
+            maxNativeZoom={19}
             attribution=""
             opacity={1}
-            zIndex={500}
+            zIndex={650}
           />
         )}
 
