@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Circle,
-  ZoomControl, GeoJSON, useMap,
+  ZoomControl, GeoJSON, useMap, useMapEvents,
 } from 'react-leaflet';
 import L from 'leaflet';
 import { WaterPoint } from '../../types';
@@ -59,6 +59,12 @@ function CaptureMap({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }
   return null;
 }
 
+/** Listens for map clicks and calls onPin when drop-pin mode is active */
+function MapClickHandler({ active, onPin }: { active: boolean; onPin: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: e => { if (active) onPin(e.latlng.lat, e.latlng.lng); } });
+  return null;
+}
+
 /** Normalize string for fuzzy district matching */
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
@@ -112,6 +118,9 @@ export default function WaterMap({
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<{ place: string; district: string } | null>(null);
+  const [isManualPin, setIsManualPin] = useState(false);
+  const [dropPinMode, setDropPinMode] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
 
@@ -184,25 +193,9 @@ export default function WaterMap({
         let bestAccuracy = pos.coords.accuracy;
         setUserLocation(latlng);
         setUserAccuracy(bestAccuracy);
+        setIsManualPin(false);
         setLocating(false);
         mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
-
-        // Reverse geocode for the initial position
-        const geocode = (lat: number, lng: number) =>
-          fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } }
-          )
-            .then(r => r.json())
-            .then(data => {
-              const a = data.address || {};
-              const place = a.village || a.hamlet || a.suburb || a.neighbourhood
-                || a.town || a.city || a.county || 'Your Location';
-              const district = a.county || a.state_district || a.state || '';
-              setLocationLabel({ place, district });
-            })
-            .catch(() => setLocationLabel({ place: 'Your Location', district: '' }));
-
         geocode(latlng[0], latlng[1]);
 
         // Step 2: watch and auto-pan whenever GPS accuracy improves meaningfully
@@ -212,12 +205,9 @@ export default function WaterMap({
             const newAcc = wp.coords.accuracy;
             setUserLocation(newLatlng);
             setUserAccuracy(newAcc);
-
-            // If this fix is at least 40% more accurate than the best so far, re-centre
             if (newAcc < bestAccuracy * 0.6) {
               bestAccuracy = newAcc;
               mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
-              // Re-geocode only if we moved more than ~20 m
               geocode(newLatlng[0], newLatlng[1]);
             }
           },
@@ -234,11 +224,55 @@ export default function WaterMap({
     setLocationLabel(null);
     setUserLocation(null);
     setUserAccuracy(null);
+    setIsManualPin(false);
+    setDropPinMode(false);
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
   };
+
+  // Reverse-geocode helper
+  const geocode = useCallback((lat: number, lng: number) =>
+    fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    )
+      .then(r => r.json())
+      .then(data => {
+        const a = data.address || {};
+        const place = a.village || a.hamlet || a.suburb || a.neighbourhood
+          || a.town || a.city || a.county || 'Your Location';
+        const district = a.county || a.state_district || a.state || '';
+        setLocationLabel({ place, district });
+      })
+      .catch(() => setLocationLabel({ place: 'Your Location', district: '' }))
+  , []);
+
+  // Manual pin — user taps exact spot on map
+  const handleManualPin = useCallback((lat: number, lng: number) => {
+    setUserLocation([lat, lng]);
+    setUserAccuracy(null);
+    setIsManualPin(true);
+    setDropPinMode(false);
+    geocode(lat, lng);
+  }, [geocode]);
+
+  // Share location via Web Share API (mobile) or copy to clipboard (desktop)
+  const handleShare = useCallback(async () => {
+    if (!userLocation || !locationLabel) return;
+    const mapsUrl = `https://maps.google.com/?q=${userLocation[0]},${userLocation[1]}`;
+    const text = `📍 ${locationLabel.place}${locationLabel.district ? `, ${locationLabel.district}` : ''}\n${userLocation[0].toFixed(5)}°N, ${userLocation[1].toFixed(5)}°E\n\nOpen in Maps: ${mapsUrl}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: locationLabel.place, text, url: mapsUrl }); } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch {}
+    }
+  }, [userLocation, locationLabel]);
 
   const liveLocationIcon = L.divIcon({
     className: '',
@@ -267,7 +301,7 @@ export default function WaterMap({
   const base = BASE_LAYERS[activeLayer];
 
   return (
-    <div style={{ position: 'relative', height, width: '100%' }}>
+    <div style={{ position: 'relative', height, width: '100%', cursor: dropPinMode ? 'crosshair' : undefined }}>
       <MapContainer
         center={center}
         zoom={zoom}
@@ -281,8 +315,8 @@ export default function WaterMap({
         style={{ height: '100%', width: '100%', touchAction: 'none' }}
         className="rounded-xl z-0"
       >
-        {/* Capture map ref + helpers */}
         <CaptureMap mapRef={mapRef} />
+        <MapClickHandler active={dropPinMode} onPin={handleManualPin} />
         <ZoomControl position="bottomright" />
 
         {/* Base tile layer */}
@@ -351,8 +385,8 @@ export default function WaterMap({
           </Marker>
         ))}
 
-        {/* Live user location — accuracy circle + dot */}
-        {userLocation && userAccuracy && (
+        {/* GPS accuracy circle — only for GPS fix, not manual pin */}
+        {userLocation && userAccuracy && !isManualPin && (
           <Circle
             center={userLocation}
             radius={userAccuracy}
@@ -435,35 +469,74 @@ export default function WaterMap({
           : '📍'}
       </button>
 
-      {/* ── Live location label card ── */}
+      {/* ── Drop-pin mode banner ── */}
+      {dropPinMode && (
+        <div style={{
+          position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1000, background: '#1e293b', color: 'white', borderRadius: 10,
+          padding: '7px 16px', fontSize: 12, fontWeight: 600,
+          boxShadow: '0 4px 14px rgba(0,0,0,0.35)', display: 'flex', gap: 10, alignItems: 'center',
+        }}>
+          <span>📌 Tap your exact location on the map</span>
+          <button onClick={() => setDropPinMode(false)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* ── Live location card ── */}
       {locationLabel && userLocation && (
         <div style={{
           position: 'absolute', bottom: 140, right: 10, zIndex: 1000,
-          background: 'white', borderRadius: 12, padding: '8px 12px',
-          boxShadow: '0 4px 18px rgba(0,0,0,0.22)', maxWidth: 220,
-          display: 'flex', alignItems: 'flex-start', gap: 8,
+          background: 'white', borderRadius: 14, padding: '10px 12px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.22)', width: 230,
         }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>📍</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {locationLabel.place}
-            </div>
-            {locationLabel.district && (
-              <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
-            )}
-            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-              {userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E
-            </div>
-            {userAccuracy && (
-              <div style={{ fontSize: 10, color: userAccuracy < 30 ? '#16a34a' : userAccuracy < 100 ? '#d97706' : '#dc2626', marginTop: 1 }}>
-                ±{Math.round(userAccuracy)}m accuracy
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>{isManualPin ? '📌' : '📍'}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {locationLabel.place}
               </div>
+              {locationLabel.district && (
+                <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
+              )}
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
+                {userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E
+              </div>
+              {!isManualPin && userAccuracy && (
+                <div style={{ fontSize: 10, marginTop: 1, color: userAccuracy < 30 ? '#16a34a' : userAccuracy < 100 ? '#d97706' : '#dc2626' }}>
+                  ±{Math.round(userAccuracy)}m accuracy
+                </div>
+              )}
+              {isManualPin && (
+                <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 1 }}>📌 Manually placed</div>
+              )}
+            </div>
+            <button onClick={dismissLocation}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {/* Share */}
+            <button onClick={handleShare} style={{
+              flex: 1, padding: '5px 0', borderRadius: 8, border: 'none',
+              background: '#2563eb', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            }}>
+              {shareCopied ? '✓ Copied!' : '🔗 Share'}
+            </button>
+            {/* Fix pin manually if GPS is inaccurate */}
+            {!isManualPin && (
+              <button onClick={() => setDropPinMode(true)} style={{
+                flex: 1, padding: '5px 0', borderRadius: 8, border: '1.5px solid #e2e8f0',
+                background: 'white', color: '#374151', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              }}>
+                📌 Fix Pin
+              </button>
             )}
           </div>
-          <button
-            onClick={dismissLocation}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}
-          >×</button>
         </div>
       )}
 
