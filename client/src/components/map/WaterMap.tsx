@@ -121,8 +121,12 @@ export default function WaterMap({
   const [isManualPin, setIsManualPin] = useState(false);
   const [dropPinMode, setDropPinMode] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Clean up GPS watch on unmount
   useEffect(() => () => {
@@ -275,6 +279,41 @@ export default function WaterMap({
       } catch {}
     }
   }, [userLocation, locationLabel]);
+
+  // Place search — forward geocode with 400 ms debounce, Uganda only
+  const handleSearchInput = useCallback((q: string) => {
+    setSearchQuery(q);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (q.trim().length < 2) { setSearchResults([]); return; }
+    searchTimerRef.current = setTimeout(() => {
+      setSearching(true);
+      fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&addressdetails=1&countrycodes=ug&limit=6`,
+        { headers: { 'Accept-Language': 'en' } }
+      )
+        .then(r => r.json())
+        .then(data => { setSearchResults(data); setSearching(false); })
+        .catch(() => setSearching(false));
+    }, 400);
+  }, []);
+
+  const handleSelectPlace = useCallback((result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    const latlng: [number, number] = [lat, lng];
+    const a = result.address || {};
+    const place = a.neighbourhood || a.suburb || a.village || a.hamlet
+      || a.town || a.city || result.display_name.split(',')[0] || 'Your Location';
+    const road = a.road || '';
+    const district = a.city || a.county || a.state_district || '';
+    setSearchQuery(place);
+    setSearchResults([]);
+    setUserLocation(latlng);
+    setUserAccuracy(null);
+    setIsManualPin(true);
+    setLocationLabel({ place, road, district });
+    mapRef.current?.flyTo(latlng, 16, { duration: 1.5 });
+  }, []);
 
   const liveLocationIcon = L.divIcon({
     className: '',
@@ -436,6 +475,58 @@ export default function WaterMap({
             {BASE_LAYERS[key].label}
           </button>
         ))}
+      </div>
+
+      {/* ── Place search bar (below layer switcher) ── */}
+      <div style={{ position: 'absolute', top: 56, left: 12, zIndex: 1000, width: 270 }}>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => handleSearchInput(e.target.value)}
+            placeholder="Search a place in Uganda…"
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '8px 34px 8px 32px',
+              borderRadius: 10, border: 'none',
+              background: 'rgba(255,255,255,0.96)',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+              fontSize: 12, outline: 'none', color: '#1e293b',
+            }}
+          />
+          {(searching) && (
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13 }}>⏳</span>
+          )}
+          {searchQuery && !searching && (
+            <button onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1 }}>×</button>
+          )}
+        </div>
+        {searchResults.length > 0 && (
+          <div style={{ marginTop: 4, background: 'white', borderRadius: 10, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
+            {searchResults.map((r, i) => {
+              const label = r.display_name.split(',').slice(0, 3).join(', ');
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleSelectPlace(r)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 12px', border: 'none', background: 'none',
+                    borderBottom: i < searchResults.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    cursor: 'pointer', fontSize: 12, color: '#1e293b',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  📍 {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Find My Location button (bottom-right, above zoom controls) ── */}
