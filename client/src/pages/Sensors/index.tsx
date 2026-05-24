@@ -19,13 +19,30 @@ export default function SensorsPage() {
   const [liveCount, setLiveCount] = useState(0);
   const socketRef = useRef<any>(null);
 
+  const addChartPoint = (sensorList: Sensor[]) => {
+    const now = new Date().toLocaleTimeString();
+    const point: any = { time: now };
+    sensorList.slice(0, 5).forEach(s => {
+      if (s.last_reading !== undefined) point[`S${s.id}`] = parseFloat(s.last_reading!.toFixed(2));
+    });
+    if (Object.keys(point).length > 1) {
+      setChartData(prev => [...prev.slice(-29), point]);
+      setLiveCount(c => c + 1);
+    }
+  };
+
+  const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     Promise.all([getSensors(), getSensorStats()]).then(([sr, str]) => {
-      setSensors(sr.data.data);
+      const sensorList: Sensor[] = sr.data.data;
+      setSensors(sensorList);
       setStats(str.data.data);
       const initReadings: Record<number, number> = {};
-      sr.data.data.forEach((s: Sensor) => { if (s.last_reading !== undefined) initReadings[s.id] = s.last_reading!; });
+      sensorList.forEach((s: Sensor) => { if (s.last_reading !== undefined) initReadings[s.id] = s.last_reading!; });
       setReadings(initReadings);
+      // Seed chart immediately with current readings
+      addChartPoint(sensorList);
     }).finally(() => setLoading(false));
 
     // Socket.io real-time updates
@@ -44,7 +61,23 @@ export default function SensorsPage() {
         return [...prev.slice(-29), point];
       });
     });
-    return () => socketRef.current?.disconnect();
+
+    // Poll every 30s as fallback to keep chart alive when socket is idle
+    pollInterval.current = setInterval(() => {
+      getSensors().then(sr => {
+        const sensorList: Sensor[] = sr.data.data;
+        setSensors(sensorList);
+        const nextReadings: Record<number, number> = {};
+        sensorList.forEach((s: Sensor) => { if (s.last_reading !== undefined) nextReadings[s.id] = s.last_reading!; });
+        setReadings(nextReadings);
+        addChartPoint(sensorList);
+      });
+    }, 30000);
+
+    return () => {
+      socketRef.current?.disconnect();
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
   }, []);
 
   const loadSensorHistory = async (sensor: Sensor) => {
@@ -66,10 +99,10 @@ export default function SensorsPage() {
     <div className="space-y-6">
       {/* Live indicator */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+        <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded-full">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm text-green-700 font-medium">Live Sensor Feed Active</span>
-          <span className="badge bg-green-100 text-green-700">{liveCount} updates received</span>
+          <span className="text-sm text-green-700 dark:text-green-400 font-medium">Live Sensor Feed Active</span>
+          <span className="badge bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">{liveCount} updates received</span>
         </div>
       </div>
 
@@ -85,7 +118,7 @@ export default function SensorsPage() {
       <div className="card">
         <div className="card-header">
           <h3 className="section-title"><Activity size={18} className="text-blue-600" /> Real-time Sensor Feed</h3>
-          <div className="text-xs text-gray-500 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+          <div className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2 py-1 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Live (updates every 30s)
           </div>
@@ -104,7 +137,7 @@ export default function SensorsPage() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Waiting for live sensor data...</div>
+          <div className="h-40 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Loading sensor data...</div>
         )}
       </div>
 
@@ -112,7 +145,7 @@ export default function SensorsPage() {
       <div className="card py-3">
         <div className="flex flex-wrap gap-2">
           {['all', 'active', 'faulty', 'inactive', 'water_level', 'flow_rate', 'rainfall', 'temperature', 'solar_power', 'groundwater'].map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
               {sensorTypeIcon[f] || ''} {f.replace(/_/g, ' ')}
             </button>
           ))}
@@ -130,23 +163,23 @@ export default function SensorsPage() {
               <div className="flex items-start justify-between mb-2">
                 <div>
                   <div className="text-lg">{sensorTypeIcon[sensor.sensor_type] || '📡'}</div>
-                  <div className="text-xs font-semibold text-gray-600 mt-1">{sensor.sensor_name}</div>
+                  <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 mt-1">{sensor.sensor_name}</div>
                 </div>
                 <StatusBadge status={sensor.status} type="sensor" />
               </div>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {live !== undefined ? live.toFixed(2) : (sensor.last_reading?.toFixed(2) || '—')}
-                <span className="text-sm font-normal text-gray-500 ml-1">{sensor.unit}</span>
+                <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">{sensor.unit}</span>
               </div>
-              {isLow && <div className="text-xs text-orange-600 font-medium mt-1">⚠ Below threshold ({sensor.min_threshold} {sensor.unit})</div>}
-              <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2">
+              {isLow && <div className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1">⚠ Below threshold ({sensor.min_threshold} {sensor.unit})</div>}
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
                 <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
               </div>
-              <div className="flex justify-between mt-2 text-xs text-gray-400">
+              <div className="flex justify-between mt-2 text-xs text-gray-400 dark:text-gray-500">
                 <span className="flex items-center gap-0.5"><Battery size={10} /> {sensor.battery_level}%</span>
                 <span className="flex items-center gap-0.5"><Wifi size={10} /> {sensor.signal_strength}%</span>
               </div>
-              <div className="text-xs text-gray-400 mt-1 truncate">📍 {sensor.water_point_name || sensor.district}</div>
+              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">📍 {sensor.water_point_name || sensor.district}</div>
             </div>
           );
         })}
