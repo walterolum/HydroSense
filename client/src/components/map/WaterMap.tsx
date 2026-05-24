@@ -119,6 +119,7 @@ export default function WaterMap({
   const [districtGeo, setDistrictGeo] = useState<any>(null);
   const [geoLoading, setGeoLoading] = useState(true);
   const [locating, setLocating] = useState(false);
+  const [isWatching, setIsWatching] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   const [locationLabel, setLocationLabel] = useState<{ place: string; road: string; district: string } | null>(null);
@@ -131,6 +132,8 @@ export default function WaterMap({
   const mapRef = useRef<L.Map | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks the coordinates at the time of the best (most accurate) GPS fix for sharing
+  const bestLocationRef = useRef<[number, number] | null>(null);
 
   // Clean up GPS watch on unmount
   useEffect(() => () => {
@@ -182,14 +185,16 @@ export default function WaterMap({
     }
   }, []);
 
-  // Step 1 — getCurrentPosition: zoom + name card (reliable one-shot, never hangs)
-  // Step 2 — watchPosition: silently improves dot accuracy in background
+  // Step 1 — getCurrentPosition: immediate zoom + name card
+  // Step 2 — watchPosition: continuously refines accuracy; re-geocodes on any improvement
   const handleLocate = () => {
     if (!navigator.geolocation) return;
     setLocating(true);
+    setIsWatching(false);
     setUserLocation(null);
     setUserAccuracy(null);
     setLocationLabel(null);
+    bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -199,31 +204,37 @@ export default function WaterMap({
       pos => {
         const latlng: [number, number] = [pos.coords.latitude, pos.coords.longitude];
         let bestAccuracy = pos.coords.accuracy;
+        bestLocationRef.current = latlng;
         setUserLocation(latlng);
         setUserAccuracy(bestAccuracy);
         setIsManualPin(false);
         setLocating(false);
+        setIsWatching(true);
         mapRef.current?.flyTo(latlng, 17, { duration: 1.5 });
         geocode(latlng[0], latlng[1]);
 
-        // Step 2: watch and auto-pan whenever GPS accuracy improves meaningfully
+        // Step 2: watch indefinitely — update pin + place name on every accuracy gain
         watchIdRef.current = navigator.geolocation.watchPosition(
           wp => {
             const newLatlng: [number, number] = [wp.coords.latitude, wp.coords.longitude];
             const newAcc = wp.coords.accuracy;
             setUserLocation(newLatlng);
             setUserAccuracy(newAcc);
-            if (newAcc < bestAccuracy * 0.6) {
+            if (newAcc < bestAccuracy) {
+              const majorImprovement = newAcc < bestAccuracy * 0.6;
               bestAccuracy = newAcc;
-              mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
+              bestLocationRef.current = newLatlng;
               geocode(newLatlng[0], newLatlng[1]);
+              if (majorImprovement) {
+                mapRef.current?.panTo(newLatlng, { animate: true, duration: 0.8 });
+              }
             }
           },
-          () => {},
+          () => setIsWatching(false),
           { enableHighAccuracy: true, maximumAge: 0 }
         );
       },
-      () => setLocating(false),
+      () => { setLocating(false); setIsWatching(false); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
@@ -234,6 +245,8 @@ export default function WaterMap({
     setUserAccuracy(null);
     setIsManualPin(false);
     setDropPinMode(false);
+    setIsWatching(false);
+    bestLocationRef.current = null;
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
@@ -267,12 +280,15 @@ export default function WaterMap({
     geocode(lat, lng);
   }, [geocode]);
 
-  // Share location via Web Share API (mobile) or copy to clipboard (desktop)
+  // Share location — always uses the most accurate fix received (bestLocationRef)
   const handleShare = useCallback(async () => {
-    if (!userLocation || !locationLabel) return;
-    const mapsUrl = `https://maps.google.com/?q=${userLocation[0]},${userLocation[1]}`;
+    if (!locationLabel) return;
+    const shareLoc = bestLocationRef.current || userLocation;
+    if (!shareLoc) return;
+    const mapsUrl = `https://maps.google.com/?q=${shareLoc[0]},${shareLoc[1]}`;
     const parts = [locationLabel.place, locationLabel.road, locationLabel.district].filter(Boolean).join(', ');
-    const text = `📍 ${parts}\n${userLocation[0].toFixed(5)}°N, ${userLocation[1].toFixed(5)}°E\n\nOpen in Maps: ${mapsUrl}`;
+    const accText = userAccuracy ? ` (±${Math.round(userAccuracy)}m accuracy)` : '';
+    const text = `📍 ${parts}${accText}\n${shareLoc[0].toFixed(6)}°N, ${shareLoc[1].toFixed(6)}°E\n\nOpen in Maps: ${mapsUrl}`;
     if (navigator.share) {
       try { await navigator.share({ title: locationLabel.place, text, url: mapsUrl }); } catch {}
     } else {
@@ -282,7 +298,7 @@ export default function WaterMap({
         setTimeout(() => setShareCopied(false), 2000);
       } catch {}
     }
-  }, [userLocation, locationLabel]);
+  }, [userLocation, userAccuracy, locationLabel]);
 
   // Place search — forward geocode with 400 ms debounce, Uganda only
   const handleSearchInput = useCallback((q: string) => {
@@ -610,13 +626,25 @@ export default function WaterMap({
                 <div style={{ fontSize: 11, color: '#64748b' }}>{locationLabel.district}</div>
               )}
               <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-                {userLocation[0].toFixed(5)}°N, {userLocation[1].toFixed(5)}°E
+                {userLocation[0].toFixed(6)}°N, {userLocation[1].toFixed(6)}°E
               </div>
-              {!isManualPin && userAccuracy && (
-                <div style={{ fontSize: 10, marginTop: 1, color: userAccuracy < 30 ? '#16a34a' : userAccuracy < 100 ? '#d97706' : '#dc2626' }}>
-                  ±{Math.round(userAccuracy)}m accuracy
-                </div>
-              )}
+              {!isManualPin && userAccuracy && (() => {
+                const acc = Math.round(userAccuracy);
+                const good = userAccuracy <= 30;
+                const ok   = userAccuracy <= 100;
+                const color = good ? '#16a34a' : ok ? '#d97706' : '#dc2626';
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, ...(isWatching && !good ? { animation: 'pulse-ring 1.4s ease-out infinite', display: 'inline-block' } : {}) }} />
+                    <span style={{ fontSize: 10, color, fontWeight: 600 }}>
+                      ±{acc}m · {good ? 'Excellent' : ok ? 'Good' : 'Poor'}
+                    </span>
+                    {isWatching && !good && (
+                      <span style={{ fontSize: 10, color: '#94a3b8' }}>improving…</span>
+                    )}
+                  </div>
+                );
+              })()}
               {isManualPin && (
                 <div style={{ fontSize: 10, color: '#7c3aed', marginTop: 1 }}>📌 Manually placed</div>
               )}
@@ -627,13 +655,20 @@ export default function WaterMap({
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {/* Share */}
-            <button onClick={handleShare} style={{
-              flex: 1, padding: '5px 0', borderRadius: 8, border: 'none',
-              background: '#2563eb', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-            }}>
-              {shareCopied ? '✓ Copied!' : '🔗 Share'}
-            </button>
+            {/* Share — colour reflects accuracy quality */}
+            {(() => {
+              const poor = !isManualPin && userAccuracy != null && userAccuracy > 100;
+              const bg = shareCopied ? '#16a34a' : poor ? '#dc2626' : '#2563eb';
+              return (
+                <button onClick={handleShare} title={poor ? `GPS accuracy is ±${Math.round(userAccuracy!)}m — consider waiting or using Fix Pin` : undefined} style={{
+                  flex: 1, padding: '5px 0', borderRadius: 8, border: 'none',
+                  background: bg, color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  transition: 'background 0.3s',
+                }}>
+                  {shareCopied ? '✓ Copied!' : poor ? `⚠ Share (±${Math.round(userAccuracy!)}m)` : '🔗 Share'}
+                </button>
+              );
+            })()}
             {/* Fix pin manually if GPS is inaccurate */}
             {!isManualPin && (
               <button onClick={() => setDropPinMode(true)} style={{
