@@ -11,7 +11,7 @@ const LANG_NAMES: Record<string, string> = {
   nyn: 'Runyankore', teo: 'Teso', lgg: 'Lugbara', xog: 'Lusoga',
   cgg: 'Rukiga', ach: 'Acholi', nyo: 'Runyoro', ttj: 'Rutooro',
   laj: 'Leb Lango', alz: 'Dho Alur', myx: 'Lumasaba', kdj: 'Ngakarimojong',
-  spy: 'Kupsabiny',
+  spy: 'Kupsabiny', koo: 'Rukonzo',
 };
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport, createHealthIncident } from '../api/client';
@@ -36,7 +36,8 @@ export default function MultilingualReport() {
   const { user } = useAuth();
   const { t, translateToEnglish, language } = useLanguage();
 
-  const [step] = useState(1);
+  const [step, setStep] = useState(1);
+  const [submittedId, setSubmittedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -123,7 +124,8 @@ export default function MultilingualReport() {
       };
 
       const res = await submitCitizenReport(payload);
-      const reportId = res.data.id;
+      const reportId: number = res.data.id;
+      setSubmittedId(reportId);
 
       if (form.incident_type === 'disease_report' && disease.cases) {
         await createHealthIncident({
@@ -166,7 +168,7 @@ export default function MultilingualReport() {
       }
 
       setSuccess(t('alert.success.report'));
-      setTimeout(() => navigate('/report-status'), 2000);
+      setStep(2);
     } catch (err: any) {
       setError(err.response?.data?.error || t('alert.error.report'));
     } finally {
@@ -202,14 +204,33 @@ export default function MultilingualReport() {
 
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
-          {[1, 2].map(s => (
-            <div key={s} className={`flex items-center gap-2 ${s < step ? 'text-green-600' : s === step ? 'text-blue-600' : 'text-gray-300'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${s < step ? 'bg-green-100 dark:bg-green-900 border-green-400' : s === step ? 'bg-blue-100 dark:bg-blue-900 border-blue-400' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'}`}>
-                {s < step ? '✓' : s}
-              </div>
-              <span className="text-sm font-medium hidden sm:inline">{s === 1 ? t('report.title') : t('report.track')}</span>
-            </div>
-          ))}
+          {[1, 2].map(s => {
+            const done = s < step;
+            const active = s === step;
+            const clickable = s === 1 ? step === 2 : true;
+            return (
+              <button
+                key={s}
+                type="button"
+                disabled={!clickable}
+                onClick={() => {
+                  if (s === 1) setStep(1);
+                  else navigate('/report-status');
+                }}
+                className={`flex items-center gap-2 ${done ? 'text-green-600' : active ? 'text-blue-600' : 'text-gray-400 dark:text-gray-500'} ${clickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2
+                  ${done ? 'bg-green-100 dark:bg-green-900 border-green-400'
+                    : active ? 'bg-blue-100 dark:bg-blue-900 border-blue-400'
+                    : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600'}`}>
+                  {done ? '✓' : s}
+                </div>
+                <span className="text-sm font-medium hidden sm:inline">
+                  {s === 1 ? t('report.title') : t('report.track')}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {step === 1 && (
@@ -487,15 +508,26 @@ export default function MultilingualReport() {
 
         {step === 2 && (
           <div className="text-center py-12">
-            <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto mb-4">
               <CheckCircle size={32} className="text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">{t('alert.success.report')}</h2>
-            <p className="text-gray-500 text-sm mb-6">Track your report status anytime</p>
-            <button onClick={() => navigate('/report-status')}
-              className="px-6 py-3 rounded-xl font-bold text-white text-sm bg-blue-600 hover:bg-blue-700 shadow-lg">
-              {t('report.track')}
-            </button>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('alert.success.report')}</h2>
+            {submittedId && (
+              <p className="text-sm text-gray-400 dark:text-gray-500 mb-1">
+                Report ID: <span className="font-bold text-blue-600">#{submittedId}</span>
+              </p>
+            )}
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">You can track the status of your report at any time.</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button onClick={() => navigate('/report-status')}
+                className="px-6 py-3 rounded-xl font-bold text-white text-sm bg-blue-600 hover:bg-blue-700 shadow-lg">
+                {t('report.track')}
+              </button>
+              <button onClick={() => { setStep(1); setSuccess(''); }}
+                className="px-6 py-3 rounded-xl font-bold text-sm border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                Submit Another Report
+              </button>
+            </div>
           </div>
         )}
       </div>
