@@ -1,6 +1,6 @@
 export type LanguageCode =
   | 'en' | 'lug' | 'nyn' | 'teo' | 'luo' | 'lgg' | 'xog' | 'cgg' | 'ach' | 'swa'
-  | 'nyo' | 'ttj' | 'laj' | 'alz' | 'myx' | 'kdj';
+  | 'nyo' | 'ttj' | 'laj' | 'alz' | 'myx' | 'kdj' | 'spy';
 
 export interface LanguageDef {
   code: LanguageCode;
@@ -26,6 +26,7 @@ export const SUPPORTED_LANGUAGES: LanguageDef[] = [
   { code: 'teo', name: 'Ateso',         nativeName: 'Ateso',        flag: '🇺🇬', direction: 'ltr' },
   { code: 'kdj', name: 'Ngakarimojong', nativeName: 'Ngakarimojong',flag: '🇺🇬', direction: 'ltr' },
   { code: 'lgg', name: 'Lugbara',       nativeName: 'Lugbara',      flag: '🇺🇬', direction: 'ltr' },
+  { code: 'spy', name: 'Sabiny',        nativeName: 'Kupsabiny',    flag: '🇺🇬', direction: 'ltr' },
   { code: 'swa', name: 'Swahili',       nativeName: 'Kiswahili',    flag: '🇹🇿', direction: 'ltr' },
 ];
 

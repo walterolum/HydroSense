@@ -9,7 +9,9 @@ import CameraCapture from '../components/common/CameraCapture';
 const LANG_NAMES: Record<string, string> = {
   en: 'English', lug: 'Luganda', swa: 'Swahili', luo: 'Luo',
   nyn: 'Runyankore', teo: 'Teso', lgg: 'Lugbara', xog: 'Lusoga',
-  cgg: 'Rukiga', ach: 'Acholi',
+  cgg: 'Rukiga', ach: 'Acholi', nyo: 'Runyoro', ttj: 'Rutooro',
+  laj: 'Leb Lango', alz: 'Dho Alur', myx: 'Lumasaba', kdj: 'Ngakarimojong',
+  spy: 'Kupsabiny',
 };
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { submitCitizenReport, createHealthIncident } from '../api/client';
