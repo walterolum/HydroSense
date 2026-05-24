@@ -34,19 +34,23 @@ function createIcon(status: string) {
 // ── Tile layer definitions ────────────────────────────────────────────────────
 type LayerKey = 'street' | 'hot' | 'hybrid' | 'satellite' | 'terrain';
 
-const ESRI_SAT    = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const ESRI_TOPO   = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
-// Transparent place-name overlay designed for use on top of satellite imagery
-const ESRI_LABELS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+const ESRI_SAT  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+const ESRI_TOPO = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
+
+// CartoDB label-only overlays (OSM data — good Uganda/Kampala coverage)
+// dark_only_labels = white text → readable on satellite/imagery
+// voyager_only_labels = coloured text → readable on light basemaps
+const CARTO_DARK_LABELS  = 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png';
+const CARTO_LIGHT_LABELS = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png';
 
 interface LayerDef { label: string; url: string; attribution: string; subdomains: string; maxNativeZoom: number; labelsUrl?: string; }
 
 const BASE_LAYERS: Record<LayerKey, LayerDef> = {
-  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: ESRI_LABELS },
-  hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: ESRI_LABELS },
-  hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: ESRI_LABELS },
-  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: ESRI_LABELS },
-  terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: ESRI_LABELS },
+  street:    { label: '🗺 Street',    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',    attribution: '© OpenStreetMap contributors', subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
+  hot:       { label: '🏥 HOT',       url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', attribution: '© OpenStreetMap, HOT',         subdomains: 'abc',  maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
+  hybrid:    { label: '🛰 Hybrid',    url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
+  satellite: { label: '🌍 Satellite', url: ESRI_SAT,  attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_DARK_LABELS },
+  terrain:   { label: '⛰ Terrain',   url: ESRI_TOPO, attribution: '© Esri',                        subdomains: 'a',   maxNativeZoom: 19, labelsUrl: CARTO_LIGHT_LABELS },
 };
 
 const LAYER_ORDER: LayerKey[] = ['street', 'hot', 'hybrid', 'satellite', 'terrain'];
@@ -370,15 +374,17 @@ export default function WaterMap({
           maxNativeZoom={base.maxNativeZoom}
         />
 
-        {/* Village / place-name labels overlay for satellite and hybrid */}
+        {/* Place-name labels overlay — CartoDB OSM labels for all modes */}
         {base.labelsUrl && (
           <TileLayer
             key={`${activeLayer}-labels`}
             url={base.labelsUrl}
+            subdomains="abcd"
             maxZoom={20}
-            maxNativeZoom={19}
+            maxNativeZoom={20}
             attribution=""
             opacity={1}
+            zIndex={500}
           />
         )}
 
