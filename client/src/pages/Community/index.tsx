@@ -105,8 +105,8 @@ export default function CommunityReports() {
           <div className="space-y-2">
             {(stats?.by_channel || []).map((c: any) => (
               <div key={c.channel} className="flex items-center gap-2">
-                <span className="w-24 text-sm text-gray-600">{channelIcons[c.channel]} {c.channel}</span>
-                <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                <span className="w-24 text-sm text-gray-600 dark:text-gray-300">{channelIcons[c.channel]} {c.channel}</span>
+                <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2" style={{ width: `${(c.count / (stats?.total || 1)) * 100}%` }}>
                     <span className="text-xs text-white font-bold">{c.count}</span>
                   </div>
@@ -134,7 +134,7 @@ export default function CommunityReports() {
           <h3 className="section-title">Community Reports</h3>
           <div className="flex gap-2 ml-4">
             {['all', 'open', 'under_review', 'in_progress', 'resolved'].map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-2.5 py-1 rounded-lg text-xs ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{f.replace(/_/g, ' ')}</button>
+              <button key={f} onClick={() => setFilter(f)} className={`px-2.5 py-1 rounded-lg text-xs ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{f.replace(/_/g, ' ')}</button>
             ))}
           </div>
           <button onClick={() => { setShowModal(true); setModalError(''); }} className="btn-primary text-xs ml-auto"><Plus size={14} /> New Report</button>
@@ -153,30 +153,36 @@ export default function CommunityReports() {
                 <th className="th">Action</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {reports.map(r => (
                 <tr key={r.id} className="tr">
                   <td className="td">
-                    <div className="text-sm font-medium">{r.reporter_name || 'Anonymous'}</div>
-                    <div className="text-xs text-gray-400">{r.reporter_phone || '—'}</div>
+                    <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{r.reporter_name || 'Anonymous'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{r.reporter_phone || '—'}</div>
                   </td>
-                  <td className="td text-xs">{r.village ? `${r.village}, ` : ''}{r.sub_county}, {r.district}</td>
+                  <td className="td text-xs text-gray-700 dark:text-gray-200">{r.village ? `${r.village}, ` : ''}{r.sub_county}, {r.district}</td>
                   <td className="td">
-                    <div className="text-sm">{issueIcons[r.issue_type] || '❓'} {r.issue_type?.replace(/_/g, ' ')}</div>
-                    <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{r.description}</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-200">{issueIcons[r.issue_type] || '❓'} {r.issue_type?.replace(/_/g, ' ')}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{r.description}</div>
                   </td>
-                  <td className="td"><span className={`badge ${r.severity === 'high' ? 'bg-red-100 text-red-700' : r.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>{r.severity}</span></td>
-                  <td className="td text-sm">{channelIcons[r.channel]} {r.channel}</td>
+                  <td className="td">
+                    <span className={`badge ${
+                      r.severity === 'high'   ? 'bg-red-100    dark:bg-red-900/50    text-red-700    dark:text-red-400'    :
+                      r.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400' :
+                                                'bg-gray-100   dark:bg-gray-700      text-gray-600   dark:text-gray-300'
+                    }`}>{r.severity}</span>
+                  </td>
+                  <td className="td text-sm text-gray-700 dark:text-gray-200">{channelIcons[r.channel]} {r.channel}</td>
                   <td className="td"><StatusBadge status={r.status} type="report" /></td>
-                  <td className="td text-xs">{new Date(r.created_at).toLocaleDateString()}</td>
+                  <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(r.created_at).toLocaleDateString()}</td>
                   <td className="td">
-                    {r.status === 'open' && <button onClick={() => handleStatus(r.id, 'in_progress')} className="text-xs text-blue-600 hover:underline">Accept</button>}
-                    {r.status === 'in_progress' && <button onClick={() => handleStatus(r.id, 'resolved')} className="text-xs text-green-600 hover:underline">Resolve</button>}
-                    {r.status === 'resolved' && <span className="text-xs text-green-500">✓</span>}
+                    {r.status === 'open'        && <button onClick={() => handleStatus(r.id, 'in_progress')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">Accept</button>}
+                    {r.status === 'in_progress' && <button onClick={() => handleStatus(r.id, 'resolved')}    className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">Resolve</button>}
+                    {r.status === 'resolved'    && <span className="text-xs text-green-500 dark:text-green-400">✓</span>}
                   </td>
                 </tr>
               ))}
-              {reports.length === 0 && !loading && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">No reports found.</td></tr>}
+              {reports.length === 0 && !loading && <tr><td colSpan={8} className="td text-center text-gray-400 dark:text-gray-500 py-8">No reports found.</td></tr>}
             </tbody>
           </table>
         </div>
