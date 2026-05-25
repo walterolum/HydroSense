@@ -171,7 +171,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       setLoginSuccess(true);
       const redirectTo = locationState?.from || '/dashboard';
       setTimeout(() => navigate(redirectTo, { replace: true }), 800);
