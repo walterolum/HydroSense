@@ -1041,9 +1041,14 @@ export default function CitizenHub() {
                 </div>
                 {gpsError && <p className="text-xs text-red-500 mt-1">{gpsError}</p>}
                 {obsForm.lat && (
-                  <p className="text-[11px] text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
-                    <MapPin size={10} /> GPS: {obsForm.lat.toFixed(5)}°, {obsForm.lng?.toFixed(5)}°
-                  </p>
+                  <a
+                    href={`https://www.google.com/maps?q=${obsForm.lat},${obsForm.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400 mt-1 underline underline-offset-2 hover:text-green-800 active:opacity-70"
+                  >
+                    <MapPin size={10} /> GPS: {obsForm.lat.toFixed(5)}°, {obsForm.lng?.toFixed(5)}° — tap to view on map
+                  </a>
                 )}
               </div>
               <div>
