@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell, Menu, Sun, Moon, CheckCheck, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { getNotifications, getNotificationUnreadCount, markNotificationRead, markAllNotificationsRead } from '../../api/client';
 import AIStatusIndicator from '../common/AIStatusIndicator';
 import LanguageSwitcher from '../common/LanguageSwitcher';
@@ -43,6 +44,11 @@ function timeAgo(iso: string): string {
 export default function Header({ onMenuClick, title }: HeaderProps) {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { language, translate } = useLanguage();
+  const [translatedTitle, setTranslatedTitle] = useState(title);
+  const [tNotifications, setTNotifications] = useState('Notifications');
+  const [tMarkAllRead, setTMarkAllRead] = useState('Mark all read');
+  const [tNoNotifications, setTNoNotifications] = useState('No notifications');
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -109,6 +115,20 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
     } catch {}
   };
 
+  useEffect(() => {
+    if (language === 'en') {
+      setTranslatedTitle(title);
+      setTNotifications('Notifications');
+      setTMarkAllRead('Mark all read');
+      setTNoNotifications('No notifications');
+      return;
+    }
+    translate(title).then(setTranslatedTitle);
+    translate('Notifications').then(setTNotifications);
+    translate('Mark all read').then(setTMarkAllRead);
+    translate('No notifications').then(setTNoNotifications);
+  }, [language, title]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const initials = user
     ? user.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
     : '?';
@@ -128,7 +148,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
 
       {/* Page title */}
       <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{title}</h1>
+        <h1 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{translatedTitle}</h1>
         <div className="text-xs text-gray-400 dark:text-gray-500">
           {time.toLocaleDateString('en-UG', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           {' · '}
@@ -182,7 +202,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-                <span className="text-sm font-bold text-gray-800 dark:text-gray-100">Notifications</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{tNotifications}</span>
                 <div className="flex items-center gap-2">
                   {unreadCount > 0 && (
                     <button
@@ -191,7 +211,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
                       title="Mark all as read"
                     >
                       <CheckCheck size={13} />
-                      Mark all read
+                      {tMarkAllRead}
                     </button>
                   )}
                   <button
@@ -207,7 +227,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
               <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                    No notifications
+                    {tNoNotifications}
                   </div>
                 ) : (
                   notifications.map(n => (
