@@ -782,14 +782,14 @@ export default function CitizenHub() {
       {/* ══ VOLUNTEER TAB ══ */}
       {tab === 'volunteer' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="rounded-xl p-4 text-white flex-1 mr-3" style={{ background: 'linear-gradient(135deg,#4c1d95,#7c3aed)' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="rounded-xl p-4 text-white flex-1" style={{ background: 'linear-gradient(135deg,#4c1d95,#7c3aed)' }}>
               <div className="flex items-center gap-2 mb-1"><Heart size={16} className="text-purple-300" /><span className="font-bold">Volunteer & Community Action</span></div>
               <p className="text-sm text-purple-100">Join clean-up drives, tree planting events, and environmental campaigns in your district.</p>
             </div>
             {canCreateEvent && (
               <button onClick={() => setShowNewEv(true)}
-                className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold flex items-center gap-2 shadow flex-shrink-0 transition-colors">
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow flex-shrink-0 transition-colors">
                 <Plus size={14} /> Create Event
               </button>
             )}
