@@ -1,8 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Wrench, CheckCircle, Clock, MapPin, AlertTriangle, Cpu, RefreshCw, ChevronRight } from 'lucide-react';
 import { getMaintenanceRequests, updateMaintenanceRequest, getSensors } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import StatusBadge from '../../components/common/StatusBadge';
+
+const TP_STRINGS = [
+  'FIELD OPERATIONS','FIELD TECHNICIAN PORTAL',
+  'Tasks & Work Orders','My Tasks & Work Orders',
+  'Pending Tasks','In Progress','Completed Today','Low Battery','Offline Sensors',
+  'Pending','Completed',
+  'require immediate attention',
+  'No','tasks','All caught up!','Complete some tasks to see them here.',
+  'Task Details','Water Point','District','Issue Type','Priority','Status','Assigned To','Cost Est.','Created','Description',
+  'Select a task to view details',
+  'Sensor Health','No sensor data',
+  'Starting...','Start Task','Completing...','Mark Complete',
+];
+
+function useTechStrings() {
+  const { language, translate } = useLanguage();
+  const cacheRef = useRef<Record<string, Record<string,string>>>({});
+  const [ts, setTs] = useState<Record<string,string>>({});
+  useEffect(() => {
+    if (language === 'en') { setTs({}); return; }
+    if (cacheRef.current[language]) { setTs(cacheRef.current[language]); return; }
+    Promise.all(TP_STRINGS.map(s => translate(s).then(t => [s,t] as [string,string])))
+      .then(pairs => { const m = Object.fromEntries(pairs); cacheRef.current[language]=m; setTs(m); });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (s: string) => ts[s] || s;
+}
 
 const PRIORITY_COLORS: Record<string,string> = {
   critical:'text-red-600 bg-red-50 border-red-200',
@@ -18,6 +45,7 @@ const TYPE_ICONS: Record<string,string> = {
 
 export default function TechnicianPortal() {
   const { user } = useAuth();
+  const t = useTechStrings();
   const isCitizen = user?.role === 'citizen';
   const [tasks, setTasks]         = useState<any[]>([]);
   const [sensors, setSensors]     = useState<any[]>([]);
@@ -64,11 +92,11 @@ export default function TechnicianPortal() {
             <div className="flex items-center gap-2 mb-1">
               <Wrench size={17} className="text-yellow-300" />
               <span className="text-yellow-300 text-sm font-semibold tracking-wide">
-                {isCitizen ? 'FIELD OPERATIONS' : 'FIELD TECHNICIAN PORTAL'}
+                {isCitizen ? t('FIELD OPERATIONS') : t('FIELD TECHNICIAN PORTAL')}
               </span>
             </div>
             <h2 className="text-2xl font-extrabold">
-              {isCitizen ? 'Tasks & Work Orders' : 'My Tasks & Work Orders'}
+              {isCitizen ? t('Tasks & Work Orders') : t('My Tasks & Work Orders')}
             </h2>
             <p className="text-orange-100 text-sm mt-1">
               {isCitizen
@@ -85,11 +113,11 @@ export default function TechnicianPortal() {
       {/* Quick stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label:'Pending Tasks',  value:pending,    color:'#ea580c', icon:'📋' },
-          { label:'In Progress',    value:inProgress, color:'#2563eb', icon:'🔧' },
-          { label:'Completed Today',value:completed,  color:'#16a34a', icon:'✅' },
-          { label:'Low Battery',    value:lowBattery, color:'#d97706', icon:'🔋' },
-          { label:'Offline Sensors',value:offline,    color:'#dc2626', icon:'📡' },
+          { label:t('Pending Tasks'),  value:pending,    color:'#ea580c', icon:'📋' },
+          { label:t('In Progress'),    value:inProgress, color:'#2563eb', icon:'🔧' },
+          { label:t('Completed Today'),value:completed,  color:'#16a34a', icon:'✅' },
+          { label:t('Low Battery'),    value:lowBattery, color:'#d97706', icon:'🔋' },
+          { label:t('Offline Sensors'),value:offline,    color:'#dc2626', icon:'📡' },
         ].map(s => (
           <div key={s.label} className="card text-center py-3">
             <div className="text-2xl mb-1">{s.icon}</div>
@@ -105,10 +133,10 @@ export default function TechnicianPortal() {
           <AlertTriangle size={18} className="text-red-600 flex-shrink-0 animate-pulse" />
           <div>
             <span className="font-bold text-red-800 text-sm">
-              {tasks.filter(t => t.priority === 'critical' && t.status !== 'completed').length} Critical task(s) require immediate attention
+              {tasks.filter(tk => tk.priority === 'critical' && tk.status !== 'completed').length} {t('require immediate attention')}
             </span>
             <div className="text-xs text-red-600 mt-0.5">
-              {tasks.filter(t => t.priority === 'critical' && t.status !== 'completed').map(t => t.water_point_name).join(', ')}
+              {tasks.filter(tk => tk.priority === 'critical' && tk.status !== 'completed').map(tk => tk.water_point_name).join(', ')}
             </div>
           </div>
         </div>
@@ -122,7 +150,7 @@ export default function TechnicianPortal() {
             {(['pending','in_progress','completed'] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${activeTab===tab?'bg-orange-600 text-white shadow':'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'}`}>
-                {tab === 'pending' ? `📋 Pending (${pending})` : tab === 'in_progress' ? `🔧 In Progress (${inProgress})` : `✅ Completed (${completed})`}
+                {tab === 'pending' ? `📋 ${t('Pending')} (${pending})` : tab === 'in_progress' ? `🔧 ${t('In Progress')} (${inProgress})` : `✅ ${t('Completed')} (${completed})`}
               </button>
             ))}
           </div>
@@ -135,9 +163,9 @@ export default function TechnicianPortal() {
               ? (
                   <div className="card text-center py-10">
                     <CheckCircle size={32} className="mx-auto text-green-400 mb-2" />
-                    <div className="text-gray-500 font-medium">No {activeTab.replace('_',' ')} tasks</div>
+                    <div className="text-gray-500 font-medium">{t('No')} {activeTab.replace('_',' ')} {t('tasks')}</div>
                     <div className="text-sm text-gray-400 mt-1">
-                      {activeTab === 'completed' ? 'Complete some tasks to see them here.' : 'All caught up!'}
+                      {activeTab === 'completed' ? t('Complete some tasks to see them here.') : t('All caught up!')}
                     </div>
                   </div>
                 )
@@ -178,7 +206,7 @@ export default function TechnicianPortal() {
                             disabled={updating === task.id}
                             className="flex-1 py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-60"
                             style={{ background:'linear-gradient(135deg,#2563eb,#1d4ed8)' }}>
-                            {updating === task.id ? '⏳ Starting...' : '▶ Start Task'}
+                            {updating === task.id ? `⏳ ${t('Starting...')}` : `▶ ${t('Start Task')}`}
                           </button>
                         )}
                         {task.status === 'in_progress' && (
@@ -187,7 +215,7 @@ export default function TechnicianPortal() {
                             disabled={updating === task.id}
                             className="flex-1 py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-60"
                             style={{ background:'linear-gradient(135deg,#16a34a,#15803d)' }}>
-                            {updating === task.id ? '⏳ Completing...' : '✅ Mark Complete'}
+                            {updating === task.id ? `⏳ ${t('Completing...')}` : `✅ ${t('Mark Complete')}`}
                           </button>
                         )}
                       </div>
@@ -203,18 +231,18 @@ export default function TechnicianPortal() {
             <div className="card sticky top-4">
               <div className="font-bold text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2">
                 <span className="text-xl">{TYPE_ICONS[selected.issue_type]||'🔧'}</span>
-                Task Details
+                {t('Task Details')}
               </div>
               <div className="space-y-2">
                 {[
-                  ['Water Point',      selected.water_point_name || `#${selected.water_point_id}`],
-                  ['District',         selected.district],
-                  ['Issue Type',       selected.issue_type?.replace(/_/g,' ')],
-                  ['Priority',         selected.priority],
-                  ['Status',           selected.status?.replace(/_/g,' ')],
-                  ...(selected.assigned_to_name ? [['Assigned To', selected.assigned_to_name]] : []),
-                  ['Cost Est.',        selected.estimated_cost ? `UGX ${parseInt(selected.estimated_cost).toLocaleString()}` : '—'],
-                  ['Created',          new Date(selected.created_at).toLocaleString()],
+                  [t('Water Point'),   selected.water_point_name || `#${selected.water_point_id}`],
+                  [t('District'),      selected.district],
+                  [t('Issue Type'),    selected.issue_type?.replace(/_/g,' ')],
+                  [t('Priority'),      selected.priority],
+                  [t('Status'),        selected.status?.replace(/_/g,' ')],
+                  ...(selected.assigned_to_name ? [[t('Assigned To'), selected.assigned_to_name]] : []),
+                  [t('Cost Est.'),     selected.estimated_cost ? `UGX ${parseInt(selected.estimated_cost).toLocaleString()}` : '—'],
+                  [t('Created'),       new Date(selected.created_at).toLocaleString()],
                 ].map(([k,v]) => (
                   <div key={k} className="flex items-start gap-2 text-sm">
                     <span className="text-gray-400 w-24 flex-shrink-0 text-xs">{k}</span>
@@ -223,7 +251,7 @@ export default function TechnicianPortal() {
                 ))}
                 {selected.description && (
                   <div>
-                    <div className="text-xs text-gray-400 mb-1">Description</div>
+                    <div className="text-xs text-gray-400 mb-1">{t('Description')}</div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">{selected.description}</div>
                   </div>
                 )}
@@ -232,13 +260,13 @@ export default function TechnicianPortal() {
           ) : (
             <div className="card text-center py-8">
               <Wrench size={28} className="mx-auto text-gray-300 mb-2" />
-              <div className="text-sm text-gray-400">Select a task to view details</div>
+              <div className="text-sm text-gray-400">{t('Select a task to view details')}</div>
             </div>
           )}
 
           {/* Sensor health */}
           <div className="card">
-            <h3 className="section-title mb-3"><Cpu size={16} className="text-blue-500" /> Sensor Health</h3>
+            <h3 className="section-title mb-3"><Cpu size={16} className="text-blue-500" /> {t('Sensor Health')}</h3>
             <div className="space-y-2 max-h-64 overflow-y-auto custom-scroll">
               {sensors.slice(0, 15).map(s => (
                 <div key={s.id} className="flex items-center gap-2 text-xs">
@@ -254,7 +282,7 @@ export default function TechnicianPortal() {
                   </div>
                 </div>
               ))}
-              {sensors.length === 0 && !loading && <div className="text-center text-gray-400 py-4">No sensor data</div>}
+              {sensors.length === 0 && !loading && <div className="text-center text-gray-400 py-4">{t('No sensor data')}</div>}
             </div>
           </div>
         </div>
