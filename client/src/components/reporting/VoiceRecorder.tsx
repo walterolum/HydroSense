@@ -18,10 +18,11 @@ const LANGUAGES = [
   { code: 'swa',  name: '🌍 Swahili',                  bcp47: 'sw' },
 ];
 
-// First caption fires after this delay (give user time to start speaking)
-const CAPTION_WARMUP_MS  = 10000;
-// Subsequent captions every this interval
+// Both modes: wait 8 s before first Gemini caption, then every 6 s
+const CAPTION_WARMUP_MS  = 8000;
 const CAPTION_INTERVAL_MS = 6000;
+
+interface TimedCaption { text: string; startMs: number; endMs: number; }
 
 export interface VoiceResult {
   original: string;
@@ -33,6 +34,7 @@ export interface VoiceResult {
   durationMs: number;
   blob?: Blob;
   videoBlob?: Blob;
+  timedCaptions?: TimedCaption[];
 }
 
 interface Props {
@@ -50,6 +52,14 @@ async function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+function fmtVTT(ms: number) {
+  const h  = Math.floor(ms / 3600000);
+  const m  = Math.floor((ms % 3600000) / 60000);
+  const s  = Math.floor((ms % 60000) / 1000);
+  const ms2 = ms % 1000;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms2).padStart(3,'0')}`;
+}
+
 export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDurationMs = 180000 }: Props) {
   const [phase, setPhase]               = useState<'idle' | 'recording' | 'transcribing' | 'done' | 'error'>('idle');
   const [langCode, setLangCode]         = useState('auto');
@@ -59,10 +69,12 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   const [result, setResult]             = useState<VoiceResult | null>(null);
   const [errorMsg, setErrorMsg]         = useState('');
   const [videoUrl, setVideoUrl]         = useState<string | null>(null);
-  const [captionLines, setCaptionLines] = useState<string[]>([]);
-  const [captionBusy, setCaptionBusy]   = useState(false);
+  // Live caption chunks (both modes)
+  const [captionLines, setCaptionLines]   = useState<string[]>([]);
+  const [captionBusy, setCaptionBusy]     = useState(false);
   const [captionsStarted, setCaptionsStarted] = useState(false);
-  const [interim, setInterim]           = useState('');
+  // Playback caption (video done state)
+  const [playbackCaption, setPlaybackCaption] = useState('');
 
   const audioRecorderRef   = useRef<MediaRecorder | null>(null);
   const videoRecorderRef   = useRef<MediaRecorder | null>(null);
@@ -78,11 +90,14 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   const audioMimeRef       = useRef('');
   const lastCaptionIdxRef  = useRef(0);
   const captionPendingRef  = useRef(false);
-  // Direct ref to the live <video> element
-  const videoElRef         = useRef<HTMLVideoElement | null>(null);
+  // Timed captions collected during recording (for video playback subtitles)
+  const timedCaptionsRef   = useRef<TimedCaption[]>([]);
+  // Live camera preview element
+  const videoLiveRef       = useRef<HTMLVideoElement | null>(null);
+  // Video playback element (done state)
+  const videoPlaybackRef   = useRef<HTMLVideoElement | null>(null);
 
   const lang   = LANGUAGES.find(l => l.code === langCode) || LANGUAGES[0];
-  const isEn   = langCode === 'en';
   const isAuto = langCode === 'auto';
 
   const fmt = (ms: number) => {
@@ -90,26 +105,44 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   };
 
-  // ── Attach live camera stream to <video> whenever phase becomes 'recording' ──
+  // Attach live camera stream to preview video element when phase becomes 'recording'
   useEffect(() => {
-    if (phase === 'recording' && withVideo && videoElRef.current && streamRef.current) {
-      const el = videoElRef.current;
-      el.srcObject = streamRef.current;
-      // Attempt play (needed for some browsers alongside autoPlay attr)
-      el.play().catch(() => {});
+    if (phase === 'recording' && withVideo) {
+      const el = videoLiveRef.current;
+      if (el && streamRef.current) {
+        el.srcObject = streamRef.current;
+        el.play().catch(() => {});
+      }
     }
   }, [phase, withVideo]);
 
+  // Wire up timeupdate subtitles when video playback element appears
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const el = videoPlaybackRef.current;
+    if (!el || !timedCaptionsRef.current.length) return;
+
+    const onTimeUpdate = () => {
+      const ms = el.currentTime * 1000;
+      const active = timedCaptionsRef.current.find(c => ms >= c.startMs && ms < c.endMs);
+      setPlaybackCaption(active?.text ?? '');
+    };
+    el.addEventListener('timeupdate', onTimeUpdate);
+    return () => el.removeEventListener('timeupdate', onTimeUpdate);
+  }, [phase, videoUrl]);
+
   const reset = () => {
     setPhase('idle'); setResult(null); setErrorMsg('');
-    setInterim(''); setDuration(0); setStatusMsg('');
+    setDuration(0); setStatusMsg('');
     setCaptionLines([]); setCaptionBusy(false); setCaptionsStarted(false);
+    setPlaybackCaption('');
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
+    timedCaptionsRef.current = [];
   };
 
-  // ── Gemini full transcription (called after recording stops) ──
+  // Gemini full transcription (after recording stops)
   const transcribeWithGemini = useCallback(async (
-    audioBlob: Blob, webSpeechFallback: string
+    audioBlob: Blob, fallback: string
   ): Promise<VoiceResult | null> => {
     try {
       const base64 = await blobToBase64(audioBlob);
@@ -123,10 +156,11 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       const data = await res.json();
       if (!data.english) throw new Error('empty');
       return {
-        original: data.original || webSpeechFallback, english: data.english,
+        original: data.original || fallback, english: data.english,
         explanation: data.explanation || '', incidentType: data.incidentType,
         severity: data.severity, detectedLanguage: data.detectedLanguage || lang.name,
         durationMs: Date.now() - startTimeRef.current, blob: audioBlob,
+        timedCaptions: timedCaptionsRef.current,
       };
     } catch { return null; }
   }, [lang.name]);
@@ -140,23 +174,28 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
         body: JSON.stringify({ text, sourceLang: langCode, languageName: lang.name }),
       });
       const data = await res.json();
-      return { original: text, english: data.english || text, explanation: data.explanation || '', incidentType: data.incidentType, severity: data.severity, durationMs: Date.now() - startTimeRef.current, blob: audioBlob };
+      return { original: text, english: data.english || text, explanation: data.explanation || '', incidentType: data.incidentType, severity: data.severity, durationMs: Date.now() - startTimeRef.current, blob: audioBlob, timedCaptions: timedCaptionsRef.current };
     } catch {
-      return { original: text, english: text, explanation: '', durationMs: Date.now() - startTimeRef.current, blob: audioBlob };
+      return { original: text, english: text, explanation: '', durationMs: Date.now() - startTimeRef.current, blob: audioBlob, timedCaptions: timedCaptionsRef.current };
     }
   }, [langCode, lang.name]);
 
-  // ── Live caption: send recent audio chunk to Gemini ──
+  // Gemini live caption — same logic for BOTH voice and video
   const triggerLiveCaption = useCallback(async () => {
     if (captionPendingRef.current) return;
     const newChunks = audioChunksRef.current.slice(lastCaptionIdxRef.current);
     if (!newChunks.length) return;
+
+    const chunkStartMs = Math.max(0, (lastCaptionIdxRef.current > 0 ? CAPTION_WARMUP_MS + (lastCaptionIdxRef.current > 0 ? (timedCaptionsRef.current.length) * CAPTION_INTERVAL_MS : 0) : CAPTION_WARMUP_MS));
     lastCaptionIdxRef.current = audioChunksRef.current.length;
+
     const blob = new Blob(newChunks, { type: audioMimeRef.current || 'audio/webm' });
-    if (blob.size < 3000) return; // skip silence / too short
+    if (blob.size < 2000) return;
 
     captionPendingRef.current = true;
     setCaptionBusy(true);
+
+    const captureStartMs = Date.now() - startTimeRef.current - CAPTION_INTERVAL_MS;
     try {
       const base64 = await blobToBase64(blob);
       const token  = sessionStorage.getItem('hs_token');
@@ -168,22 +207,32 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       if (!res.ok) return;
       const data = await res.json();
       if (data.english?.trim()) {
-        setCaptionLines(prev => [...prev, data.english.trim()]);
-        onLiveUpdate?.(data.english.trim());
+        const nowMs = Date.now() - startTimeRef.current;
+        const tc: TimedCaption = {
+          text: data.english.trim(),
+          startMs: Math.max(0, captureStartMs),
+          endMs: nowMs + 1000, // keep visible 1 s past chunk end
+        };
+        timedCaptionsRef.current.push(tc);
+        setCaptionLines(prev => [...prev, tc.text]);
+        onLiveUpdate?.(tc.text);
       }
-    } catch { /* ignore — next interval will retry */ }
+    } catch { /* ignore */ }
     finally { captionPendingRef.current = false; setCaptionBusy(false); }
   }, [onLiveUpdate]);
+
+  const stopAllTimers = () => {
+    if (timerRef.current)         clearInterval(timerRef.current);
+    if (captionTimerRef.current)  clearInterval(captionTimerRef.current);
+    if (captionWarmupRef.current) clearTimeout(captionWarmupRef.current);
+  };
 
   const stopRecording = useCallback(() => {
     recognitionRef.current?.stop();
     if (audioRecorderRef.current?.state !== 'inactive') audioRecorderRef.current?.stop();
     if (videoRecorderRef.current?.state !== 'inactive') videoRecorderRef.current?.stop();
-    if (timerRef.current)        clearInterval(timerRef.current);
-    if (captionTimerRef.current) clearInterval(captionTimerRef.current);
-    if (captionWarmupRef.current) clearTimeout(captionWarmupRef.current);
-    // Detach stream from preview
-    if (videoElRef.current) { videoElRef.current.srcObject = null; }
+    stopAllTimers();
+    if (videoLiveRef.current) { videoLiveRef.current.srcObject = null; }
   }, []);
 
   const startRecording = useCallback(async (wVideo: boolean) => {
@@ -192,11 +241,12 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
     interimAccRef.current     = '';
     lastCaptionIdxRef.current = 0;
     captionPendingRef.current = false;
-    setDuration(0); setResult(null); setErrorMsg('');
-    setStatusMsg(''); setInterim(''); setCaptionLines([]); setCaptionBusy(false); setCaptionsStarted(false);
+    timedCaptionsRef.current  = [];
+    setDuration(0); setResult(null); setErrorMsg(''); setStatusMsg('');
+    setCaptionLines([]); setCaptionBusy(false); setCaptionsStarted(false); setPlaybackCaption('');
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
 
-    // ── 1. Request camera + mic ──
+    // ── 1. Acquire media ──
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -206,13 +256,13 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       streamRef.current = stream;
     } catch (err: any) {
       setErrorMsg(err?.name === 'NotAllowedError'
-        ? `Please allow ${wVideo ? 'camera & microphone' : 'microphone'} access in your browser and try again.`
+        ? `Please allow ${wVideo ? 'camera & microphone' : 'microphone'} access and try again.`
         : `Could not open ${wVideo ? 'camera & microphone' : 'microphone'}: ${err?.message || 'Unknown error'}`);
       setPhase('error');
       return;
     }
 
-    // ── 2. Audio-only recorder (clean audio for Gemini) ──
+    // ── 2. Audio recorder (clean for Gemini) ──
     const audioStream = new MediaStream(stream.getAudioTracks());
     const audioMime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
       .find(t => MediaRecorder.isTypeSupported(t)) || '';
@@ -222,104 +272,79 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       audioRecorderRef.current = ar;
       ar.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       ar.start(250);
-    } catch { /* fallback to Web Speech only */ }
+    } catch { /* Web Speech fallback */ }
 
     // ── 3. Video recorder ──
     if (wVideo) {
-      const videoMime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      const vMime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || '';
       try {
-        const vr = new MediaRecorder(stream, videoMime ? { mimeType: videoMime } : {});
+        const vr = new MediaRecorder(stream, vMime ? { mimeType: vMime } : {});
         videoRecorderRef.current = vr;
         vr.ondataavailable = e => { if (e.data.size > 0) videoChunksRef.current.push(e.data); };
         vr.onstop = () => {
-          const vBlob = new Blob(videoChunksRef.current, { type: videoMime || 'video/webm' });
+          const vBlob = new Blob(videoChunksRef.current, { type: vMime || 'video/webm' });
           setVideoUrl(URL.createObjectURL(vBlob));
         };
         vr.start(250);
-      } catch { /* video not supported */ }
+      } catch { /* not supported */ }
     }
 
-    // ── 4. Warmup delay → then start live caption interval ──
-    if (wVideo) {
-      captionWarmupRef.current = setTimeout(() => {
-        setCaptionsStarted(true);
-        // Fire first caption immediately after warmup
-        triggerLiveCaption();
-        // Then fire every CAPTION_INTERVAL_MS
-        captionTimerRef.current = setInterval(triggerLiveCaption, CAPTION_INTERVAL_MS);
-      }, CAPTION_WARMUP_MS);
-    }
+    // ── 4. Warmup → Gemini live caption interval (SAME for both voice & video) ──
+    captionWarmupRef.current = setTimeout(() => {
+      setCaptionsStarted(true);
+      triggerLiveCaption();
+      captionTimerRef.current = setInterval(triggerLiveCaption, CAPTION_INTERVAL_MS);
+    }, CAPTION_WARMUP_MS);
 
-    // ── 5. Web Speech API (audio-only interim) ──
+    // ── 5. Web Speech API — accumulate text as fallback for final transcription ──
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SR) {
-      const recog = new SR();
-      recog.lang = isAuto ? 'en-UG' : lang.bcp47;
-      recog.continuous = true; recog.interimResults = true; recog.maxAlternatives = 3;
-      recognitionRef.current = recog;
-      recog.onresult = (event: any) => {
-        let interimText = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const t = event.results[i][0].transcript;
-          if (event.results[i].isFinal) interimAccRef.current += (interimAccRef.current ? ' ' : '') + t;
-          else interimText = t;
-        }
-        if (!wVideo) {
-          if (isEn) { const full = (interimAccRef.current + ' ' + interimText).trim(); setInterim(full); onLiveUpdate?.(full); }
-          else setInterim(interimText || interimAccRef.current);
-        }
-      };
-      recog.onerror = () => {};
-      recog.onend = () => {};
-      try { recog.start(); } catch { /* ignore */ }
+      try {
+        const recog = new SR();
+        recog.lang = isAuto ? 'en-UG' : lang.bcp47;
+        recog.continuous = true; recog.interimResults = false; recog.maxAlternatives = 1;
+        recognitionRef.current = recog;
+        recog.onresult = (e: any) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) interimAccRef.current += ' ' + e.results[i][0].transcript;
+          }
+        };
+        recog.onerror = () => {};
+        recog.onend = () => {};
+        recog.start();
+      } catch { /* ignore */ }
     }
 
-    // ── 6. Stop handler ──
+    // ── 6. Stop handler → full Gemini transcription ──
     if (audioRecorderRef.current) {
       audioRecorderRef.current.onstop = async () => {
-        if (captionTimerRef.current)  clearInterval(captionTimerRef.current);
-        if (captionWarmupRef.current) clearTimeout(captionWarmupRef.current);
+        stopAllTimers();
         stream.getTracks().forEach(t => t.stop());
         setPhase('transcribing');
-        setStatusMsg('🔬 Gemini AI is transcribing & translating your full recording…');
+        setStatusMsg('🔬 Gemini AI is transcribing your full recording…');
 
         const audioBlob = audioChunksRef.current.length
           ? new Blob(audioChunksRef.current, { type: audioMime || 'audio/webm' })
           : undefined;
 
         let r: VoiceResult | null = null;
-        if (audioBlob && audioBlob.size > 0) r = await transcribeWithGemini(audioBlob, interimAccRef.current);
+        if (audioBlob && audioBlob.size > 0) r = await transcribeWithGemini(audioBlob, interimAccRef.current.trim());
         if (!r && interimAccRef.current.trim()) {
           setStatusMsg('Translating with Hydro AI…');
           r = await translateText(interimAccRef.current.trim(), audioBlob);
         }
         if (!r) {
-          setErrorMsg('No speech detected or transcription failed. Please speak clearly and try again.');
+          setErrorMsg('No speech detected. Please speak clearly and try again.');
           setPhase('error'); return;
         }
         if (videoChunksRef.current.length) {
-          const vMime = videoRecorderRef.current?.mimeType || 'video/webm';
-          r.videoBlob = new Blob(videoChunksRef.current, { type: vMime });
+          const vMime2 = videoRecorderRef.current?.mimeType || 'video/webm';
+          r.videoBlob = new Blob(videoChunksRef.current, { type: vMime2 });
         }
         setResult(r); setPhase('done');
         onLiveUpdate?.(r.english); onRecordingComplete(r);
       };
-    } else {
-      const recog2 = recognitionRef.current;
-      if (recog2) {
-        recog2.onend = async () => {
-          if (timerRef.current)        clearInterval(timerRef.current);
-          if (captionTimerRef.current) clearInterval(captionTimerRef.current);
-          if (captionWarmupRef.current) clearTimeout(captionWarmupRef.current);
-          stream.getTracks().forEach(t => t.stop());
-          const text = interimAccRef.current.trim();
-          if (!text) { setErrorMsg('No speech detected. Please try again.'); setPhase('error'); return; }
-          setPhase('transcribing'); setStatusMsg('Translating with Hydro AI…');
-          const r = await translateText(text);
-          setResult(r); setPhase('done'); onLiveUpdate?.(r.english); onRecordingComplete(r);
-        };
-      }
     }
 
     startTimeRef.current = Date.now();
@@ -331,18 +356,17 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       setDuration(elapsed);
       if (elapsed >= maxDurationMs) stopRecording();
     }, 200);
-  }, [isAuto, isEn, lang, videoUrl, transcribeWithGemini, translateText, stopRecording, triggerLiveCaption, onLiveUpdate, onRecordingComplete, maxDurationMs]);
+  }, [isAuto, lang, videoUrl, transcribeWithGemini, translateText, stopRecording, triggerLiveCaption, onLiveUpdate, onRecordingComplete, maxDurationMs]);
 
+  // Cleanup on unmount
   useEffect(() => () => {
     recognitionRef.current?.stop();
     streamRef.current?.getTracks().forEach(t => t.stop());
-    if (timerRef.current)        clearInterval(timerRef.current);
-    if (captionTimerRef.current) clearInterval(captionTimerRef.current);
-    if (captionWarmupRef.current) clearTimeout(captionWarmupRef.current);
+    stopAllTimers();
     if (videoUrl) URL.revokeObjectURL(videoUrl);
   }, []);
 
-  /* ══════════════════════ RENDER ══════════════════════ */
+  /* ══════════════════════════ RENDER ══════════════════════════ */
   return (
     <div className="space-y-3">
 
@@ -384,46 +408,38 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       {phase === 'recording' && (
         <div className="space-y-2">
 
-          {/* Live camera with caption overlay */}
+          {/* ════ VIDEO MODE: live camera + captions overlay ════ */}
           {withVideo && (
-            <div
-              className="relative rounded-2xl overflow-hidden bg-black border-2 border-purple-500 shadow-2xl"
-              style={{ minHeight: 280 }}
-            >
-              {/* Live camera feed */}
+            <div className="relative rounded-2xl overflow-hidden bg-black border-2 border-purple-500 shadow-2xl" style={{ minHeight: 300 }}>
               <video
-                ref={videoElRef}
-                autoPlay
-                muted
-                playsInline
+                ref={videoLiveRef}
+                autoPlay muted playsInline
                 className="w-full h-full object-cover"
-                style={{ minHeight: 280, display: 'block' }}
+                style={{ minHeight: 300, display: 'block' }}
               />
+              {/* Gradient vignette */}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 28%, transparent 58%, rgba(0,0,0,0.82) 100%)' }} />
 
-              {/* Dark vignette overlay so text is always readable */}
-              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 30%, transparent 60%, rgba(0,0,0,0.75) 100%)' }} />
-
-              {/* REC badge + timer — top left */}
+              {/* REC + timer */}
               <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-md rounded-full px-3 py-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 <span className="text-white text-xs font-extrabold tracking-widest">REC {fmt(duration)}</span>
               </div>
 
-              {/* Caption status indicator — top center */}
-              {!captionsStarted && (
+              {/* Caption status badge (top-center) */}
+              {!captionsStarted ? (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/50 backdrop-blur-md rounded-full px-3 py-1 border border-white/10">
-                  <Sparkles size={10} className="text-purple-300" />
+                  <Sparkles size={9} className="text-purple-300" />
                   <span className="text-purple-200 text-[10px] font-semibold">AI captions starting soon…</span>
                 </div>
-              )}
-              {captionBusy && captionsStarted && (
+              ) : captionBusy ? (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/50 backdrop-blur-md rounded-full px-3 py-1 border border-white/10">
-                  <Loader2 size={10} className="text-yellow-300 animate-spin" />
+                  <Loader2 size={9} className="text-yellow-300 animate-spin" />
                   <span className="text-yellow-200 text-[10px] font-semibold">Translating…</span>
                 </div>
-              )}
+              ) : null}
 
-              {/* Stop button — top right */}
+              {/* Stop button */}
               <button
                 type="button"
                 onClick={stopRecording}
@@ -432,56 +448,65 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
                 <Square size={11} fill="white" /> Stop
               </button>
 
-              {/* ── Live English caption bar — bottom ── */}
-              <div className="absolute bottom-0 left-0 right-0 z-20 px-4 pb-4 pt-10">
+              {/* Live English captions — bottom overlay */}
+              <div className="absolute bottom-0 left-0 right-0 z-20 px-4 pb-4 pt-8 text-center">
                 {captionLines.length > 0 ? (
                   <div className="space-y-1">
-                    {captionLines.slice(-2).map((line, i) => (
+                    {captionLines.slice(-2).map((line, i, arr) => (
                       <p
                         key={i}
-                        className={`text-center font-semibold leading-snug transition-opacity ${i < captionLines.slice(-2).length - 1 ? 'text-sm text-white/70' : 'text-base text-white'}`}
-                        style={{ textShadow: '0 2px 8px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.8)' }}
+                        className={`font-semibold leading-snug ${i < arr.length - 1 ? 'text-sm text-white/65' : 'text-base text-white'}`}
+                        style={{ textShadow: '0 2px 10px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.9)' }}
                       >
                         {line}
                       </p>
                     ))}
                   </div>
                 ) : (
-                  <p
-                    className="text-center text-sm italic text-white/40"
-                    style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}
-                  >
-                    {captionsStarted ? 'Listening…' : 'Record your report — AI English captions will appear here'}
+                  <p className="text-sm italic text-white/40" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+                    {captionsStarted ? 'Listening…' : 'Speak clearly — English captions will appear here'}
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {/* Audio-only status bar */}
+          {/* ════ VOICE MODE: status bar + live caption text ════ */}
           {!withVideo && (
-            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                <span className="text-sm font-bold text-red-700 dark:text-red-400 truncate">Recording · {fmt(duration)}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{lang.name.replace(/^[^\s]+\s/, '')}</span>
+            <>
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <span className="text-sm font-bold text-red-700 dark:text-red-400 truncate">Recording · {fmt(duration)}</span>
+                  {captionBusy && <Loader2 size={11} className="text-gray-400 animate-spin flex-shrink-0" />}
+                </div>
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 flex-shrink-0 ml-3"
+                >
+                  <Square size={12} /> Stop
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={stopRecording}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex-shrink-0 ml-3"
-              >
-                <Square size={12} /> Stop
-              </button>
-            </div>
-          )}
 
-          {/* Audio-only interim hint */}
-          {!withVideo && interim && (
-            <div className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">🎤 Mic picking up…</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 italic leading-relaxed line-clamp-2">{interim}</p>
-            </div>
+              {/* Live Gemini captions for voice mode */}
+              <div className="min-h-[52px] px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-600">
+                {captionLines.length > 0 ? (
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <Sparkles size={9} /> Live AI Translation · English
+                    </p>
+                    <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                      {captionLines.slice(-3).join(' ')}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                    {captionsStarted ? 'Listening…' : '🎤 Speak in any language — English translation will appear here'}
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -503,15 +528,40 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm font-bold text-green-700 dark:text-green-300">
               <CheckCircle size={14} />
-              {result.detectedLanguage ? `Recorded in ${result.detectedLanguage} · Translated to English` : 'Voice recorded & translated'}
+              {result.detectedLanguage
+                ? `Detected: ${result.detectedLanguage} · Translated to English`
+                : 'Recorded & translated to English'}
             </span>
             <button type="button" onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 underline">Re-record</button>
           </div>
 
+          {/* ── Video playback WITH subtitle overlay ── */}
           {videoUrl && (
-            <video src={videoUrl} controls className="w-full rounded-lg border border-green-200 dark:border-green-800 max-h-64 object-cover" />
+            <div className="relative rounded-xl overflow-hidden bg-black border border-green-200 dark:border-green-800 shadow-md">
+              <video
+                ref={videoPlaybackRef}
+                src={videoUrl}
+                controls
+                className="w-full max-h-72 object-cover"
+              />
+              {/* Subtitle overlay — appears above the video controls bar */}
+              {playbackCaption && (
+                <div
+                  className="absolute left-0 right-0 flex justify-center px-4 pointer-events-none"
+                  style={{ bottom: '52px' }}
+                >
+                  <span
+                    className="bg-black/80 text-white text-sm font-semibold px-4 py-2 rounded-lg text-center max-w-full"
+                    style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
+                  >
+                    {playbackCaption}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
+          {/* Original transcript */}
           {result.original && result.original !== result.english && (
             <div className="bg-white dark:bg-gray-900 rounded-lg px-3 py-2 border border-green-200 dark:border-green-800">
               <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5 flex items-center gap-1">
@@ -521,6 +571,7 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             </div>
           )}
 
+          {/* AI analysis */}
           {result.explanation && (
             <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2 border border-indigo-200 dark:border-indigo-800">
               <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">🤖 Hydro AI Analysis</p>
@@ -539,6 +590,21 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
                     {result.incidentType.replace(/_/g, ' ')}
                   </span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Caption timeline — shown if video has timed captions */}
+          {result.timedCaptions && result.timedCaptions.length > 0 && (
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">📝 Caption Timeline</p>
+              <div className="space-y-1">
+                {result.timedCaptions.map((tc, i) => (
+                  <div key={i} className="flex gap-2 text-xs">
+                    <span className="text-gray-400 dark:text-gray-500 font-mono flex-shrink-0">{fmt(tc.startMs)}</span>
+                    <span className="text-gray-700 dark:text-gray-300 leading-snug">{tc.text}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
