@@ -97,7 +97,7 @@ router.get('/climate-risk', async (req, res) => {
     SELECT wp.*, di.severity as drought_severity, di.spi_value
     FROM water_points wp
     JOIN drought_index di ON wp.district = di.district
-    WHERE di.severity IN ('extreme_drought','severe_drought') AND wp.status = 'functional'
+    WHERE di.severity IN ('extreme_drought','severe_drought','moderate_drought')
     ORDER BY di.spi_value ASC LIMIT 20
   `).all();
   res.json({ success: true, data: { drought_index: drought, flood_alerts: flood, resilience_scores: resilience, high_risk_water_points: high_risk_wps } });
