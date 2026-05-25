@@ -271,8 +271,10 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
         {/* User avatar */}
         {user && (
           <div className="flex items-center gap-2.5 pl-2 border-l border-gray-100 dark:border-gray-800">
-            <div className={`w-8 h-8 rounded-xl ${avatarColor} flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
-              {initials}
+            <div className={`w-8 h-8 rounded-xl flex-shrink-0 overflow-hidden shadow-sm ${user.avatar ? '' : `${avatarColor} flex items-center justify-center`}`}>
+              {user.avatar
+                ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                : <span className="text-white text-xs font-bold">{initials}</span>}
             </div>
             <div className="hidden sm:block leading-tight">
               <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{user.name.split(' ')[0]}</div>

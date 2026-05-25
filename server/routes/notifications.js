@@ -9,31 +9,35 @@ router.use(authMiddleware);
 // Ensure columns exist on first use
 ensureNotifyColumns();
 
-// GET /notifications — role-filtered, district-filtered
+// GET /notifications — role-filtered + personal (recipient_id) notifications
 router.get('/', (req, res) => {
   try {
     const db = getDb();
     const { limit = 30 } = req.query;
     const role = req.user.role;
+    const uid  = req.user.id;
     const district = req.user.district;
 
     const allowed = ROLE_RECEIVES[role] || [role, 'all'];
     const placeholders = allowed.map(() => '?').join(',');
 
+    // Merge role-based broadcast notifications with personal (recipient_id) ones
     let sql, params;
     if (role === 'national_admin') {
       sql = `SELECT * FROM notification_log
              WHERE channel = 'in_app'
-               AND recipient_type IN (${placeholders})
+               AND (recipient_type IN (${placeholders}) OR recipient_id = ?)
              ORDER BY sent_at DESC LIMIT ?`;
-      params = [...allowed, +limit];
+      params = [...allowed, uid, +limit];
     } else {
       sql = `SELECT * FROM notification_log
              WHERE channel = 'in_app'
-               AND recipient_type IN (${placeholders})
-               AND (district = ? OR district IS NULL)
+               AND (
+                 (recipient_type IN (${placeholders}) AND (district = ? OR district IS NULL))
+                 OR recipient_id = ?
+               )
              ORDER BY sent_at DESC LIMIT ?`;
-      params = [...allowed, district || '', +limit];
+      params = [...allowed, district || '', uid, +limit];
     }
 
     const data = db.prepare(sql).all(...params);
@@ -48,6 +52,7 @@ router.get('/unread-count', (req, res) => {
   try {
     const db = getDb();
     const role = req.user.role;
+    const uid  = req.user.id;
     const district = req.user.district;
     const allowed = ROLE_RECEIVES[role] || [role, 'all'];
     const placeholders = allowed.map(() => '?').join(',');
@@ -56,14 +61,16 @@ router.get('/unread-count', (req, res) => {
     if (role === 'national_admin') {
       sql = `SELECT COUNT(*) as c FROM notification_log
              WHERE channel = 'in_app' AND read_at IS NULL
-               AND recipient_type IN (${placeholders})`;
-      params = allowed;
+               AND (recipient_type IN (${placeholders}) OR recipient_id = ?)`;
+      params = [...allowed, uid];
     } else {
       sql = `SELECT COUNT(*) as c FROM notification_log
              WHERE channel = 'in_app' AND read_at IS NULL
-               AND recipient_type IN (${placeholders})
-               AND (district = ? OR district IS NULL)`;
-      params = [...allowed, district || ''];
+               AND (
+                 (recipient_type IN (${placeholders}) AND (district = ? OR district IS NULL))
+                 OR recipient_id = ?
+               )`;
+      params = [...allowed, district || '', uid];
     }
 
     const row = db.prepare(sql).get(...params);
@@ -89,6 +96,7 @@ router.patch('/read-all', (req, res) => {
   try {
     const db = getDb();
     const role = req.user.role;
+    const uid  = req.user.id;
     const district = req.user.district;
     const allowed = ROLE_RECEIVES[role] || [role, 'all'];
     const placeholders = allowed.map(() => '?').join(',');
@@ -97,14 +105,16 @@ router.patch('/read-all', (req, res) => {
     if (role === 'national_admin') {
       sql = `UPDATE notification_log SET read_at = datetime('now')
              WHERE channel = 'in_app' AND read_at IS NULL
-               AND recipient_type IN (${placeholders})`;
-      params = allowed;
+               AND (recipient_type IN (${placeholders}) OR recipient_id = ?)`;
+      params = [...allowed, uid];
     } else {
       sql = `UPDATE notification_log SET read_at = datetime('now')
              WHERE channel = 'in_app' AND read_at IS NULL
-               AND recipient_type IN (${placeholders})
-               AND (district = ? OR district IS NULL)`;
-      params = [...allowed, district || ''];
+               AND (
+                 (recipient_type IN (${placeholders}) AND (district = ? OR district IS NULL))
+                 OR recipient_id = ?
+               )`;
+      params = [...allowed, district || '', uid];
     }
 
     db.prepare(sql).run(...params);

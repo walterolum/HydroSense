@@ -1510,6 +1510,83 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// EVENT REMINDER CRON — runs every hour
+// Sends a reminder for any volunteer event starting within the next 24 hours
+// that hasn't had a reminder sent yet (tracked via notification_log subject match).
+// ═══════════════════════════════════════════════════════════════
+const { notifyRoles: _notifyRoles } = require('./utils/notify');
+
+cron.schedule('0 * * * *', () => {
+  try {
+    const db = getDb();
+
+    // Events that start within the next 24 hours (date-only comparison for simplicity)
+    const upcoming = db.prepare(`
+      SELECT id, title, event_date, event_time, location, district, event_type
+      FROM volunteer_events
+      WHERE status = 'active'
+        AND date(event_date) = date('now', '+1 day')
+    `).all();
+
+    for (const ev of upcoming) {
+      const reminderSubject = `⏰ Reminder: ${ev.title} is tomorrow`;
+
+      // Avoid duplicate reminders: skip if we already sent this reminder today
+      const alreadySent = db.prepare(
+        `SELECT 1 FROM notification_log WHERE subject=? AND sent_at > datetime('now','-23 hours') LIMIT 1`
+      ).get(reminderSubject);
+      if (alreadySent) continue;
+
+      const dateLabel = ev.event_date + (ev.event_time ? ` at ${ev.event_time}` : '');
+      const locationLabel = ev.location ? ` at ${ev.location}` : '';
+
+      _notifyRoles(
+        ['citizen', 'community_committee', 'ngo_officer', 'district_officer'],
+        ev.district || null,
+        reminderSubject,
+        `Don't forget! "${ev.title}" (${ev.event_type.replace(/_/g, ' ')}) is happening tomorrow${locationLabel ? ` ${locationLabel}` : ''}${ev.district ? ` in ${ev.district}` : ''}. Date: ${dateLabel}.`,
+        'volunteer_event', ev.id
+      );
+    }
+
+    // Same-day reminders: events happening today, notify registered participants
+    const today = db.prepare(`
+      SELECT e.id, e.title, e.event_date, e.event_time, e.location, e.district,
+             er.user_id, u.role
+      FROM volunteer_events e
+      JOIN event_registrations er ON er.event_id = e.id
+      JOIN users u ON u.id = er.user_id
+      WHERE e.status = 'active' AND date(e.event_date) = date('now')
+    `).all();
+
+    const todayReminderSent = new Set();
+    for (const row of today) {
+      const key = `${row.id}:${row.user_id}`;
+      if (todayReminderSent.has(key)) continue;
+      todayReminderSent.add(key);
+
+      const todaySubject = `🌟 Today: ${row.title}`;
+      const alreadySent = db.prepare(
+        `SELECT 1 FROM notification_log WHERE subject=? AND recipient_id=? AND sent_at > datetime('now','-10 hours') LIMIT 1`
+      ).get(todaySubject, row.user_id);
+      if (alreadySent) continue;
+
+      db.prepare(
+        `INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district)
+         VALUES (?, ?, 'in_app', ?, ?, 'sent', 'volunteer_event', ?, ?)`
+      ).run(
+        row.role, row.user_id,
+        todaySubject,
+        `Your event "${row.title}" is happening today${row.event_time ? ` at ${row.event_time}` : ''}${row.location ? ` at ${row.location}` : ''}. See you there! 🎉`,
+        row.id, row.district || null
+      );
+    }
+  } catch (e) {
+    console.error('[event-reminder] Error:', e.message);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════════════════
 

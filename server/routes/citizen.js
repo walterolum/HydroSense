@@ -88,6 +88,25 @@ router.post('/discussions', authMiddleware, async (req, res) => {
   const VALID_CATS = ['general', 'water_quality', 'pollution', 'climate', 'health', 'events', 'governance'];
   if (!VALID_CATS.includes(category)) return res.status(400).json({ success: false, error: 'Invalid category' });
   const r = await db.prepare(`INSERT INTO citizen_discussions (user_id, author_name, title, content, category) VALUES (?,?,?,?,?)`).run(req.user.id, req.user.name, title.trim(), content.trim(), category);
+
+  // Notify roles that care about this category
+  const CAT_ROLES = {
+    water_quality: ['health_officer', 'district_officer', 'citizen', 'community_committee', 'ngo_officer'],
+    pollution:     ['health_officer', 'climate_scientist', 'district_officer', 'citizen', 'ngo_officer'],
+    climate:       ['climate_scientist', 'district_officer', 'citizen'],
+    health:        ['health_officer', 'district_officer', 'citizen', 'community_committee'],
+    events:        ['citizen', 'community_committee', 'ngo_officer', 'district_officer'],
+    governance:    ['district_officer', 'national_admin', 'community_committee'],
+    general:       ['citizen', 'community_committee', 'ngo_officer'],
+  };
+  const roles = CAT_ROLES[category] || ['citizen', 'community_committee'];
+  notifyRoles(
+    roles, req.user.district || null,
+    `New discussion: ${title.trim().slice(0, 60)}`,
+    `${req.user.name} posted in ${category.replace(/_/g, ' ')}: "${title.trim().slice(0, 80)}"`,
+    'discussion', r.lastInsertRowid
+  );
+
   res.status(201).json({ success: true, id: r.lastInsertRowid });
 });
 
@@ -116,8 +135,28 @@ router.post('/discussions/:id/replies', authMiddleware, async (req, res) => {
   const db = await getDb();
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ success: false, error: 'Reply content required' });
-  await db.prepare(`INSERT INTO citizen_replies (discussion_id, user_id, author_name, content) VALUES (?,?,?,?)`).run(+req.params.id, req.user.id, req.user.name, content.trim());
-  await db.prepare(`UPDATE citizen_discussions SET reply_count=reply_count+1 WHERE id=?`).run(+req.params.id);
+  const did = +req.params.id;
+  await db.prepare(`INSERT INTO citizen_replies (discussion_id, user_id, author_name, content) VALUES (?,?,?,?)`).run(did, req.user.id, req.user.name, content.trim());
+  await db.prepare(`UPDATE citizen_discussions SET reply_count=reply_count+1 WHERE id=?`).run(did);
+
+  // Notify the discussion author (if not the same person replying)
+  const disc = db.prepare(`SELECT user_id, author_name, title, district FROM citizen_discussions WHERE id=?`).get(did);
+  if (disc && disc.user_id !== req.user.id) {
+    const author = db.prepare(`SELECT role FROM users WHERE id=?`).get(disc.user_id);
+    if (author) {
+      // Insert a personal notification for the discussion author
+      db.prepare(
+        `INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district)
+         VALUES (?, ?, 'in_app', ?, ?, 'sent', 'discussion', ?, ?)`
+      ).run(
+        author.role, disc.user_id,
+        `New reply on your discussion`,
+        `${req.user.name} replied to your post "${disc.title.slice(0, 60)}": "${content.trim().slice(0, 100)}"`,
+        did, disc.district || null
+      );
+    }
+  }
+
   res.status(201).json({ success: true });
 });
 
@@ -145,7 +184,20 @@ router.post('/events', authMiddleware, async (req, res) => {
   const { title, description, location, district, event_date, event_time, event_type = 'cleanup', max_volunteers = 50 } = req.body;
   if (!title || !event_date) return res.status(400).json({ success: false, error: 'Title and date required' });
   const r = await db.prepare(`INSERT INTO volunteer_events (title, description, location, district, event_date, event_time, event_type, max_volunteers, created_by) VALUES (?,?,?,?,?,?,?,?,?)`).run(title, description, location, district, event_date, event_time, event_type, max_volunteers, req.user.id);
-  res.status(201).json({ success: true, id: r.lastInsertRowid });
+  const eid = r.lastInsertRowid;
+
+  // Notify all community-relevant roles about the new event
+  const dateLabel = event_date + (event_time ? ` at ${event_time}` : '');
+  const locationLabel = location ? ` at ${location}` : '';
+  notifyRoles(
+    ['citizen', 'community_committee', 'ngo_officer', 'district_officer', 'national_admin'],
+    district || null,
+    `📅 New Event: ${title}`,
+    `${req.user.name} has scheduled a ${event_type.replace(/_/g, ' ')} event on ${dateLabel}${locationLabel}${district ? ` in ${district}` : ''}. Join now!`,
+    'volunteer_event', eid
+  );
+
+  res.status(201).json({ success: true, id: eid });
 });
 
 router.post('/events/:id/join', authMiddleware, async (req, res) => {
@@ -156,6 +208,19 @@ router.post('/events/:id/join', authMiddleware, async (req, res) => {
   const count = (await db.prepare(`SELECT COUNT(*) as c FROM event_registrations WHERE event_id=?`).get(eid)).c;
   if (count >= ev.max_volunteers) return res.status(400).json({ success: false, error: 'Event is full' });
   await db.prepare(`INSERT OR IGNORE INTO event_registrations (event_id, user_id) VALUES (?,?)`).run(eid, req.user.id);
+
+  // Personal confirmation notification for the person who joined
+  const dateLabel = ev.event_date + (ev.event_time ? ` at ${ev.event_time}` : '');
+  db.prepare(
+    `INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district)
+     VALUES (?, ?, 'in_app', ?, ?, 'sent', 'volunteer_event', ?, ?)`
+  ).run(
+    req.user.role, req.user.id,
+    `✅ Registered: ${ev.title}`,
+    `You're registered for "${ev.title}" on ${dateLabel}${ev.location ? ` at ${ev.location}` : ''}. See you there!`,
+    eid, ev.district || null
+  );
+
   res.json({ success: true, message: 'You have joined this event!' });
 });
 
