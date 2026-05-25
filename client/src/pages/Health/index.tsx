@@ -6,9 +6,32 @@ import StatCard from '../../components/common/StatCard';
 
 const DISEASES  = ['cholera','typhoid','diarrhea','dysentery','hepatitis_a','schistosomiasis','other'];
 import { ALL_DISTRICTS } from '../../constants/districts';
+import { useTranslations } from '../../hooks/useTranslations';
 const DISTRICTS = ALL_DISTRICTS;
 
 export default function HealthSurveillance() {
+  const s = useTranslations({
+    totalCases: 'Total Cases',
+    deaths: 'Deaths',
+    activeOutbreaks: 'Active Outbreaks',
+    waterLinked: 'Water-linked',
+    casesByDisease: 'Cases by Disease Type',
+    casesByDistrict: 'Cases by District',
+    incidentRegistry: 'Disease Incident Registry',
+    logIncident: 'Log Incident',
+    location: 'Location',
+    disease: 'Disease',
+    cases: 'Cases',
+    status: 'Status',
+    reported: 'Reported',
+    contain: 'Contain',
+    resolve: 'Resolve',
+    logHealthIncident: 'Log Health Incident',
+    district: 'District',
+    subCounty: 'Sub-county',
+    village: 'Village',
+    diseaseType: 'Disease Type',
+  });
   const [incidents, setIncidents] = useState<any[]>([]);
   const [stats, setStats]         = useState<any>(null);
   const [loading, setLoading]     = useState(true);
@@ -89,16 +112,16 @@ export default function HealthSurveillance() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Total Cases"     value={(stats?.total_cases || 0).toLocaleString()} icon={Users}          color="red"    />
-        <StatCard loading={loading} title="Deaths"          value={stats?.total_deaths || 0}                   icon={Heart}          color="red"    />
-        <StatCard loading={loading} title="Active Outbreaks" value={stats?.active_outbreaks || 0}              icon={AlertTriangle}  color="orange" />
-        <StatCard loading={loading} title="Water-linked"    value={stats?.water_linked_incidents || 0} subtitle="Linked to water sources" icon={Activity} color="purple" />
+        <StatCard loading={loading} title={s.totalCases}     value={(stats?.total_cases || 0).toLocaleString()} icon={Users}          color="red"    />
+        <StatCard loading={loading} title={s.deaths}          value={stats?.total_deaths || 0}                   icon={Heart}          color="red"    />
+        <StatCard loading={loading} title={s.activeOutbreaks} value={stats?.active_outbreaks || 0}              icon={AlertTriangle}  color="orange" />
+        <StatCard loading={loading} title={s.waterLinked}    value={stats?.water_linked_incidents || 0} subtitle="Linked to water sources" icon={Activity} color="purple" />
       </div>
 
       {/* Charts */}
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="section-title mb-3">Cases by Disease Type</h3>
+          <h3 className="section-title mb-3">{s.casesByDisease}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={stats?.by_disease || []} margin={{ left: -20, right: 10 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -111,7 +134,7 @@ export default function HealthSurveillance() {
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h3 className="section-title mb-3">Cases by District</h3>
+          <h3 className="section-title mb-3">{s.casesByDistrict}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={(stats?.by_district || []).slice(0,8)} layout="vertical" margin={{ left:50, right:20, top:0, bottom:0 }}>
               <XAxis type="number" tick={{ fontSize: 10 }} />
@@ -126,15 +149,15 @@ export default function HealthSurveillance() {
       {/* Incidents Table */}
       <div className="card p-0">
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <h3 className="section-title">Disease Incident Registry</h3>
-          <button onClick={openModal} className="btn-primary text-xs"><Plus size={14} /> Log Incident</button>
+          <h3 className="section-title">{s.incidentRegistry}</h3>
+          <button onClick={openModal} className="btn-primary text-xs"><Plus size={14} /> {s.logIncident}</button>
         </div>
         <div className="table-container">
           <table className="table">
             <thead><tr>
-              <th className="th">Location</th><th className="th">Disease</th><th className="th">Cases</th>
-              <th className="th">Deaths</th><th className="th">Hosp.</th><th className="th">Water-linked</th>
-              <th className="th">Status</th><th className="th">Reported</th><th className="th">Action</th>
+              <th className="th">{s.location}</th><th className="th">{s.disease}</th><th className="th">{s.cases}</th>
+              <th className="th">{s.deaths}</th><th className="th">Hosp.</th><th className="th">{s.waterLinked}</th>
+              <th className="th">{s.status}</th><th className="th">{s.reported}</th><th className="th">Action</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {incidents.map(i => (
@@ -164,9 +187,9 @@ export default function HealthSurveillance() {
                   <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(i.reported_date).toLocaleDateString()}</td>
                   <td className="td">
                     {(i.outbreak_status === 'monitoring' || i.outbreak_status === 'alert' || i.outbreak_status === 'outbreak') &&
-                      <button onClick={() => handleStatus(i.id, 'contained')} className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline">Contain</button>}
+                      <button onClick={() => handleStatus(i.id, 'contained')} className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline">{s.contain}</button>}
                     {i.outbreak_status === 'contained' &&
-                      <button onClick={() => handleStatus(i.id, 'resolved')} className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">Resolve</button>}
+                      <button onClick={() => handleStatus(i.id, 'resolved')} className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">{s.resolve}</button>}
                   </td>
                 </tr>
               ))}
@@ -183,7 +206,7 @@ export default function HealthSurveillance() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-              <h3 className="font-bold text-gray-800 dark:text-gray-100">Log Health Incident</h3>
+              <h3 className="font-bold text-gray-800 dark:text-gray-100">{s.logHealthIncident}</h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-3">
@@ -194,32 +217,32 @@ export default function HealthSurveillance() {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">District *</label>
+                  <label className="label">{s.district} *</label>
                   <select className="input" required value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}>
                     {DISTRICTS.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Sub-county</label>
+                  <label className="label">{s.subCounty}</label>
                   <input className="input" value={form.sub_county} onChange={e => setForm({ ...form, sub_county: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Village</label>
+                  <label className="label">{s.village}</label>
                   <input className="input" value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Disease Type *</label>
+                  <label className="label">{s.diseaseType} *</label>
                   <select className="input" required value={form.disease_type} onChange={e => setForm({ ...form, disease_type: e.target.value })}>
                     {DISEASES.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Cases *</label>
+                  <label className="label">{s.cases} *</label>
                   <input className="input" required type="number" min="1" placeholder="Number of cases"
                     value={form.cases} onChange={e => setForm({ ...form, cases: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Deaths</label>
+                  <label className="label">{s.deaths}</label>
                   <input className="input" type="number" min="0" placeholder="0"
                     value={form.deaths} onChange={e => setForm({ ...form, deaths: e.target.value })} />
                 </div>

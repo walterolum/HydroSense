@@ -5,12 +5,28 @@ import { getWaterPoints, getDroughtIndex, getFloodAlerts } from '../../api/clien
 import { WaterPoint } from '../../types';
 import WaterMap from '../../components/map/WaterMap';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useTranslations } from '../../hooks/useTranslations';
 
 import { ALL_DISTRICTS_WITH_ALL } from '../../constants/districts';
 const DISTRICTS = ALL_DISTRICTS_WITH_ALL;
 const STATUSES = ['All', 'functional', 'non_functional', 'needs_repair', 'under_maintenance'];
 
 export default function GISMap() {
+  const s = useTranslations({
+    layer: 'Layer',
+    waterPoints: 'Water Points',
+    droughtIndex: 'Drought Index',
+    floodRisk: 'Flood Risk',
+    allStatus: 'All Status',
+    legend: 'Legend',
+    functional: 'Functional',
+    nonFunctional: 'Non-functional',
+    needsRepair: 'Needs Repair',
+    solarPowered: 'Solar Powered',
+    mapSummary: 'Map Summary',
+    droughtStatus: 'Drought Status',
+    floodMonitoring: 'Flood Monitoring',
+  });
   const [searchParams] = useSearchParams();
   const [wps, setWps] = useState<WaterPoint[]>([]);
   const [drought, setDrought] = useState<any[]>([]);
@@ -45,10 +61,10 @@ export default function GISMap() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2">
             <Layers size={16} className="text-gray-500" />
-            <span className="text-sm font-medium text-gray-600">Layer:</span>
+            <span className="text-sm font-medium text-gray-600">{s.layer}:</span>
             {(['water_points', 'drought', 'flood'] as const).map(l => (
               <button key={l} onClick={() => setLayer(l)} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${layer === l ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {l === 'water_points' ? '💧 Water Points' : l === 'drought' ? '🏜 Drought Index' : '🌊 Flood Risk'}
+                {l === 'water_points' ? `💧 ${s.waterPoints}` : l === 'drought' ? `🏜 ${s.droughtIndex}` : `🌊 ${s.floodRisk}`}
               </button>
             ))}
           </div>
@@ -58,7 +74,7 @@ export default function GISMap() {
               {DISTRICTS.map(d => <option key={d}>{d}</option>)}
             </select>
             <select className="input w-auto text-sm py-1.5" value={status} onChange={e => setStatus(e.target.value)}>
-              {STATUSES.map(s => <option key={s} value={s}>{s === 'All' ? 'All Status' : s.replace(/_/g, ' ')}</option>)}
+              {STATUSES.map(st => <option key={st} value={st}>{st === 'All' ? s.allStatus : st.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
           <div className="text-xs text-gray-500">{loading ? 'Loading...' : `${wps.length} points shown`}</div>
@@ -75,7 +91,7 @@ export default function GISMap() {
         <div className="space-y-4">
           {/* Legend */}
           <div className="card">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><Info size={14} /> Legend</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5"><Info size={14} /> {s.legend}</h3>
             {layer === 'water_points' && (
               <div className="space-y-1.5 text-xs">
                 {[['functional', '#16a34a'], ['needs_repair', '#ea580c'], ['non_functional', '#dc2626'], ['under_maintenance', '#d97706']].map(([s, c]) => (
@@ -115,7 +131,7 @@ export default function GISMap() {
           {/* Drought / Flood Data Panel */}
           {layer === 'drought' && (
             <div className="card max-h-80 overflow-y-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Drought Status</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">{s.droughtStatus}</h3>
               {drought.map(d => (
                 <div key={d.district} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
                   <span className="text-sm font-medium text-gray-700">{d.district}</span>
@@ -130,7 +146,7 @@ export default function GISMap() {
 
           {layer === 'flood' && (
             <div className="card max-h-80 overflow-y-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Flood Monitoring</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">{s.floodMonitoring}</h3>
               {flood.map(f => (
                 <div key={f.id} className="mb-2 p-2 rounded-lg border" style={{ borderColor: f.flood_risk === 'critical' ? '#dc2626' : f.flood_risk === 'high' ? '#ea580c' : '#d97706', background: f.flood_risk === 'critical' ? '#fef2f2' : '#fff' }}>
                   <div className="font-semibold text-sm text-gray-800">{f.district}</div>
@@ -162,12 +178,12 @@ export default function GISMap() {
 
           {/* Stats Summary */}
           <div className="card">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Map Summary</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">{s.mapSummary}</h3>
             <div className="space-y-1 text-xs">
-              <div className="flex justify-between"><span className="text-gray-500">Functional</span><span className="font-medium text-green-600">{wps.filter(w => w.status === 'functional').length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Non-functional</span><span className="font-medium text-red-600">{wps.filter(w => w.status === 'non_functional').length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Needs Repair</span><span className="font-medium text-orange-600">{wps.filter(w => w.status === 'needs_repair').length}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Solar Powered</span><span className="font-medium text-yellow-600">{wps.filter(w => w.solar_powered === 1).length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{s.functional}</span><span className="font-medium text-green-600">{wps.filter(w => w.status === 'functional').length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{s.nonFunctional}</span><span className="font-medium text-red-600">{wps.filter(w => w.status === 'non_functional').length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{s.needsRepair}</span><span className="font-medium text-orange-600">{wps.filter(w => w.status === 'needs_repair').length}</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">{s.solarPowered}</span><span className="font-medium text-yellow-600">{wps.filter(w => w.solar_powered === 1).length}</span></div>
             </div>
           </div>
         </div>

@@ -11,9 +11,27 @@ const SEVERITY_COLORS: Record<string, string> = { extreme_drought: '#7f1d1d', se
 const FLOOD_COLORS: Record<string, string> = { critical: '#dc2626', high: '#ea580c', moderate: '#d97706', low: '#16a34a' };
 
 import { ALL_DISTRICTS } from '../../constants/districts';
+import { useTranslations } from '../../hooks/useTranslations';
 const DISTRICTS = ALL_DISTRICTS;
 
 export default function ClimateMonitor() {
+  const s = useTranslations({
+    droughtDistricts: 'Districts in Drought',
+    floodRisk: 'Districts Flood Risk',
+    avgRainfall: 'Avg Recent Rainfall',
+    criticalAlerts: 'Critical Alerts',
+    liveWeather: 'Live Weather',
+    droughtIndex: 'District Drought Index (SPI — Standardized Precipitation)',
+    gwRecharge: 'GW Recharge',
+    floodMonitoring: 'Active Flood Monitoring',
+    climateForecst: '6-Month AI Climate Forecast',
+    predictedRainfall: 'Predicted Rainfall (mm)',
+    resilienceScores: 'District Climate Resilience Scores',
+    waterAccess: 'Water Access',
+    infrastructure: 'Infrastructure',
+    climateAdapt: 'Climate Adapt.',
+    overall: 'Overall',
+  });
   const { user } = useAuth();
   const { weather, wError, loading: wLoading, fetchWeatherByDistrict } = useWeather(user?.district || 'Kampala');
 
@@ -51,10 +69,10 @@ export default function ClimateMonitor() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
         {/* Stats Grid */}
         <div className="xl:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard loading={loading} title="Districts in Drought" value={summary?.districts_in_drought || 0} subtitle="Requiring water intervention" icon={TrendingDown} color="orange" />
-          <StatCard loading={loading} title="Districts Flood Risk" value={summary?.districts_flood_risk || 0} subtitle="High/critical flood alert" icon={CloudRain} color="blue" />
-          <StatCard loading={loading} title="Avg Recent Rainfall" value={`${summary?.avg_recent_rainfall_mm || 0} mm`} subtitle="Last 3 months average" icon={Droplets} color="cyan" />
-          <StatCard loading={loading} title="Critical Alerts" value={flood.filter(f => f.flood_risk === 'critical').length + drought.filter(d => d.severity === 'extreme_drought').length} subtitle="Extreme drought + flood" icon={AlertTriangle} color="red" />
+          <StatCard loading={loading} title={s.droughtDistricts} value={summary?.districts_in_drought || 0} subtitle="Requiring water intervention" icon={TrendingDown} color="orange" />
+          <StatCard loading={loading} title={s.floodRisk} value={summary?.districts_flood_risk || 0} subtitle="High/critical flood alert" icon={CloudRain} color="blue" />
+          <StatCard loading={loading} title={s.avgRainfall} value={`${summary?.avg_recent_rainfall_mm || 0} mm`} subtitle="Last 3 months average" icon={Droplets} color="cyan" />
+          <StatCard loading={loading} title={s.criticalAlerts} value={flood.filter(f => f.flood_risk === 'critical').length + drought.filter(d => d.severity === 'extreme_drought').length} subtitle="Extreme drought + flood" icon={AlertTriangle} color="red" />
         </div>
 
         {/* Live Weather Widget */}
@@ -62,7 +80,7 @@ export default function ClimateMonitor() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                <CloudRain size={13} className="text-blue-500 animate-pulse" /> Live Weather
+                <CloudRain size={13} className="text-blue-500 animate-pulse" /> {s.liveWeather}
               </span>
               {wLoading && (
                 <div className="w-4 h-4 rounded-full border-2 border-gray-200 border-t-blue-500 animate-spin" />
@@ -122,7 +140,7 @@ export default function ClimateMonitor() {
       {/* Drought Index Table */}
       <div className="card">
         <div className="card-header">
-          <h3 className="section-title"><TrendingDown size={18} className="text-orange-500" /> District Drought Index (SPI — Standardized Precipitation)</h3>
+          <h3 className="section-title"><TrendingDown size={18} className="text-orange-500" /> {s.droughtIndex}</h3>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
           {drought.map(d => (
@@ -130,7 +148,7 @@ export default function ClimateMonitor() {
               <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{d.district}</div>
               <div className="text-2xl font-bold mt-1" style={{ color: SEVERITY_COLORS[d.severity] }}>{d.spi_value?.toFixed(2)}</div>
               <div className="text-xs mt-1" style={{ color: SEVERITY_COLORS[d.severity] }}>{d.severity?.replace(/_/g, ' ')}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">GW Recharge: {d.groundwater_recharge}%</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{s.gwRecharge}: {d.groundwater_recharge}%</div>
               <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
                 <div className="h-full rounded-full" style={{ width: `${Math.max(5, d.groundwater_recharge || 10)}%`, background: SEVERITY_COLORS[d.severity] }} />
               </div>
@@ -163,7 +181,7 @@ export default function ClimateMonitor() {
       {/* Flood Alerts */}
       <div className="card">
         <div className="card-header">
-          <h3 className="section-title"><CloudRain size={18} className="text-blue-600" /> Active Flood Monitoring</h3>
+          <h3 className="section-title"><CloudRain size={18} className="text-blue-600" /> {s.floodMonitoring}</h3>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {flood.map(f => (
@@ -187,7 +205,7 @@ export default function ClimateMonitor() {
       {/* 6-Month AI Forecast */}
       <div className="card">
         <div className="card-header">
-          <h3 className="section-title"><CloudRain size={18} className="text-purple-600" /> 6-Month AI Climate Forecast</h3>
+          <h3 className="section-title"><CloudRain size={18} className="text-purple-600" /> {s.climateForecst}</h3>
           <span className="badge bg-purple-100 text-purple-700">AI Generated</span>
         </div>
         <ResponsiveContainer width="100%" height={250}>
@@ -197,8 +215,8 @@ export default function ClimateMonitor() {
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend />
-            <Bar dataKey="predicted_rainfall_mm" name="Predicted Rainfall (mm)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="groundwater_recharge" name="GW Recharge" fill="#16a34a" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="predicted_rainfall_mm" name={s.predictedRainfall} fill="#3b82f6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="groundwater_recharge" name={s.gwRecharge} fill="#16a34a" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mt-4">
@@ -218,7 +236,7 @@ export default function ClimateMonitor() {
       {/* Resilience Scores */}
       <div className="card">
         <div className="card-header">
-          <h3 className="section-title"><Wind size={18} className="text-cyan-600" /> District Climate Resilience Scores</h3>
+          <h3 className="section-title"><Wind size={18} className="text-cyan-600" /> {s.resilienceScores}</h3>
         </div>
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="table-container">
@@ -226,10 +244,10 @@ export default function ClimateMonitor() {
               <thead>
                 <tr>
                   <th className="th">District</th>
-                  <th className="th">Water Access</th>
-                  <th className="th">Infrastructure</th>
-                  <th className="th">Climate Adapt.</th>
-                  <th className="th">Overall</th>
+                  <th className="th">{s.waterAccess}</th>
+                  <th className="th">{s.infrastructure}</th>
+                  <th className="th">{s.climateAdapt}</th>
+                  <th className="th">{s.overall}</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">

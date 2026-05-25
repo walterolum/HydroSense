@@ -8,6 +8,7 @@ import {
   Mic, MicOff, Languages,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTranslations } from '../../hooks/useTranslations';
 import {
   getCitizenDashboard, getDiscussions, createDiscussion, likeDiscussion,
   getDiscussionReplies, postDiscussionReply,
@@ -185,6 +186,45 @@ const TABS = [
 
 export default function CitizenHub() {
   const { user } = useAuth();
+  const s = useTranslations({
+    hubTitle: 'CITIZEN ENVIRONMENTAL HUB',
+    submitObservation: 'Submit Observation',
+    communityForum: 'Community Forum',
+    volunteer: 'Volunteer',
+    waterPointsActive: 'Water Points Active',
+    peopleServed: 'People Served',
+    activeAlerts: 'Active Alerts',
+    pollutionReports: 'Pollution Reports',
+    activeEnvAlerts: 'Active Environmental Alerts',
+    climateSummary: 'Climate & Weather Summary',
+    avgRainfall: 'Avg Rainfall (7d)',
+    avgTemp: 'Avg Temperature',
+    droughtStatus: 'Drought Status',
+    waterQualityStatus: 'Water Quality Status',
+    recentReports: 'Recent Community Reports',
+    educationCentre: 'Environmental Education Centre',
+    dailyTips: 'Daily Environmental Tips',
+    transparencyPortal: 'Public Transparency Portal',
+    yourRights: 'Your Rights as a Citizen',
+    discussions: 'Discussions',
+    startDiscussion: 'Start a New Discussion',
+    postDiscussion: 'Post Discussion',
+    noDiscussions: 'No discussions yet in this category.',
+    volunteerAction: 'Volunteer & Community Action',
+    createEvent: 'Create Event',
+    noEvents: 'No upcoming volunteer events',
+    yourBadges: 'Your Badges',
+    myReports: 'My Pollution Reports',
+    eventsJoined: 'Events I Joined',
+    submitObs: 'Submit Environmental Observation',
+    observationType: 'Observation Type',
+    locationArea: 'Location / Area',
+    useGPS: 'Use GPS',
+    whatObserved: 'What did you observe?',
+    recordVoice: 'Record Voice',
+    fromGallery: 'From Gallery',
+    takePhoto: 'Take Photo',
+  });
   const [tab, setTab] = useState('dashboard');
 
   /* dashboard */
@@ -448,22 +488,22 @@ export default function CitizenHub() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Globe size={18} className="text-emerald-300" />
-              <span className="text-emerald-300 text-sm font-semibold tracking-wide">CITIZEN ENVIRONMENTAL HUB</span>
+              <span className="text-emerald-300 text-sm font-semibold tracking-wide">{s.hubTitle}</span>
             </div>
             <h2 className="text-2xl font-extrabold">Welcome, {user?.name?.split(' ')[0] || 'Citizen'} 👋</h2>
             <p className="text-emerald-100 text-sm mt-0.5">Your platform to monitor, report, learn, and protect Uganda's environment.</p>
             <div className="flex flex-wrap gap-2 mt-3">
               <button onClick={() => { setShowObs(true); setObsMsg(''); }}
                 className="px-3 py-1.5 rounded-xl bg-white/20 border border-white/25 text-xs font-bold hover:bg-white/30 transition-colors flex items-center gap-1.5">
-                <Eye size={12} /> Submit Observation
+                <Eye size={12} /> {s.submitObservation}
               </button>
               <button onClick={() => setTab('discussions')}
                 className="px-3 py-1.5 rounded-xl bg-white/20 border border-white/25 text-xs font-bold hover:bg-white/30 transition-colors flex items-center gap-1.5">
-                <MessageSquare size={12} /> Community Forum
+                <MessageSquare size={12} /> {s.communityForum}
               </button>
               <button onClick={() => setTab('volunteer')}
                 className="px-3 py-1.5 rounded-xl bg-white/20 border border-white/25 text-xs font-bold hover:bg-white/30 transition-colors flex items-center gap-1.5">
-                <Heart size={12} /> Volunteer
+                <Heart size={12} /> {s.volunteer}
               </button>
             </div>
           </div>
@@ -495,10 +535,10 @@ export default function CitizenHub() {
               {/* Key stat cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { icon: Droplets, label: 'Water Points Active', value: dashData.water.functional, sub: `${dashData.water.functionality_pct}% functional`, color: '#2563eb', bg: '#dbeafe' },
-                  { icon: Shield,   label: 'People Served',       value: dashData.water.beneficiaries.toLocaleString(), sub: 'across 15 districts', color: '#16a34a', bg: '#dcfce7' },
-                  { icon: AlertTriangle, label: 'Active Alerts',  value: dashData.alerts.total, sub: `${dashData.alerts.critical} critical`, color: '#dc2626', bg: '#fee2e2' },
-                  { icon: Eye,      label: 'Pollution Reports',   value: dashData.gwn.total, sub: `${dashData.gwn.today} today`, color: '#7c3aed', bg: '#ede9fe' },
+                  { icon: Droplets, label: s.waterPointsActive, value: dashData.water.functional, sub: `${dashData.water.functionality_pct}% functional`, color: '#2563eb', bg: '#dbeafe' },
+                  { icon: Shield,   label: s.peopleServed,       value: dashData.water.beneficiaries.toLocaleString(), sub: 'across 15 districts', color: '#16a34a', bg: '#dcfce7' },
+                  { icon: AlertTriangle, label: s.activeAlerts,  value: dashData.alerts.total, sub: `${dashData.alerts.critical} critical`, color: '#dc2626', bg: '#fee2e2' },
+                  { icon: Eye,      label: s.pollutionReports,   value: dashData.gwn.total, sub: `${dashData.gwn.today} today`, color: '#7c3aed', bg: '#ede9fe' },
                 ].map(c => (
                   <div key={c.label} className="card">
                     <div className="flex items-start gap-3">
@@ -520,7 +560,7 @@ export default function CitizenHub() {
                 <div className="card border-l-4 border-red-400">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertTriangle size={16} className="text-red-500" />
-                    <h3 className="section-title">Active Environmental Alerts</h3>
+                    <h3 className="section-title">{s.activeEnvAlerts}</h3>
                   </div>
                   <div className="space-y-2">
                     {dashData.alerts.recent.map((a: any, i: number) => (
@@ -539,11 +579,11 @@ export default function CitizenHub() {
               <div className="grid lg:grid-cols-2 gap-5">
                 {/* Climate summary */}
                 <div className="card">
-                  <h3 className="section-title mb-4"><CloudRain size={16} className="text-blue-500" /> Climate & Weather Summary</h3>
+                  <h3 className="section-title mb-4"><CloudRain size={16} className="text-blue-500" /> {s.climateSummary}</h3>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { icon: CloudRain, label: 'Avg Rainfall (7d)', value: `${dashData.climate.avg_rainfall_7d} mm`, color: '#2563eb' },
-                      { icon: Flame,     label: 'Avg Temperature', value: `${dashData.climate.avg_temp_7d}°C`,       color: '#ea580c' },
+                      { icon: CloudRain, label: s.avgRainfall, value: `${dashData.climate.avg_rainfall_7d} mm`, color: '#2563eb' },
+                      { icon: Flame,     label: s.avgTemp, value: `${dashData.climate.avg_temp_7d}°C`,       color: '#ea580c' },
                       { icon: Wind,      label: 'Max Rainfall (7d)', value: `${dashData.climate.max_rainfall_7d} mm`, color: '#0891b2' },
                     ].map(c => (
                       <div key={c.label} className="text-center p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
@@ -555,7 +595,7 @@ export default function CitizenHub() {
                   </div>
                   {dashData.climate.drought_breakdown.length > 0 && (
                     <div className="mt-3 space-y-1">
-                      <div className="text-xs font-semibold text-gray-500 mb-1">Drought Status</div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">{s.droughtStatus}</div>
                       {dashData.climate.drought_breakdown.map((d: any) => (
                         <div key={d.severity} className="flex items-center gap-2 text-xs">
                           <div className="w-2 h-2 rounded-full" style={{ background: d.severity === 'extreme_drought' ? '#dc2626' : d.severity === 'severe_drought' ? '#ea580c' : d.severity === 'moderate_drought' ? '#d97706' : d.severity === 'mild_drought' ? '#eab308' : '#16a34a' }} />
@@ -569,7 +609,7 @@ export default function CitizenHub() {
 
                 {/* Water quality */}
                 <div className="card">
-                  <h3 className="section-title mb-4"><Droplets size={16} className="text-blue-500" /> Water Quality Status</h3>
+                  <h3 className="section-title mb-4"><Droplets size={16} className="text-blue-500" /> {s.waterQualityStatus}</h3>
                   <div className="text-center mb-4">
                     <div className="w-24 h-24 rounded-full border-8 mx-auto flex items-center justify-center"
                       style={{ borderColor: dashData.water.quality_score >= 70 ? '#16a34a' : dashData.water.quality_score >= 50 ? '#d97706' : '#dc2626' }}>
@@ -604,7 +644,7 @@ export default function CitizenHub() {
               {/* Recent GWN reports */}
               {dashData.gwn.recent.length > 0 && (
                 <div className="card">
-                  <h3 className="section-title mb-3"><Eye size={16} className="text-purple-500" /> Recent Community Reports</h3>
+                  <h3 className="section-title mb-3"><Eye size={16} className="text-purple-500" /> {s.recentReports}</h3>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {dashData.gwn.recent.map((r: any, i: number) => (
                       <div key={i} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
@@ -629,7 +669,7 @@ export default function CitizenHub() {
       {tab === 'education' && (
         <div className="space-y-5">
           <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg,#064e3b,#0891b2)' }}>
-            <div className="flex items-center gap-2 mb-1"><BookOpen size={16} className="text-emerald-300" /><span className="font-bold">Environmental Education Centre</span></div>
+            <div className="flex items-center gap-2 mb-1"><BookOpen size={16} className="text-emerald-300" /><span className="font-bold">{s.educationCentre}</span></div>
             <p className="text-sm text-emerald-100">Learn about water conservation, climate change, pollution prevention, and your rights as a citizen.</p>
           </div>
 
@@ -667,7 +707,7 @@ export default function CitizenHub() {
           {/* Environmental tips */}
           <div className="rounded-2xl shadow-sm p-3 sm:p-5 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/60">
             <h3 className="text-base font-bold flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
-              <Leaf size={16} className="text-green-600 dark:text-green-400" /> Daily Environmental Tips
+              <Leaf size={16} className="text-green-600 dark:text-green-400" /> {s.dailyTips}
             </h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {[
@@ -692,7 +732,7 @@ export default function CitizenHub() {
       {tab === 'transparency' && (
         <div className="space-y-5">
           <div className="rounded-xl p-4 text-white" style={{ background: 'linear-gradient(135deg,#1e1b4b,#2563eb)' }}>
-            <div className="flex items-center gap-2 mb-1"><Globe size={16} className="text-blue-300" /><span className="font-bold">Public Transparency Portal</span></div>
+            <div className="flex items-center gap-2 mb-1"><Globe size={16} className="text-blue-300" /><span className="font-bold">{s.transparencyPortal}</span></div>
             <p className="text-sm text-blue-100">View environmental incident statistics, government responses, and NGO activities in your community.</p>
           </div>
 
@@ -772,7 +812,7 @@ export default function CitizenHub() {
               )}
 
               <div className="card" style={{ background: 'linear-gradient(135deg,#f5f3ff,#eff6ff)', border: '1px solid #c4b5fd' }}>
-                <h3 className="section-title mb-3"><Award size={16} className="text-purple-600" /> Your Rights as a Citizen</h3>
+                <h3 className="section-title mb-3"><Award size={16} className="text-purple-600" /> {s.yourRights}</h3>
                 <div className="space-y-2">
                   {[
                     'You have the right to clean, safe water under Uganda\'s National Water Act.',
@@ -817,7 +857,7 @@ export default function CitizenHub() {
           {/* New discussion form */}
           {showNewDisc && (
             <div className="card border-2 border-emerald-200 dark:border-emerald-800">
-              <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-3">Start a New Discussion</h3>
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 mb-3">{s.startDiscussion}</h3>
               <form onSubmit={submitDiscussion} className="space-y-3">
                 <div>
                   <label className="label">Category</label>
@@ -841,7 +881,7 @@ export default function CitizenHub() {
                     className="flex-1 py-2.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 disabled:opacity-60"
                     style={{ background: 'linear-gradient(135deg,#065f46,#0891b2)' }}>
                     {discSaving && <Loader2 size={13} className="animate-spin" />}
-                    {discSaving ? 'Posting...' : '📤 Post Discussion'}
+                    {discSaving ? 'Posting...' : `📤 ${s.postDiscussion}`}
                   </button>
                 </div>
               </form>
@@ -854,7 +894,7 @@ export default function CitizenHub() {
           ) : discussions.length === 0 ? (
             <div className="card text-center py-10 text-gray-400">
               <MessageSquare size={32} className="mx-auto mb-2 text-gray-300" />
-              <p>No discussions yet in this category.</p>
+              <p>{s.noDiscussions}</p>
               <button onClick={() => setShowNewDisc(true)} className="mt-3 text-sm text-emerald-600 hover:underline">Start the first one →</button>
             </div>
           ) : (
@@ -937,13 +977,13 @@ export default function CitizenHub() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="rounded-xl p-4 text-white flex-1" style={{ background: 'linear-gradient(135deg,#4c1d95,#7c3aed)' }}>
-              <div className="flex items-center gap-2 mb-1"><Heart size={16} className="text-purple-300" /><span className="font-bold">Volunteer & Community Action</span></div>
+              <div className="flex items-center gap-2 mb-1"><Heart size={16} className="text-purple-300" /><span className="font-bold">{s.volunteerAction}</span></div>
               <p className="text-sm text-purple-100">Join clean-up drives, tree planting events, and environmental campaigns in your district.</p>
             </div>
             {canCreateEvent && (
               <button onClick={() => setShowNewEv(true)}
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold flex items-center justify-center gap-2 shadow flex-shrink-0 transition-colors">
-                <Plus size={14} /> Create Event
+                <Plus size={14} /> {s.createEvent}
               </button>
             )}
           </div>
@@ -983,7 +1023,7 @@ export default function CitizenHub() {
           ) : events.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">
               <Calendar size={36} className="mx-auto mb-3 text-gray-300" />
-              <p className="font-semibold">No upcoming volunteer events</p>
+              <p className="font-semibold">{s.noEvents}</p>
               <p className="text-sm mt-1">Check back soon or ask your community leader to create one.</p>
             </div>
           ) : (
@@ -1065,7 +1105,7 @@ export default function CitizenHub() {
 
               {/* Badges */}
               <div className="card">
-                <h3 className="section-title mb-4"><Trophy size={16} className="text-yellow-500" /> Your Badges</h3>
+                <h3 className="section-title mb-4"><Trophy size={16} className="text-yellow-500" /> {s.yourBadges}</h3>
                 {achieve.badges.length === 0 ? (
                   <div className="text-center py-6 text-gray-400">
                     <Trophy size={32} className="mx-auto mb-2 text-gray-200" />
@@ -1098,7 +1138,7 @@ export default function CitizenHub() {
               {/* Recent GWN Reports */}
               {achieve.myGwnReports.length > 0 && (
                 <div className="card">
-                  <h3 className="section-title mb-3"><Shield size={16} className="text-purple-500" /> My Pollution Reports</h3>
+                  <h3 className="section-title mb-3"><Shield size={16} className="text-purple-500" /> {s.myReports}</h3>
                   <div className="space-y-2">
                     {achieve.myGwnReports.map((r: any, i: number) => (
                       <div key={i} className="flex items-center gap-3 text-sm p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800">
@@ -1115,7 +1155,7 @@ export default function CitizenHub() {
               {/* My events */}
               {achieve.myEvents.length > 0 && (
                 <div className="card">
-                  <h3 className="section-title mb-3"><Calendar size={16} className="text-indigo-500" /> Events I Joined</h3>
+                  <h3 className="section-title mb-3"><Calendar size={16} className="text-indigo-500" /> {s.eventsJoined}</h3>
                   <div className="space-y-2">
                     {achieve.myEvents.map((e: any, i: number) => {
                       const et = EVENT_TYPES[e.event_type] || { icon: '📅', color: '#6b7280' };
@@ -1143,12 +1183,12 @@ export default function CitizenHub() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 sticky top-0 z-10 flex justify-between items-center"
               style={{ background: 'linear-gradient(135deg,#064e3b,#0891b2)' }}>
-              <div className="flex items-center gap-2"><Eye size={18} className="text-emerald-300" /><span className="font-bold text-white">Submit Environmental Observation</span></div>
+              <div className="flex items-center gap-2"><Eye size={18} className="text-emerald-300" /><span className="font-bold text-white">{s.submitObs}</span></div>
               <button onClick={() => setShowObs(false)} className="text-white/70 hover:text-white text-xl">&times;</button>
             </div>
             <form onSubmit={submitObs} className="p-5 space-y-4">
               <div>
-                <label className="label">Observation Type *</label>
+                <label className="label">{s.observationType} *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {OBS_TYPES.map(t => (
                     <button key={t} type="button" onClick={() => setObsForm(f => ({ ...f, observation_type: t }))}
@@ -1165,7 +1205,7 @@ export default function CitizenHub() {
                 </select>
               </div>
               <div>
-                <label className="label">Location / Area</label>
+                <label className="label">{s.locationArea}</label>
                 <div className="flex gap-2">
                   <input
                     className="input flex-1"
@@ -1191,7 +1231,7 @@ export default function CitizenHub() {
                       : obsForm.lat
                       ? <CheckCircle size={14} />
                       : <Navigation size={14} />}
-                    <span className="hidden sm:inline">{gpsLoading ? 'Locating…' : obsForm.lat ? 'Got GPS' : 'Use GPS'}</span>
+                    <span className="hidden sm:inline">{gpsLoading ? 'Locating…' : obsForm.lat ? 'Got GPS' : s.useGPS}</span>
                   </button>
                 </div>
                 {gpsError && <p className="text-xs text-red-500 mt-1">{gpsError}</p>}
@@ -1230,7 +1270,7 @@ export default function CitizenHub() {
               {/* Description + voice */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="label mb-0">What did you observe? *</label>
+                  <label className="label mb-0">{s.whatObserved} *</label>
                   <button
                     type="button"
                     onClick={handleVoiceRecord}
@@ -1242,7 +1282,7 @@ export default function CitizenHub() {
                     }`}
                   >
                     {obsRecording ? <MicOff size={13} /> : <Mic size={13} />}
-                    {obsRecording ? 'Stop' : 'Record Voice'}
+                    {obsRecording ? 'Stop' : s.recordVoice}
                   </button>
                 </div>
 
@@ -1308,7 +1348,7 @@ export default function CitizenHub() {
                       className="flex flex-col items-center gap-2 px-3 py-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all text-gray-400 hover:text-emerald-700"
                     >
                       <ImagePlus size={22} />
-                      <span className="text-xs font-semibold">From Gallery</span>
+                      <span className="text-xs font-semibold">{s.fromGallery}</span>
                     </button>
                     <button
                       type="button"
@@ -1316,7 +1356,7 @@ export default function CitizenHub() {
                       className="flex flex-col items-center gap-2 px-3 py-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all text-gray-400 hover:text-blue-700"
                     >
                       <Camera size={22} />
-                      <span className="text-xs font-semibold">Take Photo</span>
+                      <span className="text-xs font-semibold">{s.takePhoto}</span>
                     </button>
                   </div>
                 )}

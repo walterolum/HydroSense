@@ -4,9 +4,27 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { getQualityTests, getQualityStats, submitQualityTest, getWaterPoints } from '../../api/client';
 import StatCard from '../../components/common/StatCard';
 
+import { useTranslations } from '../../hooks/useTranslations';
+
 const BLANK_FORM = { water_point_id: '', turbidity_ntu: '', ph: '', tds_ppm: '', e_coli_cfu: '', nitrates_ppm: '', fluoride_ppm: '', chlorine_residual: '', temperature_c: '', notes: '' };
 
 export default function WaterQuality() {
+  const s = useTranslations({
+    totalTests: 'Total Tests',
+    safetyRate: 'Safety Rate',
+    unsafeSources: 'Unsafe Sources',
+    avgSafetyScore: 'Avg Safety Score',
+    contaminated: 'Contaminated Water Sources — Urgent Action Required',
+    qualityByDistrict: 'Water Quality by District',
+    recentTests: 'Recent Water Quality Tests',
+    logTest: 'Log Test',
+    waterPoint: 'Water Point',
+    tester: 'Tester',
+    safe: 'Safe',
+    score: 'Score',
+    logTestTitle: 'Log Water Quality Test',
+    whoStandards: 'WHO Drinking Water Standards Reference',
+  });
   const [tests, setTests]         = useState<any[]>([]);
   const [stats, setStats]         = useState<any>(null);
   const [waterPoints, setWaterPoints] = useState<any[]>([]);
@@ -74,24 +92,24 @@ export default function WaterQuality() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Total Tests"      value={stats?.total_tests || 0}                          icon={TestTube}     color="blue"  />
-        <StatCard loading={loading} title="Safety Rate"      value={`${stats?.safety_rate_pct || 0}%`} subtitle={`${stats?.safe_tests || 0} safe tests`} icon={CheckCircle}  color="green" />
-        <StatCard loading={loading} title="Unsafe Sources"   value={stats?.unsafe_tests || 0}          subtitle="Failed WHO standards" icon={AlertTriangle} color="red"   />
-        <StatCard loading={loading} title="Avg Safety Score" value={`${stats?.avg_safety_score || 0}/100`}            icon={TestTube}     color="cyan"  />
+        <StatCard loading={loading} title={s.totalTests}      value={stats?.total_tests || 0}                          icon={TestTube}     color="blue"  />
+        <StatCard loading={loading} title={s.safetyRate}      value={`${stats?.safety_rate_pct || 0}%`} subtitle={`${stats?.safe_tests || 0} safe tests`} icon={CheckCircle}  color="green" />
+        <StatCard loading={loading} title={s.unsafeSources}   value={stats?.unsafe_tests || 0}          subtitle="Failed WHO standards" icon={AlertTriangle} color="red"   />
+        <StatCard loading={loading} title={s.avgSafetyScore} value={`${stats?.avg_safety_score || 0}/100`}            icon={TestTube}     color="cyan"  />
       </div>
 
       {/* Contaminated Sources */}
       {stats?.contaminated_sources?.length > 0 && (
         <div className="card border-2 border-red-200 dark:border-red-800 dark:bg-red-950/10">
           <div className="card-header">
-            <h3 className="section-title text-red-700 dark:text-red-400"><AlertTriangle size={18} /> Contaminated Water Sources — Urgent Action Required</h3>
+            <h3 className="section-title text-red-700 dark:text-red-400"><AlertTriangle size={18} /> {s.contaminated}</h3>
           </div>
           <div className="table-container">
             <table className="table">
               <thead><tr>
-                <th className="th">Water Point</th><th className="th">District</th>
+                <th className="th">{s.waterPoint}</th><th className="th">District</th>
                 <th className="th">E.Coli</th><th className="th">Turbidity</th>
-                <th className="th">pH</th><th className="th">Score</th><th className="th">Last Tested</th>
+                <th className="th">pH</th><th className="th">{s.score}</th><th className="th">Last Tested</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-red-900/40">
                 {stats.contaminated_sources.slice(0, 10).map((t: any) => (
@@ -115,7 +133,7 @@ export default function WaterQuality() {
       {stats?.by_district && (
         <div className="card">
           <div className="card-header">
-            <h3 className="section-title"><TestTube size={18} className="text-cyan-600" /> Water Quality by District</h3>
+            <h3 className="section-title"><TestTube size={18} className="text-cyan-600" /> {s.qualityByDistrict}</h3>
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={stats.by_district} margin={{ top: 5, right: 10, left: -20, bottom: 30 }}>
@@ -141,16 +159,16 @@ export default function WaterQuality() {
       {/* Test Results Table */}
       <div className="card p-0">
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <h3 className="section-title">Recent Water Quality Tests</h3>
-          <button onClick={openModal} className="btn-primary text-xs"><Plus size={14} /> Log Test</button>
+          <h3 className="section-title">{s.recentTests}</h3>
+          <button onClick={openModal} className="btn-primary text-xs"><Plus size={14} /> {s.logTest}</button>
         </div>
         <div className="table-container">
           <table className="table">
             <thead><tr>
-              <th className="th">Water Point</th><th className="th">District</th>
+              <th className="th">{s.waterPoint}</th><th className="th">District</th>
               <th className="th">pH</th><th className="th">Turbidity</th><th className="th">TDS</th>
-              <th className="th">E.coli</th><th className="th">Safe</th>
-              <th className="th">Score</th><th className="th">Tester</th><th className="th">Date</th>
+              <th className="th">E.coli</th><th className="th">{s.safe}</th>
+              <th className="th">{s.score}</th><th className="th">{s.tester}</th><th className="th">Date</th>
             </tr></thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {tests.map(t => (
@@ -177,7 +195,7 @@ export default function WaterQuality() {
 
       {/* WHO Standards */}
       <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-        <h3 className="section-title text-blue-800 dark:text-blue-300 mb-3">WHO Drinking Water Standards Reference</h3>
+        <h3 className="section-title text-blue-800 dark:text-blue-300 mb-3">{s.whoStandards}</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           {[['pH','6.5 – 8.5'],['Turbidity','< 5 NTU'],['E. coli','0 CFU/100ml'],['TDS','< 1000 mg/L'],['Nitrates','< 50 mg/L'],['Fluoride','< 1.5 mg/L'],['Chlorine','0.2 – 0.5 mg/L'],['Temperature','< 25°C']].map(([param, limit]) => (
             <div key={param} className="bg-white dark:bg-gray-800 rounded-lg p-2 border border-blue-100 dark:border-blue-700">
@@ -193,7 +211,7 @@ export default function WaterQuality() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900 z-10">
-              <h3 className="font-bold text-gray-800 dark:text-gray-100">Log Water Quality Test</h3>
+              <h3 className="font-bold text-gray-800 dark:text-gray-100">{s.logTestTitle}</h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">

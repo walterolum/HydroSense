@@ -49,6 +49,7 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 import { ALL_DISTRICTS } from '../../constants/districts';
+import { useTranslations } from '../../hooks/useTranslations';
 const DISTRICTS = ALL_DISTRICTS;
 
 const AVATAR_COLORS: Record<string, string> = {
@@ -89,6 +90,30 @@ const qrUrl = (text: string, size = 200) =>
 export default function UserManagement() {
   const { user: me } = useAuth();
   const isAdmin = me?.role === 'national_admin';
+  const s = useTranslations({
+    title: 'USER MANAGEMENT',
+    subtitle: 'System Users & Role Administration',
+    refresh: 'Refresh',
+    printQR: 'Print QR Cards',
+    addUser: 'Add User',
+    searchPlaceholder: 'Search by name, email, or district...',
+    colUser: 'User',
+    colRole: 'Role',
+    colDistrict: 'District / Org',
+    colContact: 'Contact',
+    colLastLogin: 'Last Login',
+    colStatus: 'Status',
+    colActions: 'Actions',
+    addNewUser: 'Add New User',
+    fullName: 'Full Name',
+    emailAddress: 'Email Address',
+    password: 'New Password (leave blank to keep current)',
+    organization: 'Organization',
+    phone: 'Phone',
+    createUser: 'Create User',
+    resetPassword: 'Reset Password',
+    newPassword: 'New Password',
+  });
 
   const [users,      setUsers]      = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -331,9 +356,9 @@ export default function UserManagement() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Shield size={17} className="text-indigo-300" />
-              <span className="text-indigo-300 text-sm font-semibold tracking-wide">USER MANAGEMENT</span>
+              <span className="text-indigo-300 text-sm font-semibold tracking-wide">{s.title}</span>
             </div>
-            <h2 className="text-2xl font-extrabold">System Users &amp; Role Administration</h2>
+            <h2 className="text-2xl font-extrabold">{s.subtitle}</h2>
             <p className="text-indigo-100 text-sm mt-1">
               {isAdmin
                 ? 'Create accounts, assign roles, manage access, and generate QR credential cards.'
@@ -341,7 +366,7 @@ export default function UserManagement() {
             </p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            <button onClick={load} title="Refresh"
+            <button onClick={load} title={s.refresh}
               className="p-2.5 rounded-xl bg-white/15 border border-white/20 hover:bg-white/25 transition-colors">
               <RefreshCw size={16} className="text-white" />
             </button>
@@ -349,11 +374,11 @@ export default function UserManagement() {
               <>
                 <button onClick={printAll}
                   className="px-4 py-2.5 rounded-xl bg-white/20 border border-white/25 hover:bg-white/30 text-white text-sm font-semibold flex items-center gap-2 transition-colors">
-                  <Printer size={15} /> Print QR Cards
+                  <Printer size={15} /> {s.printQR}
                 </button>
                 <button onClick={openCreate}
                   className="px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg transition-colors">
-                  <Plus size={16} /> Add User
+                  <Plus size={16} /> {s.addUser}
                 </button>
               </>
             )}
@@ -389,7 +414,7 @@ export default function UserManagement() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2 flex-1 min-w-[200px] bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2">
             <Search size={15} className="text-gray-400 flex-shrink-0" />
-            <input type="text" placeholder="Search by name, email, or district..."
+            <input type="text" placeholder={s.searchPlaceholder}
               value={search} onChange={e => setSearch(e.target.value)}
               className="bg-transparent outline-none text-sm text-gray-700 dark:text-gray-300 w-full placeholder-gray-400" />
             {search && (
@@ -424,13 +449,13 @@ export default function UserManagement() {
         <div className="table-container">
           <table className="table">
             <thead><tr>
-              <th className="th">User</th>
-              <th className="th">Role</th>
-              <th className="th">District / Org</th>
-              <th className="th">Contact</th>
-              <th className="th">Last Login</th>
-              <th className="th">Status</th>
-              <th className="th">Actions</th>
+              <th className="th">{s.colUser}</th>
+              <th className="th">{s.colRole}</th>
+              <th className="th">{s.colDistrict}</th>
+              <th className="th">{s.colContact}</th>
+              <th className="th">{s.colLastLogin}</th>
+              <th className="th">{s.colStatus}</th>
+              <th className="th">{s.colActions}</th>
             </tr></thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
               {loading
@@ -587,7 +612,7 @@ export default function UserManagement() {
               style={{ background: 'linear-gradient(135deg,#1e1b4b,#2563eb)' }}>
               <div className="flex items-center gap-2">
                 {editTarget ? <Edit2 size={18} className="text-blue-300" /> : <Plus size={18} className="text-blue-300" />}
-                <span className="font-bold text-white">{editTarget ? `Edit — ${editTarget.name}` : 'Add New User'}</span>
+                <span className="font-bold text-white">{editTarget ? `Edit — ${editTarget.name}` : s.addNewUser}</span>
               </div>
               <button onClick={() => setShowForm(false)} className="text-white/70 hover:text-white text-xl">&times;</button>
             </div>
@@ -607,12 +632,12 @@ export default function UserManagement() {
               {/* Name + Email */}
               <div className="grid grid-cols-1 gap-3">
                 <div>
-                  <label className="label">Full Name *</label>
+                  <label className="label">{s.fullName} *</label>
                   <input className="input" required placeholder="e.g. John Okello"
                     value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Email Address *</label>
+                  <label className="label">{s.emailAddress} *</label>
                   <input className="input" type="email" required placeholder="e.g. john@mwe.go.ug"
                     value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 </div>
@@ -620,7 +645,7 @@ export default function UserManagement() {
 
               {/* Password */}
               <div>
-                <label className="label">{editTarget ? 'New Password (leave blank to keep current)' : 'Password *'}</label>
+                <label className="label">{editTarget ? s.password : 'Password *'}</label>
                 <div className="relative">
                   <input className="input pr-20" type={showPwd ? 'text' : 'password'}
                     required={!editTarget}
@@ -679,12 +704,12 @@ export default function UserManagement() {
               {/* Organization + Phone */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Organization</label>
+                  <label className="label">{s.organization}</label>
                   <input className="input" placeholder="e.g. NEMA Uganda"
                     value={form.organization} onChange={e => setForm({ ...form, organization: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Phone</label>
+                  <label className="label">{s.phone}</label>
                   <input className="input" placeholder="+256..."
                     value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
                 </div>
@@ -697,7 +722,7 @@ export default function UserManagement() {
                   className="flex-1 py-3 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
                   style={{ background: 'linear-gradient(135deg,#1e1b4b,#2563eb)' }}>
                   {saving && <Loader2 size={14} className="animate-spin" />}
-                  {saving ? 'Saving...' : editTarget ? 'Save Changes' : 'Create User'}
+                  {saving ? 'Saving...' : editTarget ? 'Save Changes' : s.createUser}
                 </button>
               </div>
             </form>
@@ -716,7 +741,7 @@ export default function UserManagement() {
               style={{ background: 'linear-gradient(135deg,#78350f,#d97706)' }}>
               <div className="flex items-center gap-2">
                 <Key size={18} className="text-amber-200" />
-                <span className="font-bold text-white">Reset Password</span>
+                <span className="font-bold text-white">{s.resetPassword}</span>
               </div>
               <button onClick={() => setResetTarget(null)} className="text-white/70 hover:text-white text-xl">&times;</button>
             </div>
@@ -733,7 +758,7 @@ export default function UserManagement() {
                 </div>
               )}
               <div>
-                <label className="label">New Password</label>
+                <label className="label">{s.newPassword}</label>
                 <div className="relative">
                   <input className="input pr-20" type={resetShow ? 'text' : 'password'}
                     minLength={6} required

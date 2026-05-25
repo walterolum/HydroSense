@@ -6,8 +6,25 @@ import { Sensor } from '../../types';
 import StatCard from '../../components/common/StatCard';
 import StatusBadge from '../../components/common/StatusBadge';
 import { io } from 'socket.io-client';
+import { useTranslations } from '../../hooks/useTranslations';
 
 export default function SensorsPage() {
+  const s = useTranslations({
+    liveFeed: 'Live Sensor Feed Active',
+    totalSensors: 'Total Sensors',
+    activeSensors: 'Active Sensors',
+    lowBattery: 'Low Battery',
+    offlineSensors: 'Offline Sensors',
+    realtimeFeed: 'Real-time Sensor Feed',
+    liveUpdates: 'Live (updates every 30s)',
+    loadingData: 'Loading sensor data...',
+    readingHistory: '24-Hour Reading History',
+    current: 'Current',
+    battery: 'Battery',
+    signal: 'Signal',
+    minThreshold: 'Min Threshold',
+    maxThreshold: 'Max Threshold',
+  });
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [readings, setReadings] = useState<Record<number, number>>({});
@@ -101,26 +118,26 @@ export default function SensorsPage() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 rounded-full">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm text-green-700 dark:text-green-400 font-medium">Live Sensor Feed Active</span>
+          <span className="text-sm text-green-700 dark:text-green-400 font-medium">{s.liveFeed}</span>
           <span className="badge bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">{liveCount} updates received</span>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Total Sensors" value={stats?.total || 0} subtitle="Deployed across Uganda" icon={Cpu} color="blue" />
-        <StatCard loading={loading} title="Active Sensors" value={stats?.by_status?.find((s: any) => s.status === 'active')?.count || 0} subtitle="Transmitting data" icon={Activity} color="green" />
-        <StatCard loading={loading} title="Low Battery" value={stats?.low_battery || 0} subtitle="Below 20% charge" icon={Battery} color="orange" />
-        <StatCard loading={loading} title="Offline Sensors" value={stats?.offline || 0} subtitle="No signal > 1 hour" icon={Wifi} color="red" />
+        <StatCard loading={loading} title={s.totalSensors} value={stats?.total || 0} subtitle="Deployed across Uganda" icon={Cpu} color="blue" />
+        <StatCard loading={loading} title={s.activeSensors} value={stats?.by_status?.find((s: any) => s.status === 'active')?.count || 0} subtitle="Transmitting data" icon={Activity} color="green" />
+        <StatCard loading={loading} title={s.lowBattery} value={stats?.low_battery || 0} subtitle="Below 20% charge" icon={Battery} color="orange" />
+        <StatCard loading={loading} title={s.offlineSensors} value={stats?.offline || 0} subtitle="No signal > 1 hour" icon={Wifi} color="red" />
       </div>
 
       {/* Real-time Chart */}
       <div className="card">
         <div className="card-header">
-          <h3 className="section-title"><Activity size={18} className="text-blue-600" /> Real-time Sensor Feed</h3>
+          <h3 className="section-title"><Activity size={18} className="text-blue-600" /> {s.realtimeFeed}</h3>
           <div className="text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-2 py-1 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Live (updates every 30s)
+            {s.liveUpdates}
           </div>
         </div>
         {chartData.length > 0 ? (
@@ -137,7 +154,7 @@ export default function SensorsPage() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-40 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Loading sensor data...</div>
+          <div className="h-40 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">{s.loadingData}</div>
         )}
       </div>
 
@@ -200,18 +217,18 @@ export default function SensorsPage() {
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <div className="text-center p-3 bg-blue-50 rounded-lg">
                   <div className="text-xl font-bold text-blue-700">{readings[selectedSensor.id]?.toFixed(2) || '—'}</div>
-                  <div className="text-xs text-gray-500">Current {selectedSensor.unit}</div>
+                  <div className="text-xs text-gray-500">{s.current} {selectedSensor.unit}</div>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded-lg">
                   <div className="text-xl font-bold text-green-700">{selectedSensor.battery_level}%</div>
-                  <div className="text-xs text-gray-500">Battery</div>
+                  <div className="text-xs text-gray-500">{s.battery}</div>
                 </div>
                 <div className="text-center p-3 bg-purple-50 rounded-lg">
                   <div className="text-xl font-bold text-purple-700">{selectedSensor.signal_strength}%</div>
-                  <div className="text-xs text-gray-500">Signal</div>
+                  <div className="text-xs text-gray-500">{s.signal}</div>
                 </div>
               </div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">24-Hour Reading History</h4>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">{s.readingHistory}</h4>
               {sensorHistory.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={sensorHistory}>
@@ -220,8 +237,8 @@ export default function SensorsPage() {
                     <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => [`${v} ${selectedSensor.unit}`, 'Reading']} />
                     <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                    {selectedSensor.min_threshold && <Line type="monotone" dataKey={() => selectedSensor.min_threshold} stroke="#dc2626" strokeDasharray="5 5" strokeWidth={1} name="Min Threshold" dot={false} />}
-                    {selectedSensor.max_threshold && <Line type="monotone" dataKey={() => selectedSensor.max_threshold} stroke="#ea580c" strokeDasharray="5 5" strokeWidth={1} name="Max Threshold" dot={false} />}
+                    {selectedSensor.min_threshold && <Line type="monotone" dataKey={() => selectedSensor.min_threshold} stroke="#dc2626" strokeDasharray="5 5" strokeWidth={1} name={s.minThreshold} dot={false} />}
+                    {selectedSensor.max_threshold && <Line type="monotone" dataKey={() => selectedSensor.max_threshold} stroke="#ea580c" strokeDasharray="5 5" strokeWidth={1} name={s.maxThreshold} dot={false} />}
                   </LineChart>
                 </ResponsiveContainer>
               ) : <div className="h-32 flex items-center justify-center text-gray-400 text-sm">Loading history...</div>}

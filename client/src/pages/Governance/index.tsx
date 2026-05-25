@@ -4,8 +4,26 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { getTransparency, getBudget, getAuditLog, getPerformance, createBudget } from '../../api/client';
 import StatCard from '../../components/common/StatCard';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useTranslations } from '../../hooks/useTranslations';
 
 export default function Governance() {
+  const s = useTranslations({
+    totalBudget: 'Total Budget',
+    spent: 'Spent',
+    utilization: 'Utilization',
+    auditEntries: 'Audit Entries',
+    projectBudgets: 'Project Budgets & Expenditure',
+    addBudget: 'Add Budget',
+    allocated: 'Allocated (UGX)',
+    budgetChart: 'Budget Allocation vs Expenditure (UGX Millions)',
+    reportResolution: 'Community Report Resolution Status',
+    waterPointsDistrict: 'Water Points per District',
+    auditTrail: 'Governance Audit Trail',
+    addBudgetRecord: 'Add Budget Record',
+    projectName: 'Project Name',
+    fundingSource: 'Funding Source',
+    fiscalYear: 'Fiscal Year',
+  });
   const [transparency, setTransparency] = useState<any>(null);
   const [budget, setBudget] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
@@ -51,10 +69,10 @@ export default function Governance() {
       {msg && <div className="bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg text-sm">{msg}</div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Total Budget" value={`UGX ${((budget?.summary?.total_allocated || 0) / 1000000).toFixed(0)}M`} icon={DollarSign} color="blue" />
-        <StatCard loading={loading} title="Spent" value={`UGX ${((budget?.summary?.total_spent || 0) / 1000000).toFixed(0)}M`} icon={DollarSign} color="green" />
-        <StatCard loading={loading} title="Utilization" value={`${budget?.summary?.utilization_pct || 0}%`} icon={Activity} color="purple" />
-        <StatCard loading={loading} title="Audit Entries" value={audit.length} icon={FileText} color="gray" />
+        <StatCard loading={loading} title={s.totalBudget} value={`UGX ${((budget?.summary?.total_allocated || 0) / 1000000).toFixed(0)}M`} icon={DollarSign} color="blue" />
+        <StatCard loading={loading} title={s.spent} value={`UGX ${((budget?.summary?.total_spent || 0) / 1000000).toFixed(0)}M`} icon={DollarSign} color="green" />
+        <StatCard loading={loading} title={s.utilization} value={`${budget?.summary?.utilization_pct || 0}%`} icon={Activity} color="purple" />
+        <StatCard loading={loading} title={s.auditEntries} value={audit.length} icon={FileText} color="gray" />
       </div>
 
       {/* Tabs */}
@@ -71,13 +89,13 @@ export default function Governance() {
         <div className="space-y-6">
           <div className="card p-0">
             <div className="px-5 py-3 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="section-title">Project Budgets & Expenditure</h3>
-              <button onClick={() => setShowModal(true)} className="btn-primary text-xs"><Plus size={14} /> Add Budget</button>
+              <h3 className="section-title">{s.projectBudgets}</h3>
+              <button onClick={() => setShowModal(true)} className="btn-primary text-xs"><Plus size={14} /> {s.addBudget}</button>
             </div>
             <div className="table-container">
               <table className="table">
                 <thead>
-                  <tr><th className="th">Project</th><th className="th">District</th><th className="th">Allocated (UGX)</th><th className="th">Spent (UGX)</th><th className="th">Utilization</th><th className="th">Source</th><th className="th">Status</th></tr>
+                  <tr><th className="th">Project</th><th className="th">District</th><th className="th">{s.allocated}</th><th className="th">Spent (UGX)</th><th className="th">{s.utilization}</th><th className="th">Source</th><th className="th">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {(budget?.data || []).map((b: any) => (
@@ -104,7 +122,7 @@ export default function Governance() {
           </div>
           {budgetChart.length > 0 && (
             <div className="card">
-              <h3 className="section-title mb-4">Budget Allocation vs Expenditure (UGX Millions)</h3>
+              <h3 className="section-title mb-4">{s.budgetChart}</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={budgetChart} margin={{ bottom: 40, left: -10, right: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -134,7 +152,7 @@ export default function Governance() {
             ))}
           </div>
           <div className="card">
-            <h3 className="section-title mb-3">Community Report Resolution Status</h3>
+            <h3 className="section-title mb-3">{s.reportResolution}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {(performance.community_report_resolution || []).map((r: any) => (
                 <div key={r.status} className="p-3 bg-gray-50 rounded-lg text-center">
@@ -151,7 +169,7 @@ export default function Governance() {
       {tab === 'transparency' && transparency && (
         <div className="space-y-6">
           <div className="card">
-            <h3 className="section-title mb-3"><ShieldCheck size={16} className="text-green-600" /> Water Points per District</h3>
+            <h3 className="section-title mb-3"><ShieldCheck size={16} className="text-green-600" /> {s.waterPointsDistrict}</h3>
             <div className="table-container">
               <table className="table">
                 <thead><tr><th className="th">District</th><th className="th">Total</th><th className="th">Functional</th><th className="th">Coverage</th><th className="th">Avg Score</th></tr></thead>
@@ -181,7 +199,7 @@ export default function Governance() {
       {tab === 'audit' && (
         <div className="card p-0">
           <div className="px-5 py-3 border-b border-gray-100">
-            <h3 className="section-title">Governance Audit Trail</h3>
+            <h3 className="section-title">{s.auditTrail}</h3>
           </div>
           <div className="table-container">
             <table className="table">
@@ -212,16 +230,16 @@ export default function Governance() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between">
-              <h3 className="font-semibold">Add Budget Record</h3>
+              <h3 className="font-semibold">{s.addBudgetRecord}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 text-xl">&times;</button>
             </div>
             <form onSubmit={handleBudget} className="p-6 space-y-3">
-              <div><label className="label">Project Name *</label><input className="input" required value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} /></div>
+              <div><label className="label">{s.projectName} *</label><input className="input" required value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="label">District</label><input className="input" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} /></div>
-                <div><label className="label">Allocated (UGX) *</label><input className="input" required type="number" value={form.allocated_amount} onChange={e => setForm({ ...form, allocated_amount: e.target.value })} /></div>
-                <div><label className="label">Funding Source</label><input className="input" value={form.funding_source} onChange={e => setForm({ ...form, funding_source: e.target.value })} /></div>
-                <div><label className="label">Fiscal Year</label><input className="input" value={form.fiscal_year} onChange={e => setForm({ ...form, fiscal_year: e.target.value })} /></div>
+                <div><label className="label">{s.allocated} *</label><input className="input" required type="number" value={form.allocated_amount} onChange={e => setForm({ ...form, allocated_amount: e.target.value })} /></div>
+                <div><label className="label">{s.fundingSource}</label><input className="input" value={form.funding_source} onChange={e => setForm({ ...form, funding_source: e.target.value })} /></div>
+                <div><label className="label">{s.fiscalYear}</label><input className="input" value={form.fiscal_year} onChange={e => setForm({ ...form, fiscal_year: e.target.value })} /></div>
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>

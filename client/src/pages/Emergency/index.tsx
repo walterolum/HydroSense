@@ -7,6 +7,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 const ALERT_TYPES = ['drought','flood','contamination','infrastructure','health','climate','maintenance','security'];
 const SEVERITIES  = ['info','warning','critical','emergency'];
 import { ALL_DISTRICTS } from '../../constants/districts';
+import { useTranslations } from '../../hooks/useTranslations';
 const DISTRICTS = ALL_DISTRICTS;
 
 const severityBg: Record<string,string>   = { emergency:'bg-red-600', critical:'bg-orange-500', warning:'bg-yellow-500', info:'bg-blue-500' };
@@ -14,6 +15,27 @@ const severityCard: Record<string,string> = { emergency:'border-red-500 bg-red-5
 const typeIcon: Record<string,string>     = { drought:'🏜', flood:'🌊', contamination:'☣️', infrastructure:'🏗', health:'🏥', climate:'🌤', maintenance:'🔧', security:'🔒' };
 
 export default function EmergencyCenter() {
+  const s = useTranslations({
+    activeAlerts: 'Active Alerts',
+    emergency: 'Emergency',
+    critical: 'Critical',
+    emergencyHotline: 'Emergency Hotline',
+    emergencyAlerts: 'Emergency & Critical Alerts — Immediate Action Required',
+    acknowledge: 'Acknowledge',
+    resolve: 'Resolve',
+    responseProtocols: 'Emergency Response Protocols',
+    allAlerts: 'All Alerts',
+    createAlert: 'Create Alert',
+    severity: 'Severity',
+    alertType: 'Alert Type',
+    title: 'Title',
+    district: 'District',
+    time: 'Time',
+    createAlertTitle: 'Create Emergency Alert',
+    alertTitle: 'Alert Title',
+    alertMessage: 'Alert Message',
+    sendAlert: 'Send Alert',
+  });
   const [alerts, setAlerts]       = useState<any[]>([]);
   const [allAlerts, setAllAlerts] = useState<any[]>([]);
   const [stats, setStats]         = useState<any>(null);
@@ -82,23 +104,23 @@ export default function EmergencyCenter() {
             <div className="text-red-100 text-sm">{emergency.map(a => a.district).join(' · ')} — Immediate response required</div>
           </div>
           <div className="ml-auto text-right">
-            <div className="text-red-100 text-xs">Emergency Hotline</div>
+            <div className="text-red-100 text-xs">{s.emergencyHotline}</div>
             <div className="font-bold text-lg">0800 100 006</div>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard loading={loading} title="Active Alerts"  value={stats?.total_active || 0} icon={Bell}          color="red"    />
-        <StatCard loading={loading} title="Emergency"      value={emergency.length}          subtitle="Immediate response" icon={AlertTriangle} color="red"    />
-        <StatCard loading={loading} title="Critical"       value={critical.length}           subtitle="Urgent action"      icon={AlertTriangle} color="orange" />
+        <StatCard loading={loading} title={s.activeAlerts}  value={stats?.total_active || 0} icon={Bell}          color="red"    />
+        <StatCard loading={loading} title={s.emergency}      value={emergency.length}          subtitle="Immediate response" icon={AlertTriangle} color="red"    />
+        <StatCard loading={loading} title={s.critical}       value={critical.length}           subtitle="Urgent action"      icon={AlertTriangle} color="orange" />
         <StatCard loading={loading} title="Alert Types"    value={stats?.by_type?.length || 0} subtitle="Categories active" icon={Radio}        color="purple" />
       </div>
 
       {/* Emergency & Critical cards */}
       {(emergency.length > 0 || critical.length > 0) && (
         <div className="space-y-3">
-          <h3 className="section-title"><AlertTriangle size={18} className="text-red-600" /> Emergency & Critical Alerts — Immediate Action Required</h3>
+          <h3 className="section-title"><AlertTriangle size={18} className="text-red-600" /> {s.emergencyAlerts}</h3>
           {[...emergency, ...critical].map(a => (
             <div key={a.id} className={`border-2 rounded-2xl p-4 ${severityCard[a.severity]}`}>
               <div className="flex items-start gap-3">
@@ -116,8 +138,8 @@ export default function EmergencyCenter() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 flex-shrink-0">
-                  <button onClick={() => handleAck(a.id)}     className="btn-secondary text-xs py-1">Acknowledge</button>
-                  <button onClick={() => handleResolve(a.id)} className="btn-success text-xs py-1"><CheckCircle size={12} /> Resolve</button>
+                  <button onClick={() => handleAck(a.id)}     className="btn-secondary text-xs py-1">{s.acknowledge}</button>
+                  <button onClick={() => handleResolve(a.id)} className="btn-success text-xs py-1"><CheckCircle size={12} /> {s.resolve}</button>
                 </div>
               </div>
             </div>
@@ -127,7 +149,7 @@ export default function EmergencyCenter() {
 
       {/* Response Protocols */}
       <div className="card bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
-        <h3 className="section-title mb-3"><Truck size={18} className="text-blue-600" /> Emergency Response Protocols</h3>
+        <h3 className="section-title mb-3"><Truck size={18} className="text-blue-600" /> {s.responseProtocols}</h3>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { icon:'🚛', title:'Water Trucking',  desc:'Deploy emergency water trucks to drought-affected communities', contact:'Call: 0414-660001' },
@@ -150,15 +172,15 @@ export default function EmergencyCenter() {
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
           <div className="flex gap-2">
             <button onClick={() => setTab('active')} className={`px-3 py-1.5 rounded-xl text-sm font-medium ${tab === 'active' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>Active ({alerts.length})</button>
-            <button onClick={() => setTab('all')}    className={`px-3 py-1.5 rounded-xl text-sm font-medium ${tab === 'all'    ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>All Alerts</button>
+            <button onClick={() => setTab('all')}    className={`px-3 py-1.5 rounded-xl text-sm font-medium ${tab === 'all'    ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{s.allAlerts}</button>
           </div>
-          <button onClick={openModal} className="btn-primary text-xs ml-auto"><Plus size={14} /> Create Alert</button>
+          <button onClick={openModal} className="btn-primary text-xs ml-auto"><Plus size={14} /> {s.createAlert}</button>
         </div>
         <div className="table-container">
           <table className="table">
             <thead><tr>
-              <th className="th">Severity</th><th className="th">Type</th><th className="th">Title</th>
-              <th className="th">District</th><th className="th">Status</th><th className="th">Time</th><th className="th">Actions</th>
+              <th className="th">{s.severity}</th><th className="th">{s.alertType}</th><th className="th">{s.title}</th>
+              <th className="th">{s.district}</th><th className="th">Status</th><th className="th">{s.time}</th><th className="th">Actions</th>
             </tr></thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
               {(tab === 'active' ? alerts : allAlerts).map(a => (
@@ -176,7 +198,7 @@ export default function EmergencyCenter() {
                     {a.status === 'active' ? (
                       <div className="flex gap-2">
                         <button onClick={() => handleAck(a.id)}     className="text-xs text-blue-600 hover:underline">Ack</button>
-                        <button onClick={() => handleResolve(a.id)} className="text-xs text-green-600 hover:underline">Resolve</button>
+                        <button onClick={() => handleResolve(a.id)} className="text-xs text-green-600 hover:underline">{s.resolve}</button>
                       </div>
                     ) : (
                       <span className="text-xs text-gray-400">{a.status}</span>
@@ -198,7 +220,7 @@ export default function EmergencyCenter() {
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
               <h3 className="font-bold text-red-700 flex items-center gap-2">
-                <AlertTriangle size={16} /> Create Emergency Alert
+                <AlertTriangle size={16} /> {s.createAlertTitle}
               </h3>
               <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
             </div>
@@ -210,32 +232,32 @@ export default function EmergencyCenter() {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Alert Type</label>
+                  <label className="label">{s.alertType}</label>
                   <select className="input" value={form.alert_type} onChange={e => setForm({ ...form, alert_type: e.target.value })}>
                     {ALERT_TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Severity</label>
+                  <label className="label">{s.severity}</label>
                   <select className="input" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
                     {SEVERITIES.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="label">District</label>
+                  <label className="label">{s.district}</label>
                   <select className="input" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}>
                     {DISTRICTS.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="label">Alert Title *</label>
+                <label className="label">{s.alertTitle} *</label>
                 <input className="input" required value={form.title}
                   onChange={e => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Critical Drought Warning — Moroto" />
               </div>
               <div>
-                <label className="label">Alert Message *</label>
+                <label className="label">{s.alertMessage} *</label>
                 <textarea className="input" required rows={3} value={form.message}
                   onChange={e => setForm({ ...form, message: e.target.value })}
                   placeholder="Describe the situation and required actions..." />

@@ -2,8 +2,19 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { updateProfile, changePassword } from '../api/client';
 import { User, Mail, Phone, MapPin, Shield, Save, Loader2, CheckCircle, AlertCircle, Eye, EyeOff, Lock } from 'lucide-react';
+import { useTranslations } from '../hooks/useTranslations';
 
 export default function Profile() {
+  const s = useTranslations({
+    myProfile: 'My Profile',
+    editProfile: 'Edit Profile',
+    name: 'Name',
+    phone: 'Phone',
+    saveChanges: 'Save Changes',
+    changePassword: 'Change Password',
+    currentPassword: 'Current Password',
+    newPassword: 'New Password',
+  });
   const { user, refreshUser } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -68,7 +79,7 @@ export default function Profile() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Profile</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">{s.myProfile}</h1>
 
       {message && (
         <div className="mb-5 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-sm text-green-700">
@@ -105,27 +116,27 @@ export default function Profile() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Profile</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{s.editProfile}</h3>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Name</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{s.name}</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white" required />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{s.phone}</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white" />
             </div>
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-60">
-              {loading ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Save size={14} /> Save Changes</>}
+              {loading ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : <><Save size={14} /> {s.saveChanges}</>}
             </button>
           </form>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{s.changePassword}</h3>
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Current Password</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{s.currentPassword}</label>
               <div className="relative">
                 <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input type={showPw ? 'text' : 'password'} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full pl-9 pr-10 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white" required />
@@ -133,7 +144,7 @@ export default function Profile() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">New Password</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{s.newPassword}</label>
               <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white" required minLength={6} />
             </div>
             <button type="submit" disabled={loading} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-purple-600 hover:bg-purple-700 flex items-center justify-center gap-2 disabled:opacity-60">
