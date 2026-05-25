@@ -50,6 +50,33 @@ function runMigrations() {
     console.log('[MIGRATION] setup_walter_admin_v1: Walter Olum set as national admin.');
   }
 
+  // Guarantee Walter Olum's credentials are correct (runs once, repairs any bad state)
+  const walterV2 = db.prepare("SELECT name FROM _migrations WHERE name = 'ensure_walter_v2'").get();
+  if (!walterV2) {
+    const bcrypt = require('bcryptjs');
+    const walterEmail = 'walter.olum@hydrosense.ug';
+    const walterHash  = bcrypt.hashSync('walter123', 10);
+    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(walterEmail);
+    if (existing) {
+      // Account exists — reset name, hash, and active flag
+      db.prepare(
+        `UPDATE users SET name='Walter Olum', password_hash=?, role='national_admin',
+         organization='Ministry of Water & Environment', active=1 WHERE email=?`
+      ).run(walterHash, walterEmail);
+    } else {
+      // Account missing — create fresh
+      db.pragma('foreign_keys = OFF');
+      db.prepare("DELETE FROM users WHERE role = 'national_admin'").run();
+      db.pragma('foreign_keys = ON');
+      db.prepare(
+        `INSERT INTO users (name, email, password_hash, role, district, organization, active)
+         VALUES ('Walter Olum', ?, ?, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1)`
+      ).run(walterEmail, walterHash);
+    }
+    db.prepare("INSERT OR IGNORE INTO _migrations (name) VALUES ('ensure_walter_v2')").run();
+    console.log('[MIGRATION] ensure_walter_v2: Walter Olum credentials verified/reset.');
+  }
+
   // One-time: remove all demo/seed users except national_admin accounts
   const v1done = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v1'").get();
   if (!v1done) {
