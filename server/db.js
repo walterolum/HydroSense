@@ -19,6 +19,23 @@ function getDb() {
 
 function runMigrations() {
   const add = sql => { try { db.exec(sql); } catch {} };
+
+  // Migration tracking table — records which one-time migrations have been applied
+  add(`CREATE TABLE IF NOT EXISTS _migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT DEFAULT (datetime('now'))
+  )`);
+
+  // One-time: remove all demo/seed users except national_admin accounts
+  const alreadyDone = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v1'").get();
+  if (!alreadyDone) {
+    db.pragma('foreign_keys = OFF');
+    db.prepare("DELETE FROM users WHERE role != 'national_admin'").run();
+    db.pragma('foreign_keys = ON');
+    db.prepare("INSERT INTO _migrations (name) VALUES ('remove_demo_users_v1')").run();
+    console.log('[MIGRATION] remove_demo_users_v1: all non-admin demo accounts deleted.');
+  }
+
   add(`ALTER TABLE users ADD COLUMN avatar TEXT`);
   add(`ALTER TABLE users ADD COLUMN national_id TEXT`);
   add(`ALTER TABLE users ADD COLUMN otp_verified INTEGER DEFAULT 0`);
