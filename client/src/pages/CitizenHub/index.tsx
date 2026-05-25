@@ -512,8 +512,8 @@ export default function CitizenHub() {
           </div>
 
           {/* Environmental tips */}
-          <div className="card" style={{ background: 'linear-gradient(135deg,#f0fdf4,#ecfeff)', border: '1px solid #bbf7d0' }}>
-            <h3 className="section-title mb-3"><Leaf size={16} className="text-green-600" /> Daily Environmental Tips</h3>
+          <div className="card bg-gradient-to-br from-green-50 to-cyan-50 dark:from-green-900/20 dark:to-cyan-900/20 border border-green-200 dark:border-green-800">
+            <h3 className="section-title mb-3"><Leaf size={16} className="text-green-600 dark:text-green-400" /> Daily Environmental Tips</h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {[
                 '💡 Turn off lights and electronics when not in use to reduce energy consumption.',
@@ -523,8 +523,8 @@ export default function CitizenHub() {
                 '🚶 Walk or cycle for short distances — reduces both emissions and costs.',
                 '🥦 Eat locally grown food when available — reduces transport emissions.',
               ].map((tip, i) => (
-                <div key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <ChevronRight size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
+                <div key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
+                  <ChevronRight size={14} className="text-green-500 dark:text-green-400 mt-0.5 flex-shrink-0" />
                   <span>{tip}</span>
                 </div>
               ))}
