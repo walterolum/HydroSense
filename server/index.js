@@ -83,6 +83,79 @@ if (process.env.RESET_DB === '1') {
   console.log('[RESET] Remove RESET_DB from env variables before next deploy.');
 }
 
+// ── Remove demo accounts, keep national_admin (set CLEAR_DEMO=1, deploy once, remove) ──
+if (process.env.CLEAR_DEMO === '1') {
+  const db = getDb();
+  console.log('[CLEAR_DEMO] Saving admin accounts and wiping all demo data...');
+
+  // Save all national_admin accounts before clearing
+  const admins = db.prepare("SELECT * FROM users WHERE role = 'national_admin'").all();
+
+  // Disable FK checks so we can wipe all tables in any order
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    DELETE FROM citizen_report_tracking;
+    DELETE FROM report_media;
+    DELETE FROM incident_analysis;
+    DELETE FROM task_assignments;
+    DELETE FROM response_tickets;
+    DELETE FROM otp_attempt_log;
+    DELETE FROM otp_delivery_log;
+    DELETE FROM otp_codes;
+    DELETE FROM citizen_reports;
+    DELETE FROM resilience_scores;
+    DELETE FROM maintenance_funds;
+    DELETE FROM budget_records;
+    DELETE FROM governance_audit;
+    DELETE FROM health_incidents;
+    DELETE FROM community_reports;
+    DELETE FROM alerts;
+    DELETE FROM water_quality_tests;
+    DELETE FROM flood_alerts;
+    DELETE FROM drought_index;
+    DELETE FROM climate_readings;
+    DELETE FROM maintenance_requests;
+    DELETE FROM sensor_readings;
+    DELETE FROM sensors;
+    DELETE FROM spare_parts;
+    DELETE FROM water_points;
+    DELETE FROM gwn_reports;
+    DELETE FROM env_incidents;
+    DELETE FROM pollution_hotspots;
+    DELETE FROM agency_assignments;
+    DELETE FROM citizen_discussions;
+    DELETE FROM citizen_replies;
+    DELETE FROM discussion_likes;
+    DELETE FROM volunteer_events;
+    DELETE FROM event_registrations;
+    DELETE FROM citizen_observations;
+    DELETE FROM notification_log;
+    DELETE FROM ai_conversations;
+    DELETE FROM ai_messages;
+    DELETE FROM ai_decision_log;
+    DELETE FROM ai_analytics_cache;
+    DELETE FROM language_corpus;
+    DELETE FROM dialect_patterns;
+    DELETE FROM accent_profiles;
+    DELETE FROM translation_feedback;
+    DELETE FROM offline_queue;
+    DELETE FROM users;
+    DELETE FROM sqlite_sequence;
+  `);
+  db.pragma('foreign_keys = ON');
+
+  // Re-insert the saved admin accounts with their original IDs and passwords intact
+  const ins = db.prepare(`
+    INSERT INTO users (id, name, email, password_hash, role, district, organization, phone, active, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  admins.forEach(a => ins.run(a.id, a.name, a.email, a.password_hash, a.role, a.district, a.organization, a.phone, a.active, a.created_at));
+
+  console.log(`[CLEAR_DEMO] Done. ${admins.length} admin account(s) preserved, all demo data removed.`);
+  admins.forEach(a => console.log(`[CLEAR_DEMO]   Kept: ${a.email} (${a.name})`));
+  console.log('[CLEAR_DEMO] Remove CLEAR_DEMO from env variables before next deploy.');
+}
+
 const app = express();
 const server = http.createServer(app);
 
