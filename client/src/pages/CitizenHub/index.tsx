@@ -512,8 +512,10 @@ export default function CitizenHub() {
           </div>
 
           {/* Environmental tips */}
-          <div className="card bg-gradient-to-br from-green-50 to-cyan-50 dark:from-green-900/20 dark:to-cyan-900/20 border border-green-200 dark:border-green-800">
-            <h3 className="section-title mb-3"><Leaf size={16} className="text-green-600 dark:text-green-400" /> Daily Environmental Tips</h3>
+          <div className="rounded-2xl shadow-sm p-3 sm:p-5 border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/60">
+            <h3 className="text-base font-bold flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
+              <Leaf size={16} className="text-green-600 dark:text-green-400" /> Daily Environmental Tips
+            </h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {[
                 '💡 Turn off lights and electronics when not in use to reduce energy consumption.',
