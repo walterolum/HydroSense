@@ -353,54 +353,47 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   return (
     <div className="space-y-3">
 
-      {/* Language + Video selectors (only in idle/error) */}
+      {/* Language selector */}
       {(phase === 'idle' || phase === 'error') && (
         <div className="flex flex-wrap gap-2 items-center">
           <select
             value={langCode}
             onChange={e => setLangCode(e.target.value)}
-            className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-red-400 max-w-[220px]"
+            className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-red-400 max-w-[230px]"
           >
             {LANGUAGES.map(l => (
               <option key={l.code} value={l.code}>{l.name}</option>
             ))}
           </select>
-
-          <button
-            type="button"
-            onClick={() => setWithVideo(v => !v)}
-            title={withVideo ? 'Disable video recording' : 'Enable video recording'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-              withVideo
-                ? 'bg-purple-600 text-white border-purple-600'
-                : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-600'
-            }`}
-          >
-            {withVideo ? <Video size={13} /> : <VideoOff size={13} />}
-            {withVideo ? 'Video ON' : 'Video OFF'}
-          </button>
-
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-1">
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">
             🤖 Gemini AI · Any Language
           </span>
         </div>
       )}
 
-      {/* IDLE */}
+      {/* IDLE — two prominent action buttons */}
       {phase === 'idle' && (
-        <button
-          type="button"
-          onClick={startRecording}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border-2 border-dashed border-red-400 text-red-600 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
-        >
-          <Mic size={16} />
-          Record Voice
-          {langCode !== 'en' && (
-            <span className="ml-1 text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full font-bold">
-              {lang.name.replace(/^[^\s]+\s/, '')}
-            </span>
-          )}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {/* Voice-only button */}
+          <button
+            type="button"
+            onClick={() => { setWithVideo(false); startRecording(); }}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-red-400 text-red-600 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
+          >
+            <Mic size={18} />
+            Record Voice
+          </button>
+
+          {/* Video + voice button */}
+          <button
+            type="button"
+            onClick={() => { setWithVideo(true); startRecording(); }}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-purple-400 text-purple-600 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-all"
+          >
+            <Video size={18} />
+            Record Video
+          </button>
+        </div>
       )}
 
       {/* RECORDING */}
