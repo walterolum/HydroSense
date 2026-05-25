@@ -35,15 +35,48 @@ const OBS_TYPES = [
 ];
 
 const OBS_LANGS = [
-  { code: 'en-US', srCode: 'en-US', label: 'English'    },
-  { code: 'lg',    srCode: 'lg',    label: 'Luganda'     },
-  { code: 'sw',    srCode: 'sw-KE', label: 'Kiswahili'   },
-  { code: 'nyn',   srCode: 'en-UG', label: 'Runyankore'  },
-  { code: 'ach',   srCode: 'en-UG', label: 'Acholi'      },
-  { code: 'teo',   srCode: 'en-UG', label: 'Ateso'       },
-  { code: 'lgg',   srCode: 'en-UG', label: 'Lugbara'     },
-  { code: 'fr',    srCode: 'fr-FR', label: 'French'      },
-  { code: 'ar',    srCode: 'ar-SA', label: 'Arabic'      },
+  // Official / widely spoken
+  { code: 'en-US', srCode: 'en-US', label: 'English'               },
+  { code: 'sw',    srCode: 'sw-KE', label: 'Kiswahili'             },
+  // Bantu – Central & Southern Uganda
+  { code: 'lg',    srCode: 'lg',    label: 'Luganda (Ganda)'        },
+  { code: 'lsm',   srCode: 'en-UG', label: 'Lumasaba (Gisu)'       },
+  { code: 'lunyole',srCode: 'en-UG', label: 'Lunyole'              },
+  { code: 'lgw',   srCode: 'en-UG', label: 'Lugwere'               },
+  { code: 'sog',   srCode: 'en-UG', label: 'Lusoga (Soga)'         },
+  { code: 'lun',   srCode: 'en-UG', label: 'Lusamia'               },
+  { code: 'lunyala',srCode: 'en-UG', label: 'Lunyala'              },
+  // Bantu – Western Uganda
+  { code: 'nyn',   srCode: 'en-UG', label: 'Runyankore (Nkore)'    },
+  { code: 'cgg',   srCode: 'en-UG', label: 'Rukiga (Chiga)'        },
+  { code: 'nyo',   srCode: 'en-UG', label: 'Runyoro (Nyoro)'       },
+  { code: 'ttj',   srCode: 'en-UG', label: 'Rutooro (Tooro)'       },
+  { code: 'xog',   srCode: 'en-UG', label: 'Lukhonzo (Konjo)'      },
+  { code: 'lubwisi',srCode: 'en-UG', label: 'Lubwisi'              },
+  { code: 'lugungu',srCode: 'en-UG', label: 'Lugungu'              },
+  // Nilotic – Northern Uganda
+  { code: 'ach',   srCode: 'en-UG', label: 'Acholi'                },
+  { code: 'laj',   srCode: 'en-UG', label: 'Langi (Lango)'         },
+  { code: 'alz',   srCode: 'en-UG', label: 'Alur'                  },
+  { code: 'adh',   srCode: 'en-UG', label: 'Jopadhola (Adhola)'    },
+  { code: 'kdi',   srCode: 'en-UG', label: 'Kumam'                 },
+  // Nilotic – Eastern Uganda (Ateker cluster)
+  { code: 'teo',   srCode: 'en-UG', label: 'Ateso (Teso)'          },
+  { code: 'kdj',   srCode: 'en-UG', label: 'Karamojong'            },
+  { code: 'dod',   srCode: 'en-UG', label: 'Dodos (Dodoth)'        },
+  { code: 'jie',   srCode: 'en-UG', label: 'Jie'                   },
+  { code: 'bku',   srCode: 'en-UG', label: 'Bokora'                },
+  { code: 'pok',   srCode: 'en-UG', label: 'Pokot (Upe)'           },
+  { code: 'kpz',   srCode: 'en-UG', label: 'Sabiny (Kupsabiny)'    },
+  // Central Sudanic – West Nile
+  { code: 'lgg',   srCode: 'en-UG', label: 'Lugbara'               },
+  { code: 'mhi',   srCode: 'en-UG', label: 'Ma\'di'                },
+  { code: 'ari',   srCode: 'en-UG', label: 'Aringa'                },
+  { code: 'kke',   srCode: 'en-UG', label: 'Kakwa'                 },
+  { code: 'ndo',   srCode: 'en-UG', label: 'Ndo'                   },
+  // Other
+  { code: 'iqo',   srCode: 'en-UG', label: 'Ik (Teuso)'            },
+  { code: 'nub',   srCode: 'ar-SA', label: 'Kinubi (Nubi Arabic)'   },
 ];
 
 const EVENT_TYPES: Record<string, { label: string; color: string; icon: string }> = {
