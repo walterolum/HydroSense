@@ -433,30 +433,70 @@ async function handleNativeNodeChat(req, res, targetPath) {
     } catch {}
   }
 
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+  const { message = '', history = [], role = 'citizen', district = '' } = req.body || {};
+  const db = getDb();
 
-  const { message, history = [], role = 'citizen', district = '' } = req.body || {};
-  
-  const db = await getDb();
-  let statsStr = "";
+  // ── Pull live system data for context ──
+  let statsStr = '';
+  let healthStr = '';
+  let waterQualityStr = '';
+  let citizenReportStr = '';
   try {
-    const totalWp = await db.prepare("SELECT COUNT(*) as c FROM water_points").get();
-    const funcWp = await db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
-    const alerts = await db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
-    const pending = await db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
-    const unsafe = await db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
-    
-    statsStr = `Current stats: ${totalWp.c} total water points, ${funcWp.c} functional. ` +
-               `${alerts.c} active alerts. ${pending.c} pending maintenance requests. ` +
-               `${unsafe.c} unsafe water quality tests recorded.`;
+    const totalWp  = db.prepare("SELECT COUNT(*) as c FROM water_points").get();
+    const funcWp   = db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+    const alerts   = db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+    const pending  = db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
+    const unsafe   = db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+    statsStr = `Water infrastructure: ${totalWp.c} total water points, ${funcWp.c} functional. ` +
+               `${alerts.c} active alerts. ${pending.c} pending maintenance. ` +
+               `${unsafe.c} unsafe water quality records.`;
+
+    // Health / disease outbreak data
+    const outbreaks = db.prepare(
+      "SELECT disease_type, SUM(cases) as total_cases, SUM(deaths) as total_deaths, COUNT(*) as incidents, " +
+      "GROUP_CONCAT(DISTINCT district) as districts, outbreak_status " +
+      "FROM health_incidents GROUP BY disease_type, outbreak_status ORDER BY total_cases DESC LIMIT 10"
+    ).all();
+    if (outbreaks.length > 0) {
+      healthStr = 'Disease & outbreak data: ' + outbreaks.map(o =>
+        `${o.disease_type} — ${o.total_cases} cases, ${o.total_deaths} deaths across ${o.incidents} incidents in [${o.districts}], status: ${o.outbreak_status}`
+      ).join('; ') + '.';
+    } else {
+      healthStr = 'No disease outbreaks currently recorded in the system.';
+    }
+
+    // Water quality summary
+    const qualSummary = db.prepare(
+      "SELECT parameter_tested, COUNT(*) as tests, SUM(CASE WHEN overall_safe=0 THEN 1 ELSE 0 END) as failed " +
+      "FROM water_quality_tests GROUP BY parameter_tested ORDER BY failed DESC LIMIT 5"
+    ).all();
+    if (qualSummary.length > 0) {
+      waterQualityStr = 'Water quality tests: ' + qualSummary.map(q =>
+        `${q.parameter_tested}: ${q.failed}/${q.tests} failed`
+      ).join(', ') + '.';
+    }
+
+    // Recent citizen reports
+    const reports = db.prepare(
+      "SELECT incident_type, COUNT(*) as c, severity FROM citizen_reports WHERE status='pending' GROUP BY incident_type ORDER BY c DESC LIMIT 5"
+    ).all();
+    if (reports.length > 0) {
+      citizenReportStr = 'Pending citizen reports: ' + reports.map(r => `${r.incident_type} (${r.c})`).join(', ') + '.';
+    }
   } catch (e) {
-    statsStr = "System stats unavailable.";
+    statsStr = 'System stats temporarily unavailable.';
   }
-  
-  const systemPrompt = `You are Hydro AI, the assistant for HYDROSENSE — Uganda's national climate-resilient rural water management platform.\n\n` +
-                       `User role: ${role}. District: ${district || 'National'}.\n` +
-                       `${statsStr}\n\n` +
-                       `Keep responses concise. Use **bold** for key figures.`;
+
+  const systemPrompt =
+    `You are Hydro AI, the intelligent assistant for HYDROSENSE — Uganda's national climate-resilient rural water management platform.\n\n` +
+    `User role: ${role}. District: ${district || 'National'}.\n\n` +
+    `LIVE SYSTEM DATA:\n` +
+    `- ${statsStr}\n` +
+    `- ${healthStr}\n` +
+    (waterQualityStr ? `- ${waterQualityStr}\n` : '') +
+    (citizenReportStr ? `- ${citizenReportStr}\n` : '') +
+    `\nAnswer questions about water infrastructure, disease outbreaks, water quality, climate, and citizen reports using the data above. ` +
+    `Be specific with numbers. Use **bold** for key figures. Keep responses concise and actionable.`;
 
   const contents = [
     { role: "user", parts: [{ text: `[SYSTEM CONTEXT]\n${systemPrompt}\n[/SYSTEM CONTEXT]` }] },
@@ -478,82 +518,131 @@ async function handleNativeNodeChat(req, res, targetPath) {
   };
 
   const isStream = targetPath.includes('/chat/stream');
-  const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
-  const action = isStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
 
-  let response = null;
-  let lastStatus = null;
-  for (const model of GEMINI_MODELS) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}?key=${apiKey}`;
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    lastStatus = response.status;
-    if (response.ok) break;
-    if (response.status === 429 && model !== GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
-      await new Promise(r => setTimeout(r, 800));
-      continue;
-    }
-    break;
-  }
-
-  if (!response.ok) {
-    if (lastStatus === 429) {
-      throw new Error('Hydro AI is temporarily busy. Please wait a moment and try again.');
-    }
-    if (lastStatus === 400) {
-      throw new Error('Invalid request to AI service. Please try rephrasing your question.');
-    }
-    throw new Error(`AI service error (${lastStatus}). Please try again shortly.`);
-  }
-
-  if (isStream) {
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          if (line.includes('[DONE]')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            const textParts = data.candidates?.[0]?.content?.parts;
-            if (textParts && textParts.length > 0) {
-              const textChunk = textParts[0].text;
-              if (textChunk) {
-                res.write('data: ' + JSON.stringify({ type: 'chunk', text: textChunk }) + '\n\n');
-              }
-            }
-          } catch {}
+  // ── Try Gemini (cascade through models) ──
+  let geminiText = null;
+  if (apiKey) {
+    const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+    const action = isStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+    let response = null;
+    for (const model of GEMINI_MODELS) {
+      try {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}?key=${apiKey}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+        );
+        if (response.ok) break;
+        if (response.status === 429 && model !== GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
+          await new Promise(r => setTimeout(r, 800));
+          continue;
         }
-      }
+        break;
+      } catch { break; }
     }
-    res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
-    res.end();
-  } else {
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
-    res.status(200).json({
-      success: true,
-      reply: text,
-      model: "Hydro AI v4.0",
-      source: "gemini"
-    });
+
+    if (response && response.ok) {
+      if (isStream) {
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+              try {
+                const chunk = JSON.parse(line.slice(6));
+                const t = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (t) res.write('data: ' + JSON.stringify({ type: 'chunk', text: t }) + '\n\n');
+              } catch {}
+            }
+          }
+        }
+        res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
+        res.end();
+        return;
+      }
+      const data = await response.json();
+      geminiText = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    }
   }
+
+  // ── DB-only fallback when Gemini unavailable or all models failed ──
+  if (!geminiText) {
+    const msg = message.toLowerCase();
+    const isHealth   = /disease|outbreak|cholera|typhoid|dysentery|health|epidemic|infection|diarr|malaria/.test(msg);
+    const isWater    = /water|borehole|pump|functional|non.functional|quality|contamina/.test(msg);
+    const isMaint    = /maintenance|repair|broken|fix/.test(msg);
+    const isAlert    = /alert|warning|critical|emergency/.test(msg);
+    const isReport   = /report|citizen|complaint/.test(msg);
+
+    let reply = '';
+    try {
+      const db2 = getDb();
+      if (isHealth) {
+        const outbreaks = db2.prepare(
+          "SELECT disease_type, SUM(cases) as c, SUM(deaths) as d, COUNT(*) as incidents, GROUP_CONCAT(DISTINCT district) as districts, outbreak_status " +
+          "FROM health_incidents GROUP BY disease_type ORDER BY c DESC LIMIT 8"
+        ).all();
+        if (outbreaks.length > 0) {
+          reply = `**Disease Outbreak Summary — HYDROSENSE System**\n\n` +
+            outbreaks.map(o =>
+              `- **${o.disease_type}**: ${o.c} cases, ${o.d} deaths across ${o.incidents} incident(s) in ${o.districts} — Status: *${o.outbreak_status}*`
+            ).join('\n') +
+            `\n\n**Action:** Investigate water-source-linked incidents and coordinate with health authorities for affected districts.`;
+        } else {
+          reply = `**No active disease outbreaks** are currently recorded in the HYDROSENSE system.\n\n` +
+            `The system monitors health incidents linked to water sources. All districts appear to be in normal health status at this time.`;
+        }
+      } else if (isWater) {
+        const wp = db2.prepare("SELECT status, COUNT(*) as c FROM water_points GROUP BY status").all();
+        const unsafe2 = db2.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+        reply = `**Water Infrastructure Status**\n\n` +
+          wp.map(w => `- **${w.status}**: ${w.c} water points`).join('\n') +
+          `\n- **Unsafe quality records**: ${unsafe2.c}`;
+      } else if (isMaint) {
+        const maint = db2.prepare("SELECT status, COUNT(*) as c FROM maintenance_requests GROUP BY status").all();
+        reply = `**Maintenance Summary**\n\n` + maint.map(m => `- **${m.status}**: ${m.c} requests`).join('\n');
+      } else if (isAlert) {
+        const alts = db2.prepare("SELECT severity, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY severity ORDER BY c DESC").all();
+        reply = alts.length > 0
+          ? `**Active Alerts**\n\n` + alts.map(a => `- **${a.severity}**: ${a.c}`).join('\n')
+          : `No active alerts in the system.`;
+      } else if (isReport) {
+        const reps = db2.prepare("SELECT incident_type, COUNT(*) as c FROM citizen_reports WHERE status='pending' GROUP BY incident_type ORDER BY c DESC LIMIT 6").all();
+        reply = reps.length > 0
+          ? `**Pending Citizen Reports**\n\n` + reps.map(r => `- **${r.incident_type}**: ${r.c}`).join('\n')
+          : `No pending citizen reports at this time.`;
+      } else {
+        const twp = db2.prepare("SELECT COUNT(*) as c FROM water_points").get();
+        const fwp = db2.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+        const ta  = db2.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+        reply = `**HYDROSENSE System Overview**\n\n` +
+          `- **${twp.c}** total water points · **${fwp.c}** functional\n` +
+          `- **${ta.c}** active alerts\n\n` +
+          `Ask me about water quality, disease outbreaks, maintenance, alerts, or citizen reports.`;
+      }
+    } catch {
+      reply = `I have access to HYDROSENSE water and health data. Ask me about water points, disease outbreaks, water quality, maintenance, or alerts.`;
+    }
+
+    if (isStream) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+      res.write('data: ' + JSON.stringify({ type: 'chunk', text: reply }) + '\n\n');
+      res.write('data: ' + JSON.stringify({ type: 'done' }) + '\n\n');
+      res.end();
+    } else {
+      res.status(200).json({ success: true, reply, model: 'HYDROSENSE DB', source: 'database' });
+    }
+    return;
+  }
+
+  // Gemini succeeded — stream was returned early above; here only non-stream reaches
+  res.status(200).json({ success: true, reply: geminiText, model: 'Hydro AI v4.0', source: 'gemini' });
 }
 
 // ═══════════════════════════════════════════════════════════════
