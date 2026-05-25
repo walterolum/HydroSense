@@ -4,7 +4,7 @@ import { login as apiLogin, getMe } from '../api/client';
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;     // 30-min inactivity for non-remembered sessions
 const WARNING_BEFORE_MS  =  2 * 60 * 1000;
-const REMEMBER_MS        = 30 * 24 * 60 * 60 * 1000; // 30 days
+const REMEMBER_MS        = 365 * 24 * 60 * 60 * 1000; // 365 days (matches server JWT expiry)
 
 // Storage keys
 const K_TOKEN   = 'hs_token';
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = async (email: string, password: string, rememberMe = false) => {
-    const res = await apiLogin(email, password);
+    const res = await apiLogin(email, password, rememberMe);
     const { token: t, user: u } = res.data;
     saveSession(t, u, rememberMe);
     setToken(t);

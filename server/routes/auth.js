@@ -105,7 +105,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
       SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     // Send welcome notification in the background — never blocks the response
@@ -261,7 +261,7 @@ router.post('/verify-otp', async (req, res) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
     SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: '7d' }
   );
 
   res.json({ success: true, verified: true, message: 'Account verified and activated successfully!', token, user: { ...safeUser, otp_verified: 1, active: 1 } });
@@ -314,7 +314,7 @@ router.post('/resend-otp', async (req, res) => {
 
 /* ── Login ── */
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
   if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
 
   const db = await getDb();
@@ -326,14 +326,33 @@ router.post('/login', async (req, res) => {
 
   await db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
 
+  // Long-lived token when user ticks "Remember Me", otherwise 7 days
+  const expiry = rememberMe ? '365d' : '7d';
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
     SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: expiry }
   );
 
   const { password_hash, ...safeUser } = user;
-  res.json({ success: true, token, user: safeUser });
+  res.json({ success: true, token, user: safeUser, expires_in: expiry });
+});
+
+/* ── Refresh token — issues a fresh token for the same user without re-login ── */
+router.post('/refresh', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const user = await db.prepare('SELECT id, name, email, role, district, sub_county, phone, organization, avatar, active FROM users WHERE id = ? AND active = 1').get(req.user.id);
+  if (!user) return res.status(401).json({ success: false, error: 'User account not found or deactivated' });
+
+  const { rememberMe } = req.body;
+  const expiry = rememberMe ? '365d' : '7d';
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
+    SECRET,
+    { expiresIn: expiry }
+  );
+  const { password_hash, ...safeUser } = user;
+  res.json({ success: true, token, user: safeUser, expires_in: expiry });
 });
 
 /* ── Get current user ── */

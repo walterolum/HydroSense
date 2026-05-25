@@ -27,7 +27,7 @@ api.interceptors.response.use(
 export default api;
 
 // Auth
-export const login = (email: string, password: string) => api.post('/auth/login', { email, password });
+export const login = (email: string, password: string, rememberMe = false) => api.post('/auth/login', { email, password, rememberMe });
 export const getMe = () => api.get('/auth/me');
 export const getUsers = () => api.get('/auth/users');
 // Password change (own account)
