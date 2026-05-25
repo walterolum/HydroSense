@@ -111,6 +111,8 @@ export const joinEvent = (id: number) => api.post(`/citizen/events/${id}/join`);
 export const leaveEvent = (id: number) => api.delete(`/citizen/events/${id}/leave`);
 export const getCitizenAchievements = () => api.get('/citizen/achievements');
 export const submitObservation = (data: object) => api.post('/citizen/observations', data);
+export const getObservations = (params?: object) => api.get('/citizen/observations', { params });
+export const updateObservationStatus = (id: number, data: object) => api.patch(`/citizen/observations/${id}/status`, data);
 
 // Governance
 export const getAuditLog = (params?: object) => api.get('/governance/audit', { params });

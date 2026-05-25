@@ -6,6 +6,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const { notifyRoles } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -167,18 +168,80 @@ router.delete('/events/:id/leave', authMiddleware, async (req, res) => {
 /* ─────────────────────────────────────────────────────────────
    CITIZEN OBSERVATIONS (auth required)
 ───────────────────────────────────────────────────────────── */
+// Ensure status column exists
+try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN status TEXT DEFAULT 'new'`); } catch {}
+try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN reviewed_by TEXT`); } catch {}
+try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN review_note TEXT`); } catch {}
+
+// GET /observations — role-filtered list for staff; own observations for citizens
 router.get('/observations', authMiddleware, async (req, res) => {
   const db = await getDb();
-  const rows = await db.prepare(`SELECT * FROM citizen_observations ORDER BY created_at DESC LIMIT 50`).all();
-  res.json({ success: true, data: rows });
+  const { status, district: qDistrict, observation_type, limit = 100 } = req.query;
+  const role = req.user.role;
+  const userDistrict = req.user.district;
+
+  let sql = `SELECT * FROM citizen_observations WHERE 1=1`;
+  const params = [];
+
+  // Citizens only see their own submissions
+  if (role === 'citizen') {
+    sql += ' AND user_id = ?'; params.push(req.user.id);
+  } else if (role !== 'national_admin') {
+    // District-scoped roles only see their district (unless a filter overrides)
+    const d = qDistrict || userDistrict;
+    if (d) { sql += ' AND district = ?'; params.push(d); }
+  } else if (qDistrict) {
+    sql += ' AND district = ?'; params.push(qDistrict);
+  }
+
+  if (status)           { sql += ' AND status = ?';           params.push(status); }
+  if (observation_type) { sql += ' AND observation_type = ?'; params.push(observation_type); }
+
+  sql += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)}`;
+  const rows = db.prepare(sql).all(...params);
+  res.json({ success: true, data: rows, total: rows.length });
 });
 
+// POST /observations — submit new observation + notify staff
 router.post('/observations', authMiddleware, async (req, res) => {
   const db = await getDb();
   const { observation_type, district, location, description, value, unit, lat, lng, photo_base64 } = req.body;
   if (!observation_type || !description) return res.status(400).json({ success: false, error: 'Type and description required' });
-  const r = await db.prepare(`INSERT INTO citizen_observations (user_id, author_name, observation_type, district, location, description, value, unit, lat, lng, photo_base64) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(req.user.id, req.user.name, observation_type, district, location, description, value, unit, lat, lng, photo_base64 || null);
-  res.status(201).json({ success: true, id: r.lastInsertRowid });
+
+  const r = db.prepare(
+    `INSERT INTO citizen_observations (user_id, author_name, observation_type, district, location, description, value, unit, lat, lng, photo_base64, status)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,'new')`
+  ).run(req.user.id, req.user.name, observation_type, district, location, description, value, unit, lat, lng, photo_base64 || null);
+
+  // Determine which roles to notify based on observation type
+  const obsLower = (observation_type || '').toLowerCase();
+  const roles = ['district_officer'];
+  if (/fish|health|disease|dead|contamin|algae/.test(obsLower)) roles.push('health_officer');
+  if (/flood|overflow|climate|discharge|industrial/.test(obsLower)) roles.push('climate_scientist');
+  if (/dump|illegal|oil|pollution/.test(obsLower)) roles.push('ngo_officer');
+
+  try {
+    notifyRoles(
+      [...new Set(roles)], district,
+      `New environmental observation: ${observation_type}`,
+      `${req.user.name} reported a ${observation_type} in ${district}${location ? ' (' + location + ')' : ''}. Review required.`,
+      'citizen_observation', r.lastInsertRowid
+    );
+  } catch {}
+
+  res.status(201).json({ success: true, id: r.lastInsertRowid, message: 'Observation submitted. Relevant officers have been notified.' });
+});
+
+// PATCH /observations/:id/status — staff review action
+router.patch('/observations/:id/status', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { status, review_note } = req.body;
+  const valid = ['new', 'under_review', 'resolved', 'escalated'];
+  if (!valid.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
+  db.prepare(
+    `UPDATE citizen_observations SET status=?, reviewed_by=?, review_note=? WHERE id=?`
+  ).run(status, req.user.name, review_note || null, req.params.id);
+  res.json({ success: true });
 });
 
 /* ─────────────────────────────────────────────────────────────
