@@ -27,6 +27,27 @@ const DISC_CATS = [
   { value: 'general',     label: '💬 General',         color: '#64748b' },
 ];
 
+const UGANDA_DISTRICTS = [
+  'Abim','Adjumani','Agago','Alebtong','Amolatar','Amudat','Amuria','Amuru',
+  'Apac','Arua','Budaka','Bududa','Bugiri','Bugweri','Buikwe','Bukedea',
+  'Bukwa','Bulambuli','Buliisa','Bundibugyo','Bunyangabu','Bukomansimbi',
+  'Bushenyi','Busia','Butebo','Buvuma','Buyende','Dokolo','Gomba','Gulu',
+  'Hoima','Ibanda','Iganga','Isingiro','Jinja','Kaabong','Kabale','Kabarole',
+  'Kaberamaido','Kagadi','Kakumiro','Kalaki','Kalangala','Kaliro','Kalungu',
+  'Kampala','Kamuli','Kamwenge','Kanungu','Kapelebyong','Kapchorwa','Kasanda',
+  'Kasese','Katakwi','Kayunga','Kiboga','Kibuku','Kikuube','Kiryandongo',
+  'Kisoro','Kitgum','Koboko','Kole','Kotido','Kumi','Kwania','Kween',
+  'Kyankwanzi','Kyegegwa','Kyenjojo','Lamwo','Lira','Luuka','Luwero',
+  'Lwengo','Lyantonde','Madi-Okollo','Manafwa','Maracha','Masaka','Masindi',
+  'Mayuge','Mbale','Mbarara','Mitooma','Mityana','Moroto','Moyo','Mpigi',
+  'Mubende','Mukono','Nabilatuk','Nakapiripirit','Nakaseke','Nakasongola',
+  'Namayingo','Namisindwa','Namutumba','Napak','Nebbi','Ngora','Ntoroko',
+  'Ntungamo','Nwoya','Obongi','Omoro','Otuke','Oyam','Pader','Pakwach',
+  'Pallisa','Rakai','Rubanda','Rubirizi','Rukiga','Rukungiri','Rwampara',
+  'Sembabule','Serere','Sheema','Sironko','Soroti','Terego','Tororo',
+  'Wakiso','Yumbe','Zombo',
+];
+
 const OBS_TYPES = [
   '💧 Water Color/Clarity', '🐟 Dead Fish / Wildlife',
   '🏭 Industrial Discharge', '🌿 Algae Bloom',
@@ -156,7 +177,7 @@ export default function CitizenHub() {
   const [events,    setEvents]    = useState<any[]>([]);
   const [evLoad,    setEvLoad]    = useState(false);
   const [showNewEv, setShowNewEv] = useState(false);
-  const [evForm,    setEvForm]    = useState({ title:'', description:'', location:'', district:'Gulu', event_date:'', event_time:'09:00', event_type:'cleanup', max_volunteers:'50' });
+  const [evForm,    setEvForm]    = useState({ title:'', description:'', location:'', district:'Kampala', event_date:'', event_time:'09:00', event_type:'cleanup', max_volunteers:'50' });
   const [evSaving,  setEvSaving]  = useState(false);
   const [evMsg,     setEvMsg]     = useState('');
   const [joiningEv, setJoiningEv] = useState<Record<number,boolean>>({});
@@ -167,7 +188,7 @@ export default function CitizenHub() {
 
   /* observation */
   const [showObs,   setShowObs]   = useState(false);
-  const [obsForm,   setObsForm]   = useState({ observation_type: OBS_TYPES[0], district:'Gulu', location:'', description:'', lat: null as number|null, lng: null as number|null });
+  const [obsForm,   setObsForm]   = useState({ observation_type: OBS_TYPES[0], district:'Kampala', location:'', description:'', lat: null as number|null, lng: null as number|null });
   const [obsSaving, setObsSaving] = useState(false);
   const [obsMsg,    setObsMsg]    = useState('');
   const obsFileRef    = useRef<HTMLInputElement>(null);
@@ -910,7 +931,7 @@ export default function CitizenHub() {
                     </select></div>
                   <div><label className="label">District</label>
                     <select className="input" value={evForm.district} onChange={e => setEvForm(f => ({ ...f, district: e.target.value }))}>
-                      {['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'].map(d => <option key={d}>{d}</option>)}
+                      {UGANDA_DISTRICTS.map(d => <option key={d}>{d}</option>)}
                     </select></div>
                   <div><label className="label">Date *</label><input type="date" className="input" required value={evForm.event_date} onChange={e => setEvForm(f => ({ ...f, event_date: e.target.value }))} /></div>
                   <div><label className="label">Time</label><input type="time" className="input" value={evForm.event_time} onChange={e => setEvForm(f => ({ ...f, event_time: e.target.value }))} /></div>
@@ -1108,7 +1129,7 @@ export default function CitizenHub() {
               <div>
                 <label className="label">District</label>
                 <select className="input" value={obsForm.district} onChange={e => setObsForm(f => ({ ...f, district: e.target.value }))}>
-                  {['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'].map(d => <option key={d}>{d}</option>)}
+                  {UGANDA_DISTRICTS.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
               <div>
