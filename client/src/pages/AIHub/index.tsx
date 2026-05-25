@@ -130,61 +130,92 @@ function AIRecovery() {
 /* ════════════════════════════════════════════
    Live Intelligence Tab
 ════════════════════════════════════════════ */
-function LiveIntelligenceTab() {
-  const [liveRisk, setLiveRisk] = useState<any>(null);
+function LiveIntelligenceTab({ dashboard }: { dashboard: AIDashboard | null }) {
+  const [liveRisk, setLiveRisk]       = useState<any>(null);
   const [districtRisks, setDistrictRisks] = useState<any[]>([]);
-  const [heatmap, setHeatmap] = useState<any[]>([]);
-  const [insights, setInsights] = useState<any>(null);
-  const [riskIndex, setRiskIndex] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [heatmap, setHeatmap]         = useState<any[]>([]);
+  const [insights, setInsights]       = useState<any>(null);
+  const [riskIndex, setRiskIndex]     = useState<any>(null);
+  const [loading, setLoading]         = useState(true);
+  const [retrying, setRetrying]       = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      getLiveRiskSummary(), getDistrictRiskSummaries(),
-      getRiskHeatmap(), getOperationalInsights(), getEnvironmentalRiskIndex(),
-    ]).then(([lr, dr, hm, oi, ri]) => {
-      setLiveRisk(lr.data?.live_summary);
-      setDistrictRisks(dr.data?.summaries || []);
-      setHeatmap(hm.data?.heatmap || []);
-      setInsights(oi.data?.insights);
-      setRiskIndex(ri.data?.risk_index);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  const load = async () => {
+    setRetrying(true);
+    try {
+      const [lr, dr, hm, oi, ri] = await Promise.all([
+        getLiveRiskSummary(), getDistrictRiskSummaries(),
+        getRiskHeatmap(), getOperationalInsights(), getEnvironmentalRiskIndex(),
+      ]);
+      if (lr.data?.live_summary)   setLiveRisk(lr.data.live_summary);
+      if (dr.data?.summaries?.length) setDistrictRisks(dr.data.summaries);
+      if (hm.data?.heatmap?.length)   setHeatmap(hm.data.heatmap);
+      if (oi.data?.insights)       setInsights(oi.data.insights);
+      if (ri.data?.risk_index)     setRiskIndex(ri.data.risk_index);
+    } catch {}
+    finally { setLoading(false); setRetrying(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  // Build fallback data from the parent's already-loaded dashboard stats
+  const aiSum    = (dashboard as any)?.ai_summary   || {};
+  const sysStats = (dashboard as any)?.system_stats || {};
+  const effectiveLiveRisk = liveRisk ?? {
+    overall_alert_level:      (aiSum.critical_failure_risk ?? 0) > 0 ? 'high' : 'normal',
+    critical_alerts:          aiSum.critical_failure_risk    ?? 0,
+    high_risk_water_points:   aiSum.high_failure_risk        ?? 0,
+    contamination_events_30d: aiSum.contamination_hotspots   ?? 0,
+    drought_affected_districts: 0,
+    active_outbreaks:         0,
+    pending_citizen_reports:  sysStats.pending_reports       ?? 0,
+    generated_at:             new Date().toISOString(),
+  };
+  const effectiveInsights = insights ?? (sysStats.total_water_points != null ? {
+    total_water_points: sysStats.total_water_points  ?? 0,
+    functionality_rate: sysStats.functionality_rate  ?? 0,
+    active_alerts:      sysStats.active_alerts       ?? 0,
+    pending_maintenance:sysStats.pending_maintenance  ?? 0,
+  } : null);
 
   if (loading) return <div className="text-center py-12 text-gray-400">Loading live intelligence...</div>;
 
   const alertColors: Record<string, string> = {
     critical: 'bg-red-500', high: 'bg-orange-500', elevated: 'bg-yellow-500', normal: 'bg-green-500',
   };
+  const level = effectiveLiveRisk.overall_alert_level;
 
   return (
     <div className="space-y-5">
       {/* Overall Alert Level */}
-      {liveRisk && (
-        <div className={`card border-l-4 ${liveRisk.overall_alert_level === 'critical' ? 'border-l-red-500' : liveRisk.overall_alert_level === 'high' ? 'border-l-orange-500' : liveRisk.overall_alert_level === 'elevated' ? 'border-l-yellow-500' : 'border-l-green-500'}`}>
+      <div className={`card border-l-4 ${level === 'critical' ? 'border-l-red-500' : level === 'high' ? 'border-l-orange-500' : level === 'elevated' ? 'border-l-yellow-500' : 'border-l-green-500'}`}>
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${alertColors[liveRisk.overall_alert_level] || 'bg-gray-400'} animate-pulse`} />
+            <div className={`w-3 h-3 rounded-full ${alertColors[level] || 'bg-gray-400'} animate-pulse`} />
             <div>
               <div className="text-sm font-bold uppercase text-gray-700 dark:text-gray-300">
-                System Status: {liveRisk.overall_alert_level}
+                System Status: {level}
               </div>
-              <div className="text-xs text-gray-400">Updated {new Date(liveRisk.generated_at).toLocaleString()}</div>
+              <div className="text-xs text-gray-400">
+                Updated {new Date(effectiveLiveRisk.generated_at).toLocaleString()}
+              </div>
             </div>
           </div>
+          <button onClick={load} disabled={retrying}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+            <RefreshCw size={14} className={retrying ? 'animate-spin' : ''} />
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Live Risk KPI Cards */}
-      {liveRisk && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-          <AIStatCard label="Critical Alerts" value={liveRisk.critical_alerts} icon={AlertTriangle} color="#dc2626" />
-          <AIStatCard label="High Risk WPs" value={liveRisk.high_risk_water_points} icon={Droplets} color="#ea580c" />
-          <AIStatCard label="Contamination (30d)" value={liveRisk.contamination_events_30d} icon={TestTube} color="#d97706" />
-          <AIStatCard label="Drought Districts" value={liveRisk.drought_affected_districts} icon={CloudRain} color="#b45309" />
-          <AIStatCard label="Active Outbreaks" value={liveRisk.active_outbreaks} icon={Activity} color="#dc2626" />
-          <AIStatCard label="Pending Reports" value={liveRisk.pending_citizen_reports} icon={FileText} color="#2563eb" />
-        </div>
-      )}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <AIStatCard label="Critical Alerts"      value={effectiveLiveRisk.critical_alerts}           icon={AlertTriangle} color="#dc2626" />
+        <AIStatCard label="High Risk WPs"        value={effectiveLiveRisk.high_risk_water_points}    icon={Droplets}      color="#ea580c" />
+        <AIStatCard label="Contamination (30d)"  value={effectiveLiveRisk.contamination_events_30d}  icon={TestTube}      color="#d97706" />
+        <AIStatCard label="Drought Districts"    value={effectiveLiveRisk.drought_affected_districts} icon={CloudRain}    color="#b45309" />
+        <AIStatCard label="Active Outbreaks"     value={effectiveLiveRisk.active_outbreaks}          icon={Activity}      color="#dc2626" />
+        <AIStatCard label="Pending Reports"      value={effectiveLiveRisk.pending_citizen_reports}   icon={FileText}      color="#2563eb" />
+      </div>
 
       {/* Environmental Risk Index */}
       {riskIndex && (
@@ -210,12 +241,12 @@ function LiveIntelligenceTab() {
       )}
 
       {/* Operational Insights */}
-      {insights && (
+      {effectiveInsights && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <AIStatCard label="Total Water Points" value={insights.total_water_points} icon={Droplets} color="#2563eb" />
-          <AIStatCard label="Functionality Rate" value={`${insights.functionality_rate}%`} icon={Activity} color="#16a34a" />
-          <AIStatCard label="Active Alerts" value={insights.active_alerts} icon={AlertTriangle} color="#ea580c" />
-          <AIStatCard label="Pending Maintenance" value={insights.pending_maintenance} icon={Wrench} color="#d97706" />
+          <AIStatCard label="Total Water Points"  value={effectiveInsights.total_water_points}  icon={Droplets}       color="#2563eb" />
+          <AIStatCard label="Functionality Rate"  value={`${effectiveInsights.functionality_rate}%`} icon={Activity} color="#16a34a" />
+          <AIStatCard label="Active Alerts"       value={effectiveInsights.active_alerts}       icon={AlertTriangle}  color="#ea580c" />
+          <AIStatCard label="Pending Maintenance" value={effectiveInsights.pending_maintenance}  icon={Wrench}        color="#d97706" />
         </div>
       )}
 
@@ -273,12 +304,12 @@ function LiveIntelligenceTab() {
           <h3 className="section-title mb-4"><Layers size={16} className="text-blue-600" /> High-Risk Water Points</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {heatmap.filter(h => h.risk_level !== 'low').slice(0, 12).map(h => (
-              <div key={`${h.district}-${h.water_point_id || h.name}`} className={`p-3 rounded-xl border ${h.risk_level === 'critical' ? 'border-red-200 bg-red-50' : h.risk_level === 'high' ? 'border-orange-200 bg-orange-50' : 'border-yellow-200 bg-yellow-50'}`}>
-                <div className="font-semibold text-sm text-gray-800">{h.name || h.district}</div>
+              <div key={`${h.district}-${h.water_point_id || h.name}`} className={`p-3 rounded-xl border ${h.risk_level === 'critical' ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20' : h.risk_level === 'high' ? 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20' : 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20'}`}>
+                <div className="font-semibold text-sm text-gray-800 dark:text-gray-100">{h.name || h.district}</div>
                 <div className="text-xs text-gray-500 mt-0.5">Risk: {h.risk_score} · {h.risk_level}</div>
                 <div className="flex gap-2 mt-1">
-                  <span className="text-[10px] bg-white px-1.5 py-0.5 rounded">{h.alert_count} alerts</span>
-                  <span className="text-[10px] bg-white px-1.5 py-0.5 rounded">{h.recent_reports} reports</span>
+                  <span className="text-[10px] bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded">{h.alert_count} alerts</span>
+                  <span className="text-[10px] bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded">{h.recent_reports} reports</span>
                 </div>
               </div>
             ))}
@@ -1136,7 +1167,7 @@ export default function AIHub() {
       {/* ═══════════════════════════════════════════
           Live Intelligence Tab
          ═══════════════════════════════════════════ */}
-      {tab === 'Live Intelligence' && <LiveIntelligenceTab />}
+      {tab === 'Live Intelligence' && <LiveIntelligenceTab dashboard={dashboard} />}
 
       {/* ═══════════════════════════════════════════
           Decision Support Tab

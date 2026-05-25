@@ -692,6 +692,127 @@ async function proxyToAI(req, res, targetPath) {
 app.all('/api/ai/health', (req, res) => proxyToAI(req, res, '/ai/health'));
 app.all('/api/ai/system/ping', (req, res) => proxyToAI(req, res, '/ai/system/ping'));
 
+// ══════════════════════════════════════════════════════════════════
+// LIVE INTELLIGENCE FALLBACKS — query DB directly, no Python needed
+// ══════════════════════════════════════════════════════════════════
+
+async function fetchBaseStats(district) {
+  const db = await getDb();
+  const p = district ? [district] : [];
+  const w = district ? 'WHERE district = ?' : '';
+  const wAnd = district ? 'AND district = ?' : '';
+  try {
+    const totalWp    = db.prepare(`SELECT COUNT(*) as c FROM water_points ${w}`).get(...p);
+    const funcWp     = db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status='functional' ${wAnd}`).get(...p);
+    const nonFuncWp  = db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status!='functional' ${wAnd}`).get(...p);
+    const critAlerts = db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE severity='critical' AND status='active' ${wAnd}`).get(...p);
+    const allAlerts  = db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE status='active' ${wAnd}`).get(...p);
+    const pendMaint  = db.prepare(`SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending' ${wAnd}`).get(...p);
+    const unsafeQ    = db.prepare(`SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0 ${wAnd}`).get(...p);
+    const pendRep    = db.prepare(`SELECT COUNT(*) as c FROM citizen_reports WHERE status='pending' ${wAnd}`).get(...p);
+    return {
+      total: totalWp.c, func: funcWp.c, nonFunc: nonFuncWp.c,
+      critAlerts: critAlerts.c, allAlerts: allAlerts.c,
+      pendMaint: pendMaint.c, unsafeQ: unsafeQ.c, pendRep: pendRep.c,
+    };
+  } catch {
+    return { total: 0, func: 0, nonFunc: 0, critAlerts: 0, allAlerts: 0, pendMaint: 0, unsafeQ: 0, pendRep: 0 };
+  }
+}
+
+app.get('/api/ai/decision/operational-insights', authMiddleware, async (req, res) => {
+  try {
+    const s = await fetchBaseStats(req.query.district || null);
+    const funcRate = s.total > 0 ? Math.round((s.func / s.total) * 100) : 0;
+    res.json({ status: 'ok', insights: { total_water_points: s.total, functionality_rate: funcRate, active_alerts: s.allAlerts, pending_maintenance: s.pendMaint } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ai/risk/live-summary', authMiddleware, async (req, res) => {
+  try {
+    const s = await fetchBaseStats(null);
+    const level = s.critAlerts >= 5 ? 'critical' : s.critAlerts > 0 ? 'high' : s.allAlerts > 10 ? 'elevated' : 'normal';
+    res.json({ status: 'ok', live_summary: {
+      overall_alert_level: level,
+      critical_alerts: s.critAlerts,
+      high_risk_water_points: s.nonFunc,
+      contamination_events_30d: s.unsafeQ,
+      drought_affected_districts: 0,
+      active_outbreaks: 0,
+      pending_citizen_reports: s.pendRep,
+      generated_at: new Date().toISOString(),
+    }});
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ai/risk/district-summaries', authMiddleware, async (req, res) => {
+  try {
+    const db = await getDb();
+    const districts = db.prepare(`
+      SELECT district,
+        COUNT(*) as total,
+        SUM(CASE WHEN status='functional' THEN 1 ELSE 0 END) as functional
+      FROM water_points GROUP BY district ORDER BY district
+    `).all();
+    const alertRows = db.prepare(`SELECT district, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY district`).all();
+    const alertMap  = Object.fromEntries(alertRows.map(r => [r.district, r.c]));
+    const maintRows = db.prepare(`SELECT district, COUNT(*) as c FROM maintenance_requests WHERE status='pending' GROUP BY district`).all();
+    const maintMap  = Object.fromEntries(maintRows.map(r => [r.district, r.c]));
+
+    const summaries = districts.map(d => {
+      const funcPct    = d.total > 0 ? (d.functional / d.total) * 100 : 100;
+      const infraRisk  = Math.round(100 - funcPct);
+      const alertRisk  = Math.min((alertMap[d.district] || 0) * 15, 100);
+      const qualRisk   = Math.min((maintMap[d.district] || 0) * 8, 100);
+      const overall    = Math.round(infraRisk * 0.45 + alertRisk * 0.35 + qualRisk * 0.20);
+      const risk_level = overall >= 75 ? 'critical' : overall >= 50 ? 'high' : overall >= 25 ? 'medium' : 'low';
+      return {
+        district: d.district, overall_risk: overall, risk_level,
+        water_security_score: Math.round(funcPct),
+        components: { water_quality_risk: alertRisk, infrastructure_risk: infraRisk, climate_risk: 25, health_risk: qualRisk, community_risk: 20 },
+      };
+    });
+    res.json({ status: 'ok', summaries });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ai/risk/heatmap', authMiddleware, async (req, res) => {
+  try {
+    const db = await getDb();
+    const district = req.query.district || null;
+    const rows = db.prepare(`
+      SELECT wp.id, wp.name, wp.district, wp.status,
+        (SELECT COUNT(*) FROM alerts a WHERE a.water_point_id = wp.id AND a.status='active') as alert_count,
+        (SELECT COUNT(*) FROM citizen_reports cr WHERE cr.district = wp.district AND cr.created_at > datetime('now','-30 days')) as recent_reports
+      FROM water_points wp
+      ${district ? 'WHERE wp.district = ?' : ''}
+      ORDER BY alert_count DESC, recent_reports DESC LIMIT 30
+    `).all(...(district ? [district] : []));
+
+    const heatmap = rows.map(r => {
+      const infraPenalty = r.status !== 'functional' ? 40 : 0;
+      const risk_score   = Math.min(infraPenalty + r.alert_count * 20 + r.recent_reports * 5, 100);
+      const risk_level   = risk_score >= 75 ? 'critical' : risk_score >= 50 ? 'high' : risk_score >= 25 ? 'medium' : 'low';
+      return { water_point_id: r.id, name: r.name, district: r.district, risk_score, risk_level, alert_count: r.alert_count, recent_reports: r.recent_reports };
+    });
+    res.json({ status: 'ok', heatmap });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ai/risk/environmental-index', authMiddleware, async (req, res) => {
+  try {
+    const s = await fetchBaseStats(req.query.district || null);
+    const funcPct   = s.total > 0 ? (s.func / s.total) * 100 : 100;
+    const infraRisk = Math.round(100 - funcPct);
+    const alertRisk = Math.min(s.allAlerts * 5, 100);
+    const qualRisk  = Math.min(s.unsafeQ * 10, 100);
+    const commRisk  = Math.min(s.pendRep * 5, 100);
+    const overall   = Math.round(infraRisk * 0.35 + alertRisk * 0.25 + qualRisk * 0.25 + commRisk * 0.15);
+    const risk_level = overall >= 75 ? 'critical' : overall >= 50 ? 'high' : overall >= 25 ? 'medium' : 'low';
+    res.json({ status: 'ok', risk_index: { overall_risk_score: overall, risk_level, components: { infrastructure: infraRisk, water_quality: qualRisk, alerts: alertRisk, community: commRisk, climate: 25 } } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Native Node.js report generation (Gemini + DB — no Python service needed) ──
 app.post('/api/ai/reports/generate', authMiddleware, async (req, res) => {
   try {
