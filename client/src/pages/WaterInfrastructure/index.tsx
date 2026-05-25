@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Droplets, Filter, Plus, MapPin, Search, Users, Zap, Clock } from 'lucide-react';
+import { Droplets, Plus, MapPin, Search, Users, Zap, Clock } from 'lucide-react';
 import { getWaterPoints, getWaterPointStats, createWaterPoint } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { WaterPoint } from '../../types';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
@@ -16,8 +17,33 @@ const TYPES = ['All', 'borehole', 'spring', 'shallow_well', 'piped_scheme', 'rai
 // Roles permitted to create / add new water points
 const CAN_ADD_ROLES = ['national_admin', 'district_officer', 'technician'];
 
+const WI_STRINGS = [
+  'Total Water Points','Avg Infrastructure Score','Total Beneficiaries','Non-functional',
+  'Search water points...','Table','Map','Add Water Point',
+  'Loading...','water points',
+  'Name & Location','Type','Status','Beneficiaries','Infra Score','Pump / Solar','Last Maintained','Action',
+  'No water points found matching filters.',
+  'Water Points by District',
+  'Add New Water Point','Cancel','Saving...','Solar Powered',
+  'View',
+];
+
+function useWIStrings() {
+  const { language, translate } = useLanguage();
+  const cacheRef = useRef<Record<string, Record<string,string>>>({});
+  const [ts, setTs] = useState<Record<string,string>>({});
+  useEffect(() => {
+    if (language === 'en') { setTs({}); return; }
+    if (cacheRef.current[language]) { setTs(cacheRef.current[language]); return; }
+    Promise.all(WI_STRINGS.map(s => translate(s).then(tr => [s,tr] as [string,string])))
+      .then(pairs => { const m = Object.fromEntries(pairs); cacheRef.current[language]=m; setTs(m); });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (s: string) => ts[s] || s;
+}
+
 export default function WaterInfrastructure() {
   const { user } = useAuth();
+  const t = useWIStrings();
   const canAdd = CAN_ADD_ROLES.includes(user?.role || '');
   const [wps, setWps] = useState<WaterPoint[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -70,10 +96,10 @@ export default function WaterInfrastructure() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Total Water Points" value={stats.total} icon={Droplets} color="blue" />
-          <StatCard title="Avg Infrastructure Score" value={`${stats.avg_infrastructure_score}/100`} icon={Zap} color="cyan" />
-          <StatCard title="Total Beneficiaries" value={(stats.total_beneficiaries || 0).toLocaleString()} icon={Users} color="green" />
-          <StatCard title="Non-functional" value={stats.by_status?.find((s: any) => s.status === 'non_functional')?.count || 0} icon={Clock} color="red" />
+          <StatCard title={t('Total Water Points')} value={stats.total} icon={Droplets} color="blue" />
+          <StatCard title={t('Avg Infrastructure Score')} value={`${stats.avg_infrastructure_score}/100`} icon={Zap} color="cyan" />
+          <StatCard title={t('Total Beneficiaries')} value={(stats.total_beneficiaries || 0).toLocaleString()} icon={Users} color="green" />
+          <StatCard title={t('Non-functional')} value={stats.by_status?.find((s: any) => s.status === 'non_functional')?.count || 0} icon={Clock} color="red" />
         </div>
       )}
 
@@ -82,7 +108,7 @@ export default function WaterInfrastructure() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input className="input pl-9" placeholder="Search water points..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="input pl-9" placeholder={t('Search water points...')} value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <select className="input w-auto" value={district} onChange={e => setDistrict(e.target.value)}>
             {DISTRICTS.map(d => <option key={d}>{d}</option>)}
@@ -94,12 +120,12 @@ export default function WaterInfrastructure() {
             {TYPES.map(t => <option key={t} value={t}>{t === 'All' ? 'All Types' : t.replace(/_/g, ' ')}</option>)}
           </select>
           <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-            <button onClick={() => setView('table')} className={`px-3 py-2 text-sm ${view === 'table' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>Table</button>
-            <button onClick={() => setView('map')} className={`px-3 py-2 text-sm ${view === 'map' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>Map</button>
+            <button onClick={() => setView('table')} className={`px-3 py-2 text-sm ${view === 'table' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>{t('Table')}</button>
+            <button onClick={() => setView('map')} className={`px-3 py-2 text-sm ${view === 'map' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>{t('Map')}</button>
           </div>
           {canAdd && (
             <button onClick={() => setShowModal(true)} className="btn-primary ml-auto">
-              <Plus size={16} /> Add Water Point
+              <Plus size={16} /> {t('Add Water Point')}
             </button>
           )}
         </div>
@@ -117,21 +143,21 @@ export default function WaterInfrastructure() {
         <div className="card p-0">
           <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
             <span className="font-semibold text-gray-700 dark:text-gray-200 text-sm">
-              {loading ? 'Loading...' : `${filtered.length} water points`}
+              {loading ? t('Loading...') : `${filtered.length} ${t('water points')}`}
             </span>
           </div>
           <div className="table-container">
             <table className="table">
               <thead>
                 <tr>
-                  <th className="th">Name & Location</th>
-                  <th className="th">Type</th>
-                  <th className="th">Status</th>
-                  <th className="th">Beneficiaries</th>
-                  <th className="th">Infra Score</th>
-                  <th className="th">Pump / Solar</th>
-                  <th className="th">Last Maintained</th>
-                  <th className="th">Action</th>
+                  <th className="th">{t('Name & Location')}</th>
+                  <th className="th">{t('Type')}</th>
+                  <th className="th">{t('Status')}</th>
+                  <th className="th">{t('Beneficiaries')}</th>
+                  <th className="th">{t('Infra Score')}</th>
+                  <th className="th">{t('Pump / Solar')}</th>
+                  <th className="th">{t('Last Maintained')}</th>
+                  <th className="th">{t('Action')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
@@ -166,12 +192,12 @@ export default function WaterInfrastructure() {
                       {wp.last_maintained ? new Date(wp.last_maintained).toLocaleDateString() : '—'}
                     </td>
                     <td className="td">
-                      <Link to={`/water-infrastructure/${wp.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">View →</Link>
+                      <Link to={`/water-infrastructure/${wp.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">{t('View')} →</Link>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && !loading && (
-                  <tr><td colSpan={8} className="td text-center text-gray-400 dark:text-gray-500 py-8">No water points found matching filters.</td></tr>
+                  <tr><td colSpan={8} className="td text-center text-gray-400 dark:text-gray-500 py-8">{t('No water points found matching filters.')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -182,7 +208,7 @@ export default function WaterInfrastructure() {
       {/* District Summary */}
       {stats?.by_district && view === 'table' && (
         <div className="card">
-          <h3 className="section-title mb-4"><MapPin size={18} className="text-blue-600" /> Water Points by District</h3>
+          <h3 className="section-title mb-4"><MapPin size={18} className="text-blue-600" /> {t('Water Points by District')}</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {stats.by_district.slice(0, 15).map((d: any) => (
               <div key={d.district} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
@@ -202,7 +228,7 @@ export default function WaterInfrastructure() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-800">Add New Water Point</h3>
+              <h3 className="font-semibold text-gray-800">{t('Add New Water Point')}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
             <form onSubmit={handleAddWP} className="p-6 space-y-4">
@@ -235,12 +261,12 @@ export default function WaterInfrastructure() {
                 <div className="col-span-2"><label className="label">Installation Date</label><input className="input" type="date" value={form.installed_date} onChange={e => setForm({ ...form, installed_date: e.target.value })} /></div>
                 <div className="col-span-2 flex items-center gap-2">
                   <input type="checkbox" id="solar" checked={form.solar_powered} onChange={e => setForm({ ...form, solar_powered: e.target.checked })} className="w-4 h-4 text-blue-600" />
-                  <label htmlFor="solar" className="text-sm text-gray-700">Solar Powered</label>
+                  <label htmlFor="solar" className="text-sm text-gray-700">{t('Solar Powered')}</label>
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
-                <button type="submit" disabled={submitting} className="btn-primary flex-1 justify-center">{submitting ? 'Saving...' : 'Add Water Point'}</button>
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1">{t('Cancel')}</button>
+                <button type="submit" disabled={submitting} className="btn-primary flex-1 justify-center">{submitting ? t('Saving...') : t('Add Water Point')}</button>
               </div>
             </form>
           </div>
