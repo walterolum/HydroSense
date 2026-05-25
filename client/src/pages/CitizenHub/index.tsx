@@ -4,7 +4,7 @@ import {
   MessageSquare, Heart, Plus, ThumbsUp, RefreshCw, Send,
   MapPin, Calendar, Clock, ChevronRight, Star, Award,
   Leaf, CloudRain, Zap, Camera, Eye, X, Loader2,
-  CheckCircle, Globe, Wind, Flame,
+  CheckCircle, Globe, Wind, Flame, ImagePlus, Navigation, Crosshair,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -121,11 +121,15 @@ export default function CitizenHub() {
 
   /* observation */
   const [showObs,   setShowObs]   = useState(false);
-  const [obsForm,   setObsForm]   = useState({ observation_type: OBS_TYPES[0], district:'Gulu', location:'', description:'' });
+  const [obsForm,   setObsForm]   = useState({ observation_type: OBS_TYPES[0], district:'Gulu', location:'', description:'', lat: null as number|null, lng: null as number|null });
   const [obsSaving, setObsSaving] = useState(false);
   const [obsMsg,    setObsMsg]    = useState('');
-  const obsFileRef = useRef<HTMLInputElement>(null);
-  const [obsPhoto,  setObsPhoto]  = useState<string|null>(null);
+  const obsFileRef    = useRef<HTMLInputElement>(null);
+  const obsCameraRef  = useRef<HTMLInputElement>(null);
+  const [obsPhoto,    setObsPhoto]      = useState<string|null>(null);
+  const [obsPhotoUrl, setObsPhotoUrl]   = useState<string|null>(null);
+  const [gpsLoading,  setGpsLoading]    = useState(false);
+  const [gpsError,    setGpsError]      = useState('');
 
   /* education expand */
   const [expandedEdu, setExpandedEdu] = useState<number|null>(null);
@@ -213,13 +217,54 @@ export default function CitizenHub() {
     finally { setEvSaving(false); }
   };
 
+  const handleObsPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      setObsPhotoUrl(dataUrl);
+      setObsPhoto(dataUrl.split(',')[1] || null);
+    };
+    reader.readAsDataURL(f);
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsError('GPS not supported by your browser.');
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError('');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        setObsForm(f => ({
+          ...f,
+          lat: latitude,
+          lng: longitude,
+          location: f.location || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+        }));
+        setGpsLoading(false);
+      },
+      () => {
+        setGpsError('Could not get location. Please enable GPS and try again.');
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
   const submitObs = async (e: React.FormEvent) => {
     e.preventDefault();
     setObsSaving(true);
     try {
       await submitObservation({ ...obsForm, photo_base64: obsPhoto });
       setObsMsg('✓ Observation submitted! Thank you for contributing to citizen science.');
-      setShowObs(false); setObsPhoto(null);
+      setShowObs(false);
+      setObsPhoto(null); setObsPhotoUrl(null);
+      setGpsError('');
+      setObsForm({ observation_type: OBS_TYPES[0], district: 'Gulu', location: '', description: '', lat: null, lng: null });
       setTimeout(() => setObsMsg(''), 7000);
     } catch { setObsMsg('Submission failed. Please try again.'); }
     finally { setObsSaving(false); }
@@ -958,17 +1003,48 @@ export default function CitizenHub() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">District</label>
-                  <select className="input" value={obsForm.district} onChange={e => setObsForm(f => ({ ...f, district: e.target.value }))}>
-                    {['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'].map(d => <option key={d}>{d}</option>)}
-                  </select>
+              <div>
+                <label className="label">District</label>
+                <select className="input" value={obsForm.district} onChange={e => setObsForm(f => ({ ...f, district: e.target.value }))}>
+                  {['Gulu','Arua','Lira','Moroto','Kotido','Soroti','Mbale','Jinja','Masaka','Mbarara','Kasese','Kabale','Hoima','Adjumani','Yumbe'].map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Location / Area</label>
+                <div className="flex gap-2">
+                  <input
+                    className="input flex-1"
+                    placeholder="Village, river, road..."
+                    value={obsForm.location}
+                    onChange={e => setObsForm(f => ({ ...f, location: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGetLocation}
+                    disabled={gpsLoading}
+                    title="Share my GPS location"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex-shrink-0 ${
+                      gpsLoading
+                        ? 'border-blue-300 bg-blue-50 text-blue-500'
+                        : obsForm.lat
+                        ? 'border-green-400 bg-green-50 text-green-700'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-700'
+                    }`}
+                  >
+                    {gpsLoading
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : obsForm.lat
+                      ? <CheckCircle size={14} />
+                      : <Navigation size={14} />}
+                    <span className="hidden sm:inline">{gpsLoading ? 'Locating…' : obsForm.lat ? 'Got GPS' : 'Use GPS'}</span>
+                  </button>
                 </div>
-                <div>
-                  <label className="label">Location / Area</label>
-                  <input className="input" placeholder="Village, river, road..." value={obsForm.location} onChange={e => setObsForm(f => ({ ...f, location: e.target.value }))} />
-                </div>
+                {gpsError && <p className="text-xs text-red-500 mt-1">{gpsError}</p>}
+                {obsForm.lat && (
+                  <p className="text-[11px] text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
+                    <MapPin size={10} /> GPS: {obsForm.lat.toFixed(5)}°, {obsForm.lng?.toFixed(5)}°
+                  </p>
+                )}
               </div>
               <div>
                 <label className="label">What did you observe? *</label>
@@ -977,19 +1053,40 @@ export default function CitizenHub() {
               </div>
               <div>
                 <label className="label">Photo Evidence (optional)</label>
-                <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-400 transition-colors"
-                  onClick={() => obsFileRef.current?.click()}>
-                  {obsPhoto
-                    ? <img src={obsPhoto} alt="preview" className="w-full max-h-32 object-cover rounded-xl" />
-                    : <><Camera size={24} className="mx-auto text-gray-400 mb-2" /><div className="text-sm text-gray-400">Click to upload a photo</div></>}
-                </div>
-                <input ref={obsFileRef} type="file" accept="image/*" className="hidden" onChange={e => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = ev => setObsPhoto((ev.target?.result as string)?.split(',')[1] || null);
-                  reader.readAsDataURL(f);
-                }} />
+                {obsPhotoUrl ? (
+                  <div className="relative">
+                    <img src={obsPhotoUrl} alt="preview" className="w-full max-h-44 object-cover rounded-xl border border-gray-200 dark:border-gray-700" />
+                    <button
+                      type="button"
+                      onClick={() => { setObsPhoto(null); setObsPhotoUrl(null); if (obsFileRef.current) obsFileRef.current.value = ''; if (obsCameraRef.current) obsCameraRef.current.value = ''; }}
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                    >
+                      <X size={13} />
+                    </button>
+                    <div className="absolute bottom-2 left-2 text-[10px] bg-black/50 text-white px-2 py-0.5 rounded-full">Photo ready</div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => obsFileRef.current?.click()}
+                      className="flex flex-col items-center gap-2 px-3 py-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all text-gray-400 hover:text-emerald-700"
+                    >
+                      <ImagePlus size={22} />
+                      <span className="text-xs font-semibold">From Gallery</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => obsCameraRef.current?.click()}
+                      className="flex flex-col items-center gap-2 px-3 py-5 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all text-gray-400 hover:text-blue-700"
+                    >
+                      <Camera size={22} />
+                      <span className="text-xs font-semibold">Take Photo</span>
+                    </button>
+                  </div>
+                )}
+                <input ref={obsFileRef} type="file" accept="image/*" className="hidden" onChange={handleObsPhoto} />
+                <input ref={obsCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleObsPhoto} />
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShowObs(false)} className="btn-secondary flex-1">Cancel</button>
