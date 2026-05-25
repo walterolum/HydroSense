@@ -278,7 +278,7 @@ export default function CitizenHub() {
     </div>
   );
 
-  const canCreateEvent = user && ['national_admin','district_officer','ngo_officer','community_committee'].includes(user.role);
+  const canCreateEvent = !!user;
 
   /* ═══════════════════════════════════════════════════════════
      RENDER
