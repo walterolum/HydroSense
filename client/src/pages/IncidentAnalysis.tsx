@@ -1,7 +1,213 @@
 import { useState, useEffect } from 'react';
 import { getIncidentAnalysisDashboard, getPendingAnalysis, analyzeAllPending, analyzeCitizenReport, getIncidentAnalysis } from '../api/client';
 import { IncidentAnalysisDashboard, IncidentAnalysis as IncidentAnalysisType, CitizenReport } from '../types';
-import { Brain, AlertTriangle, Loader2, RefreshCw, Search, TrendingUp, CheckCircle, XCircle } from 'lucide-react';
+import { Brain, AlertTriangle, Loader2, RefreshCw, TrendingUp, CheckCircle, X, MapPin, Calendar, User, Phone, Mail, Droplets, Users, FileText, ChevronRight } from 'lucide-react';
+
+const SEVERITY_STYLE: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700 border-red-200',
+  high:     'bg-orange-100 text-orange-700 border-orange-200',
+  medium:   'bg-yellow-100 text-yellow-700 border-yellow-200',
+  low:      'bg-green-100 text-green-700 border-green-200',
+};
+
+function ReportDetailModal({ report, onClose, onAnalyze, analyzing }: {
+  report: CitizenReport;
+  onClose: () => void;
+  onAnalyze: (id: number) => void;
+  analyzing: boolean;
+}) {
+  const sev = report.ai_severity || report.severity || 'medium';
+  const severityStyle = SEVERITY_STYLE[sev] || SEVERITY_STYLE.medium;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10 rounded-t-2xl">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-gray-900 text-base capitalize">
+                {report.incident_type?.replace(/_/g, ' ')}
+              </span>
+              <span className="text-xs text-gray-400">#{report.id}</span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${severityStyle}`}>
+                {sev}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-0.5">
+              <Calendar size={11} />
+              {new Date(report.created_at).toLocaleString()}
+            </div>
+          </div>
+          <button onClick={onClose} className="ml-2 p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Reporter Info */}
+          {!report.is_anonymous && (report.reporter_name || report.reporter_phone || report.reporter_email) && (
+            <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 space-y-1.5">
+              <div className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-1">Reporter</div>
+              {report.reporter_name && (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <User size={13} className="text-blue-500 flex-shrink-0" />
+                  {report.reporter_name}
+                </div>
+              )}
+              {report.reporter_phone && (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Phone size={13} className="text-blue-500 flex-shrink-0" />
+                  {report.reporter_phone}
+                </div>
+              )}
+              {report.reporter_email && (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Mail size={13} className="text-blue-500 flex-shrink-0" />
+                  {report.reporter_email}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Location */}
+          <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 space-y-1">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Location</div>
+            <div className="flex items-start gap-2 text-sm text-gray-700">
+              <MapPin size={13} className="text-red-500 mt-0.5 flex-shrink-0" />
+              <span>
+                {[report.village, report.sub_county, report.district].filter(Boolean).join(', ')}
+              </span>
+            </div>
+            {(report.lat && report.lng) && (
+              <div className="text-[11px] text-gray-400 ml-5">
+                GPS: {Number(report.lat).toFixed(5)}, {Number(report.lng).toFixed(5)}
+              </div>
+            )}
+          </div>
+
+          {/* Full Description */}
+          <div>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Full Description</div>
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-gray-50 border border-gray-100 rounded-xl p-3">
+              {report.description}
+            </p>
+          </div>
+
+          {/* Impact */}
+          {(report.water_impact || report.affected_population) && (
+            <div className="rounded-xl bg-orange-50 border border-orange-100 p-3 space-y-1.5">
+              <div className="text-xs font-bold text-orange-700 uppercase tracking-wide mb-1">Impact</div>
+              {report.water_impact && (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Droplets size={13} className="text-orange-500 flex-shrink-0" />
+                  {report.water_impact}
+                </div>
+              )}
+              {report.affected_population != null && (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Users size={13} className="text-orange-500 flex-shrink-0" />
+                  {report.affected_population.toLocaleString()} people affected
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Speech-to-text / Voice transcript */}
+          {report.speech_to_text && (
+            <div>
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Voice Transcript</div>
+              <p className="text-xs text-gray-600 leading-relaxed bg-purple-50 border border-purple-100 rounded-xl p-3 italic">
+                "{report.speech_to_text}"
+              </p>
+            </div>
+          )}
+
+          {/* AI Analysis */}
+          {(report.ai_category || report.ai_risk_score != null || report.response_recommendation) && (
+            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 p-3 space-y-2">
+              <div className="text-xs font-bold text-blue-700 uppercase tracking-wide">AI Analysis</div>
+              <div className="flex flex-wrap gap-2">
+                {report.ai_category && (
+                  <span className="text-xs bg-white px-2 py-1 rounded-lg border border-blue-100 text-blue-700 capitalize">
+                    {report.ai_category.replace(/_/g, ' ')}
+                  </span>
+                )}
+                {report.ai_risk_score != null && (
+                  <span className={`text-xs font-bold px-2 py-1 rounded-lg border ${report.ai_risk_score >= 70 ? 'bg-red-50 text-red-700 border-red-200' : report.ai_risk_score >= 45 ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    Risk: {report.ai_risk_score}%
+                  </span>
+                )}
+                {report.confidence_score != null && (
+                  <span className="text-xs bg-white px-2 py-1 rounded-lg border border-blue-100 text-gray-600">
+                    Confidence: {report.confidence_score}%
+                  </span>
+                )}
+              </div>
+              {report.response_recommendation && (
+                <div className="text-xs text-blue-700 bg-white rounded-lg border border-blue-100 p-2">
+                  <ChevronRight size={11} className="inline mr-1" />
+                  {report.response_recommendation}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Status + Channel */}
+          <div className="flex gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <FileText size={11} /> Status: <span className="font-semibold capitalize text-gray-700">{report.status}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              Channel: <span className="font-semibold capitalize text-gray-700">{report.channel}</span>
+            </span>
+          </div>
+
+          {/* Photos */}
+          {report.media && report.media.length > 0 && (
+            <div>
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                Photos ({report.media.length})
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {report.media.map(m => m.file_data || m.file_path ? (
+                  <img
+                    key={m.id}
+                    src={m.file_data ? `data:${m.mime_type};base64,${m.file_data}` : m.file_path}
+                    alt="Report photo"
+                    className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                  />
+                ) : null)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div className="p-4 border-t border-gray-100 sticky bottom-0 bg-white flex gap-2">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+            Close
+          </button>
+          {(!report.ai_category) && (
+            <button
+              onClick={() => { onAnalyze(report.id); onClose(); }}
+              disabled={analyzing}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-60 transition-all"
+            >
+              {analyzing ? <Loader2 size={13} className="animate-spin" /> : <Brain size={13} />}
+              Analyze with AI
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function IncidentAnalysis() {
   const [dashboard, setDashboard] = useState<IncidentAnalysisDashboard | null>(null);
@@ -11,6 +217,7 @@ export default function IncidentAnalysis() {
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState('');
   const [tab, setTab] = useState<'dashboard' | 'analysis' | 'pending'>('dashboard');
+  const [selectedReport, setSelectedReport] = useState<CitizenReport | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -242,17 +449,24 @@ export default function IncidentAnalysis() {
           ) : (
             <div className="space-y-3">
               {pendingReports.map(r => (
-                <div key={r.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100">
+                <div
+                  key={r.id}
+                  onClick={() => setSelectedReport(r)}
+                  className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-[0.99]"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-gray-900 capitalize">{r.incident_type?.replace(/_/g, ' ')}</span>
                       <span className="text-[10px] text-gray-400">#{r.id}</span>
                     </div>
-                    <p className="text-xs text-gray-600 mt-0.5 line-clamp-1">{r.description}</p>
+                    <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">{r.description}</p>
                     <div className="text-[10px] text-gray-400 mt-1">📍 {r.district} · 📅 {new Date(r.created_at).toLocaleDateString()}</div>
                   </div>
-                  <button onClick={() => handleAnalyzeOne(r.id)} disabled={analyzing}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all disabled:opacity-50">
+                  <button
+                    onClick={e => { e.stopPropagation(); handleAnalyzeOne(r.id); }}
+                    disabled={analyzing}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200 transition-all disabled:opacity-50 ml-3"
+                  >
                     <Brain size={12} /> Analyze
                   </button>
                 </div>
@@ -260,6 +474,15 @@ export default function IncidentAnalysis() {
             </div>
           )}
         </div>
+      )}
+
+      {selectedReport && (
+        <ReportDetailModal
+          report={selectedReport}
+          onClose={() => setSelectedReport(null)}
+          onAnalyze={handleAnalyzeOne}
+          analyzing={analyzing}
+        />
       )}
     </div>
   );
