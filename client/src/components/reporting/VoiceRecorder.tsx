@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Mic, Square, Loader2, Languages, CheckCircle, AlertCircle, Video, VideoOff } from 'lucide-react';
+import { Mic, Square, Loader2, Languages, CheckCircle, AlertCircle, Video } from 'lucide-react';
 
-// All supported languages — 'auto' lets Gemini AI detect any language
 const LANGUAGES = [
   { code: 'auto', name: '🌍 Auto-Detect Any Language', bcp47: 'mul' },
   { code: 'en',   name: '🇬🇧 English',                 bcp47: 'en-UG' },
@@ -18,6 +17,9 @@ const LANGUAGES = [
   { code: 'alur', name: '🇺🇬 Alur',                    bcp47: 'en-UG' },
   { code: 'swa',  name: '🌍 Swahili',                  bcp47: 'sw' },
 ];
+
+// How often (ms) to send a fresh audio chunk to Gemini for live captions
+const CAPTION_INTERVAL_MS = 5000;
 
 export interface VoiceResult {
   original: string;
@@ -37,31 +39,29 @@ interface Props {
   maxDurationMs?: number;
 }
 
-// Convert Blob to base64 string
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      // Strip "data:...;base64," prefix
-      resolve(result.split(',')[1]);
-    };
-    reader.onerror = reject;
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror   = reject;
     reader.readAsDataURL(blob);
   });
 }
 
 export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDurationMs = 180000 }: Props) {
-  const [phase, setPhase]         = useState<'idle' | 'recording' | 'transcribing' | 'done' | 'error'>('idle');
-  const [langCode, setLangCode]   = useState('auto');
-  const [withVideo, setWithVideo] = useState(false);
-  const [duration, setDuration]   = useState(0);
-  const [statusMsg, setStatusMsg] = useState('');
-  const [result, setResult]       = useState<VoiceResult | null>(null);
-  const [errorMsg, setErrorMsg]   = useState('');
-  const [videoUrl, setVideoUrl]   = useState<string | null>(null);
-  // interim text shown while recording (from Web Speech API)
-  const [interim, setInterim]     = useState('');
+  const [phase, setPhase]               = useState<'idle' | 'recording' | 'transcribing' | 'done' | 'error'>('idle');
+  const [langCode, setLangCode]         = useState('auto');
+  const [withVideo, setWithVideo]       = useState(false);
+  const [duration, setDuration]         = useState(0);
+  const [statusMsg, setStatusMsg]       = useState('');
+  const [result, setResult]             = useState<VoiceResult | null>(null);
+  const [errorMsg, setErrorMsg]         = useState('');
+  const [videoUrl, setVideoUrl]         = useState<string | null>(null);
+  // Rolling English caption lines produced by Gemini during recording
+  const [captionLines, setCaptionLines] = useState<string[]>([]);
+  const [captionBusy, setCaptionBusy]   = useState(false);
+  // Web Speech accumulation (audio-only fallback text)
+  const [interim, setInterim]           = useState('');
 
   const audioRecorderRef   = useRef<MediaRecorder | null>(null);
   const videoRecorderRef   = useRef<MediaRecorder | null>(null);
@@ -69,20 +69,25 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   const videoChunksRef     = useRef<Blob[]>([]);
   const recognitionRef     = useRef<any>(null);
   const timerRef           = useRef<ReturnType<typeof setInterval>>();
+  const captionTimerRef    = useRef<ReturnType<typeof setInterval>>();
   const startTimeRef       = useRef(0);
   const streamRef          = useRef<MediaStream | null>(null);
-  const interimAccRef      = useRef(''); // English interim from Web Speech
-  // callback ref — attaches stream to the preview <video> as soon as it mounts
-  const videoPreviewCb     = useCallback((el: HTMLVideoElement | null) => {
+  const interimAccRef      = useRef('');
+  const audioMimeRef       = useRef('');
+  const lastCaptionIdxRef  = useRef(0);  // chunk index last sent to Gemini
+  const captionPendingRef  = useRef(false);
+
+  // Callback ref: attaches live stream to <video> element as soon as it mounts
+  const videoPreviewCb = useCallback((el: HTMLVideoElement | null) => {
     if (el && streamRef.current) {
       el.srcObject = streamRef.current;
       el.play().catch(() => {});
     }
   }, []);
 
-  const lang    = LANGUAGES.find(l => l.code === langCode) || LANGUAGES[0];
-  const isEn    = langCode === 'en';
-  const isAuto  = langCode === 'auto';
+  const lang   = LANGUAGES.find(l => l.code === langCode) || LANGUAGES[0];
+  const isEn   = langCode === 'en';
+  const isAuto = langCode === 'auto';
 
   const fmt = (ms: number) => {
     const s = Math.floor(ms / 1000);
@@ -92,13 +97,13 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   const reset = () => {
     setPhase('idle'); setResult(null); setErrorMsg('');
     setInterim(''); setDuration(0); setStatusMsg('');
+    setCaptionLines([]); setCaptionBusy(false);
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
   };
 
-  // ── Gemini audio transcription (high-accuracy, any language) ──
+  // ── Gemini full transcription (called after recording stops) ──
   const transcribeWithGemini = useCallback(async (
-    audioBlob: Blob,
-    webSpeechFallback: string
+    audioBlob: Blob, webSpeechFallback: string
   ): Promise<VoiceResult | null> => {
     try {
       const base64 = await blobToBase64(audioBlob);
@@ -113,109 +118,112 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      if (!data.english) throw new Error('No transcription returned');
+      if (!data.english) throw new Error('empty');
       return {
-        original:         data.original         || webSpeechFallback,
+        original:         data.original        || webSpeechFallback,
         english:          data.english,
-        explanation:      data.explanation       || '',
+        explanation:      data.explanation      || '',
         incidentType:     data.incidentType,
         severity:         data.severity,
-        detectedLanguage: data.detectedLanguage  || lang.name,
+        detectedLanguage: data.detectedLanguage || lang.name,
         durationMs:       Date.now() - startTimeRef.current,
         blob:             audioBlob,
       };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }, [lang.name]);
 
-  // ── Text-only translation fallback (existing endpoint) ──
-  const translateText = useCallback(async (
-    text: string, audioBlob?: Blob
-  ): Promise<VoiceResult> => {
+  const translateText = useCallback(async (text: string, audioBlob?: Blob): Promise<VoiceResult> => {
     try {
       const token = sessionStorage.getItem('hs_token');
       const res = await fetch('/api/ai/voice-translate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ text, sourceLang: langCode, languageName: lang.name }),
       });
       const data = await res.json();
-      return {
-        original:     text,
-        english:      data.english     || text,
-        explanation:  data.explanation || '',
-        incidentType: data.incidentType,
-        severity:     data.severity,
-        durationMs:   Date.now() - startTimeRef.current,
-        blob:         audioBlob,
-      };
+      return { original: text, english: data.english || text, explanation: data.explanation || '', incidentType: data.incidentType, severity: data.severity, durationMs: Date.now() - startTimeRef.current, blob: audioBlob };
     } catch {
-      return {
-        original: text, english: text, explanation: '',
-        durationMs: Date.now() - startTimeRef.current, blob: audioBlob,
-      };
+      return { original: text, english: text, explanation: '', durationMs: Date.now() - startTimeRef.current, blob: audioBlob };
     }
   }, [langCode, lang.name]);
+
+  // ── Live caption: send recent audio chunk to Gemini every CAPTION_INTERVAL_MS ──
+  const triggerLiveCaption = useCallback(async () => {
+    if (captionPendingRef.current) return;
+    const newChunks = audioChunksRef.current.slice(lastCaptionIdxRef.current);
+    if (!newChunks.length) return;
+    lastCaptionIdxRef.current = audioChunksRef.current.length;
+
+    const blob = new Blob(newChunks, { type: audioMimeRef.current || 'audio/webm' });
+    if (blob.size < 3000) return; // skip near-silence / too short
+
+    captionPendingRef.current = true;
+    setCaptionBusy(true);
+    try {
+      const base64 = await blobToBase64(blob);
+      const token  = sessionStorage.getItem('hs_token');
+      const res = await fetch('/api/ai/audio-transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ audioBase64: base64, mimeType: blob.type }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.english?.trim()) {
+        setCaptionLines(prev => [...prev, data.english.trim()]);
+        onLiveUpdate?.(data.english.trim());
+      }
+    } catch { /* ignore — next interval will retry */ }
+    finally { captionPendingRef.current = false; setCaptionBusy(false); }
+  }, [onLiveUpdate]);
 
   const stopRecording = useCallback(() => {
     recognitionRef.current?.stop();
     if (audioRecorderRef.current?.state !== 'inactive') audioRecorderRef.current?.stop();
     if (videoRecorderRef.current?.state !== 'inactive') videoRecorderRef.current?.stop();
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current)        clearInterval(timerRef.current);
+    if (captionTimerRef.current) clearInterval(captionTimerRef.current);
   }, []);
 
   const startRecording = useCallback(async () => {
-    audioChunksRef.current = [];
-    videoChunksRef.current = [];
-    interimAccRef.current  = '';
-    setDuration(0);
-    setResult(null);
-    setErrorMsg('');
-    setStatusMsg('');
-    setInterim('');
+    audioChunksRef.current    = [];
+    videoChunksRef.current    = [];
+    interimAccRef.current     = '';
+    lastCaptionIdxRef.current = 0;
+    captionPendingRef.current = false;
+    setDuration(0); setResult(null); setErrorMsg('');
+    setStatusMsg(''); setInterim(''); setCaptionLines([]); setCaptionBusy(false);
     if (videoUrl) { URL.revokeObjectURL(videoUrl); setVideoUrl(null); }
 
-    // ── 1. Request media stream ──
+    // ── 1. Acquire media stream ──
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation:  true,
-          noiseSuppression:  true,
-          autoGainControl:   true,
-          sampleRate:        16000,
-          channelCount:      1,
-        },
-        ...(withVideo ? {
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-        } : {}),
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000, channelCount: 1 },
+        ...(withVideo ? { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } } : {}),
       });
       streamRef.current = stream;
     } catch (err: any) {
-      const msg = err?.name === 'NotAllowedError'
-        ? 'Microphone access denied. Please allow microphone access and try again.'
-        : `Could not access ${withVideo ? 'camera/microphone' : 'microphone'}: ${err?.message || 'Unknown error'}`;
-      setErrorMsg(msg);
+      setErrorMsg(err?.name === 'NotAllowedError'
+        ? 'Camera / microphone access denied. Please allow access and try again.'
+        : `Could not access ${withVideo ? 'camera & microphone' : 'microphone'}: ${err?.message || 'Unknown error'}`);
       setPhase('error');
       return;
     }
 
-    // ── 2. Audio-only MediaRecorder (for Gemini transcription) ──
+    // ── 2. Audio-only recorder (clean audio for Gemini) ──
     const audioStream = new MediaStream(stream.getAudioTracks());
     const audioMime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
       .find(t => MediaRecorder.isTypeSupported(t)) || '';
+    audioMimeRef.current = audioMime;
     try {
       const ar = new MediaRecorder(audioStream, audioMime ? { mimeType: audioMime } : {});
       audioRecorderRef.current = ar;
       ar.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       ar.start(250);
-    } catch { /* no blob — will fallback to Web Speech text */ }
+    } catch { /* fallback to Web Speech only */ }
 
-    // ── 3. Video MediaRecorder (if enabled) ──
+    // ── 3. Video recorder ──
     if (withVideo) {
       const videoMime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
         .find(t => MediaRecorder.isTypeSupported(t)) || '';
@@ -228,107 +236,91 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
           setVideoUrl(URL.createObjectURL(vBlob));
         };
         vr.start(250);
-      } catch { /* video recording not supported */ }
+      } catch { /* video not supported */ }
     }
 
-    // ── 4. Web Speech API (real-time interim display only) ──
+    // ── 4. Live Gemini caption interval ──
+    captionTimerRef.current = setInterval(triggerLiveCaption, CAPTION_INTERVAL_MS);
+
+    // ── 5. Web Speech (audio-only mode interim / English fallback accumulation) ──
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SR) {
       const recog = new SR();
-      recog.lang             = isAuto ? 'en-UG' : lang.bcp47; // interim in English (fallback)
-      recog.continuous       = true;
-      recog.interimResults   = true;
-      recog.maxAlternatives  = 5;
+      recog.lang            = isAuto ? 'en-UG' : lang.bcp47;
+      recog.continuous      = true;
+      recog.interimResults  = true;
+      recog.maxAlternatives = 3;
       recognitionRef.current = recog;
-
       recog.onresult = (event: any) => {
         let interimText = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const t = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            interimAccRef.current += (interimAccRef.current ? ' ' : '') + t;
+          if (event.results[i].isFinal) interimAccRef.current += (interimAccRef.current ? ' ' : '') + t;
+          else interimText = t;
+        }
+        // Only update interim display for audio-only mode or as English fallback
+        if (!withVideo) {
+          if (isEn) {
+            const full = (interimAccRef.current + ' ' + interimText).trim();
+            setInterim(full);
+            onLiveUpdate?.(full);
           } else {
-            interimText = t;
+            setInterim(interimText || interimAccRef.current);
           }
         }
-        // Show browser's interim as a soft hint (Gemini will give accurate final)
-        if (isEn) {
-          const full = (interimAccRef.current + ' ' + interimText).trim();
-          setInterim(full);
-          onLiveUpdate?.(full);
-        } else {
-          // Non-English: show interim lightly so user knows mic is picking up
-          setInterim(interimText || interimAccRef.current);
-        }
       };
-      recog.onerror = (e: any) => {
-        if (e.error === 'no-speech' || e.error === 'aborted') return;
-      };
-      recog.onend = () => {}; // handled by MediaRecorder stop
+      recog.onerror = (e: any) => { if (e.error !== 'no-speech' && e.error !== 'aborted') {} };
+      recog.onend = () => {};
       try { recog.start(); } catch { /* ignore */ }
     }
 
-    // ── 5. Stop handler — runs when MediaRecorder fires stop ──
+    // ── 6. On-stop handler: run full Gemini transcription ──
     if (audioRecorderRef.current) {
       audioRecorderRef.current.onstop = async () => {
+        if (captionTimerRef.current) clearInterval(captionTimerRef.current);
         stream.getTracks().forEach(t => t.stop());
         setPhase('transcribing');
-        setStatusMsg('🔬 Gemini AI is transcribing & translating your recording…');
+        setStatusMsg('🔬 Gemini AI is transcribing & translating your full recording…');
 
         const audioBlob = audioChunksRef.current.length
           ? new Blob(audioChunksRef.current, { type: audioMime || 'audio/webm' })
           : undefined;
 
         let r: VoiceResult | null = null;
-
-        // Primary: Gemini audio (works for any language)
-        if (audioBlob && audioBlob.size > 0) {
-          r = await transcribeWithGemini(audioBlob, interimAccRef.current);
-        }
-
-        // Fallback: if Gemini fails and we have Web Speech text, translate that
+        if (audioBlob && audioBlob.size > 0) r = await transcribeWithGemini(audioBlob, interimAccRef.current);
         if (!r && interimAccRef.current.trim()) {
           setStatusMsg('Translating with Hydro AI…');
           r = await translateText(interimAccRef.current.trim(), audioBlob);
         }
-
-        // Last resort: nothing captured
         if (!r) {
           setErrorMsg('No speech detected or transcription failed. Please speak clearly and try again.');
           setPhase('error');
           return;
         }
-
         if (videoChunksRef.current.length) {
           const vMime = videoRecorderRef.current?.mimeType || 'video/webm';
           r.videoBlob = new Blob(videoChunksRef.current, { type: vMime });
         }
-
         setResult(r);
         setPhase('done');
         onLiveUpdate?.(r.english);
         onRecordingComplete(r);
       };
     } else {
-      // No MediaRecorder — rely entirely on Web Speech API + text translate
+      // No MediaRecorder — rely on Web Speech only
       const recog2 = recognitionRef.current;
       if (recog2) {
         recog2.onend = async () => {
-          if (timerRef.current) clearInterval(timerRef.current);
+          if (timerRef.current)        clearInterval(timerRef.current);
+          if (captionTimerRef.current) clearInterval(captionTimerRef.current);
           stream.getTracks().forEach(t => t.stop());
           const text = interimAccRef.current.trim();
-          if (!text) {
-            setErrorMsg('No speech detected. Please try again.');
-            setPhase('error');
-            return;
-          }
+          if (!text) { setErrorMsg('No speech detected. Please try again.'); setPhase('error'); return; }
           setPhase('transcribing');
           setStatusMsg('Translating with Hydro AI…');
           const r = await translateText(text);
-          setResult(r);
-          setPhase('done');
-          onLiveUpdate?.(r.english);
-          onRecordingComplete(r);
+          setResult(r); setPhase('done');
+          onLiveUpdate?.(r.english); onRecordingComplete(r);
         };
       }
     }
@@ -342,21 +334,20 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       if (elapsed >= maxDurationMs) stopRecording();
     }, 200);
   }, [
-    withVideo, isAuto, isEn, lang,
+    withVideo, isAuto, isEn, lang, videoUrl,
     transcribeWithGemini, translateText, stopRecording,
-    onLiveUpdate, onRecordingComplete, maxDurationMs, videoUrl,
+    triggerLiveCaption, onLiveUpdate, onRecordingComplete, maxDurationMs,
   ]);
 
   useEffect(() => () => {
     recognitionRef.current?.stop();
     streamRef.current?.getTracks().forEach(t => t.stop());
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current)        clearInterval(timerRef.current);
+    if (captionTimerRef.current) clearInterval(captionTimerRef.current);
     if (videoUrl) URL.revokeObjectURL(videoUrl);
   }, []);
 
-  /* ═══════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════ */
+  /* ═══════════════════════════════════ RENDER ═══════════════════════════════════ */
   return (
     <div className="space-y-3">
 
@@ -368,63 +359,63 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             onChange={e => setLangCode(e.target.value)}
             className="text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-red-400 max-w-[230px]"
           >
-            {LANGUAGES.map(l => (
-              <option key={l.code} value={l.code}>{l.name}</option>
-            ))}
+            {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
           </select>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500">
-            🤖 Gemini AI · Any Language
-          </span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">🤖 Gemini AI · Any Language</span>
         </div>
       )}
 
-      {/* IDLE — two prominent action buttons */}
+      {/* ── IDLE ── */}
       {phase === 'idle' && (
         <div className="flex flex-wrap gap-3">
-          {/* Voice-only button */}
           <button
             type="button"
             onClick={() => { setWithVideo(false); startRecording(); }}
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-red-400 text-red-600 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
           >
-            <Mic size={18} />
-            Record Voice
+            <Mic size={18} /> Record Voice
           </button>
-
-          {/* Video + voice button */}
           <button
             type="button"
             onClick={() => { setWithVideo(true); startRecording(); }}
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-purple-400 text-purple-600 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-all"
           >
-            <Video size={18} />
-            Record Video
+            <Video size={18} /> Record Video
           </button>
         </div>
       )}
 
-      {/* RECORDING */}
+      {/* ── RECORDING ── */}
       {phase === 'recording' && (
         <div className="space-y-2">
 
-          {/* ── Live camera preview with caption overlay ── */}
+          {/* Live camera preview with AI caption overlay */}
           {withVideo && (
-            <div className="relative rounded-xl overflow-hidden bg-black border-2 border-purple-500 shadow-lg">
+            <div className="relative rounded-xl overflow-hidden bg-black border-2 border-purple-500 shadow-xl">
               <video
                 ref={videoPreviewCb}
                 autoPlay
                 muted
                 playsInline
-                className="w-full max-h-64 object-cover"
+                className="w-full object-cover"
+                style={{ minHeight: 200, maxHeight: 320 }}
               />
 
-              {/* REC badge top-left */}
-              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1 z-10">
+              {/* REC badge + timer */}
+              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/65 backdrop-blur-sm rounded-full px-2.5 py-1 z-10">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 <span className="text-white text-[11px] font-extrabold tracking-wider">REC {fmt(duration)}</span>
               </div>
 
-              {/* Stop button top-right */}
+              {/* AI caption busy indicator */}
+              {captionBusy && (
+                <div className="absolute top-2 right-12 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-2 py-1 z-10">
+                  <Loader2 size={9} className="text-yellow-300 animate-spin" />
+                  <span className="text-yellow-200 text-[9px] font-bold">AI translating…</span>
+                </div>
+              )}
+
+              {/* Stop button */}
               <button
                 type="button"
                 onClick={stopRecording}
@@ -433,22 +424,30 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
                 <Square size={10} /> Stop
               </button>
 
-              {/* Live caption bar at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-3 pt-6 pb-2.5 z-10">
-                {interim ? (
-                  <p className="text-white text-sm text-center font-semibold leading-snug drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                    {interim}
-                  </p>
+              {/* ── Live English caption bar ── */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 pt-8 pb-3 z-10">
+                {captionLines.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {captionLines.slice(-2).map((line, i) => (
+                      <p
+                        key={i}
+                        className="text-white text-sm text-center font-semibold leading-snug"
+                        style={{ textShadow: '0 1px 4px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.8)' }}
+                      >
+                        {line}
+                      </p>
+                    ))}
+                  </div>
                 ) : (
-                  <p className="text-white/50 text-xs text-center italic">
-                    Listening… speak clearly
+                  <p className="text-white/45 text-xs text-center italic">
+                    AI captions will appear here as you speak…
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {/* ── Status bar (audio-only mode) ── */}
+          {/* Audio-only status bar */}
           {!withVideo && (
             <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30">
               <div className="flex items-center gap-2 min-w-0">
@@ -470,11 +469,11 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             </div>
           )}
 
-          {/* Interim text hint — audio-only mode */}
+          {/* Audio-only interim hint */}
           {!withVideo && interim && (
             <div className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                🎤 Mic picking up… (Gemini will give final accurate text)
+                🎤 Mic picking up… (Gemini gives final accurate text)
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 italic leading-relaxed line-clamp-2">{interim}</p>
             </div>
@@ -482,20 +481,18 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
         </div>
       )}
 
-      {/* TRANSCRIBING */}
+      {/* ── TRANSCRIBING ── */}
       {phase === 'transcribing' && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
           <Loader2 size={16} className="text-blue-600 animate-spin flex-shrink-0" />
           <div>
-            <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
-              Gemini AI Transcribing…
-            </p>
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-300">Gemini AI Transcribing…</p>
             <p className="text-xs text-blue-500 dark:text-blue-400 mt-0.5">{statusMsg}</p>
           </div>
         </div>
       )}
 
-      {/* DONE */}
+      {/* ── DONE ── */}
       {phase === 'done' && result && (
         <div className="rounded-xl border-2 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 p-3 space-y-2.5">
           <div className="flex items-center justify-between">
@@ -508,16 +505,14 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             <button type="button" onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 underline">Re-record</button>
           </div>
 
-          {/* Video playback */}
           {videoUrl && (
             <video
               src={videoUrl}
               controls
-              className="w-full rounded-lg border border-green-200 dark:border-green-800 max-h-48 object-cover"
+              className="w-full rounded-lg border border-green-200 dark:border-green-800 max-h-56 object-cover"
             />
           )}
 
-          {/* Original transcript */}
           {result.original && result.original !== result.english && (
             <div className="bg-white dark:bg-gray-900 rounded-lg px-3 py-2 border border-green-200 dark:border-green-800">
               <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5 flex items-center gap-1">
@@ -527,7 +522,6 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             </div>
           )}
 
-          {/* AI analysis */}
           {result.explanation && (
             <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2 border border-indigo-200 dark:border-indigo-800">
               <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-400 mb-0.5">🤖 Hydro AI Analysis</p>
@@ -552,7 +546,7 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
         </div>
       )}
 
-      {/* ERROR */}
+      {/* ── ERROR ── */}
       {phase === 'error' && (
         <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2.5 flex items-start gap-2">
           <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
