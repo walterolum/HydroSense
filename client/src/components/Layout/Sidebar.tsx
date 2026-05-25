@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
   LayoutDashboard, Droplets, Cpu, CloudRain, TestTube, Users, Heart,
   AlertTriangle, BarChart3, Map, Wrench, ShieldCheck, LogOut, X, Globe,
@@ -159,13 +160,40 @@ interface SidebarProps { open: boolean; onClose: () => void; }
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { language, translate } = useLanguage();
   const [showProfile, setShowProfile] = useState(false);
+  const [translatedLabels, setTranslatedLabels] = useState<Record<string, string>>({});
+  const translateCacheRef = useRef<Record<string, Record<string, string>>>({});
 
   const userRole  = (user?.role || '') as Role;
   const rc        = roleConfig[userRole] || { label:userRole, color:'text-gray-300', dot:'bg-gray-400' };
   const initials  = user ? user.name.split(' ').map(n=>n[0]).filter(Boolean).slice(0,2).join('').toUpperCase() : '?';
 
   const filtered  = navItems.filter(item => item.roles.includes(userRole));
+
+  // Translate nav labels + group labels when language changes
+  useEffect(() => {
+    if (language === 'en') { setTranslatedLabels({}); return; }
+    const cached = translateCacheRef.current[language];
+    if (cached) { setTranslatedLabels(cached); return; }
+
+    const allStrings = [
+      ...filtered.map(i => i.label),
+      ...filtered.filter(i => i.citizenLabel).map(i => i.citizenLabel as string),
+      ...Object.values(groupLabels),
+      'Sign Out',
+    ];
+    const unique = [...new Set(allStrings)];
+
+    Promise.all(unique.map(s => translate(s).then(t => [s, t] as [string, string])))
+      .then(pairs => {
+        const map = Object.fromEntries(pairs);
+        translateCacheRef.current[language] = map;
+        setTranslatedLabels(map);
+      });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tl = (s: string) => translatedLabels[s] || s;
 
   const grouped: Record<string, NavItem[]> = {};
   filtered.forEach(item => {
@@ -255,7 +283,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               <div key={group} className="mb-1">
                 {group !== 'core' && (
                   <div className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-600 select-none">
-                    {groupLabels[group] || group}
+                    {tl(groupLabels[group] || group)}
                   </div>
                 )}
                 {items.map(item => (
@@ -279,7 +307,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
                     }
                   >
                     <item.icon size={16} className="flex-shrink-0"/>
-                    <span className="truncate flex-1">{userRole === 'citizen' && item.citizenLabel ? item.citizenLabel : item.label}</span>
+                    <span className="truncate flex-1">{tl(userRole === 'citizen' && item.citizenLabel ? item.citizenLabel : item.label)}</span>
                     {item.badge && (
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${badgeStyle[item.badge] || badgeStyle.NEW}`}>
                         {item.badge}
@@ -299,7 +327,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/15 hover:text-red-300 transition-all duration-200"
           >
             <LogOut size={16}/>
-            <span>Sign Out</span>
+            <span>{tl('Sign Out')}</span>
           </button>
           <div className="text-center text-[10px] text-gray-700 pt-1">
             HYDROSENSE v2.0 &copy; 2026
