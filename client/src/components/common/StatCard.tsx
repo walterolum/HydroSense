@@ -44,13 +44,14 @@ export default function StatCard({ title, value, subtitle, icon: Icon, color = '
       className={`card hover:shadow-md transition-all ${onClick ? 'cursor-pointer' : ''} ${colors.bg}`}
       onClick={onClick}
     >
-      <div className="flex items-start gap-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${colors.icon}`}>
-          <Icon size={22} />
+      {/* Mobile: stacked (icon above text). sm+: side by side */}
+      <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${colors.icon}`}>
+          <Icon size={20} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{title}</p>
-          <p className={`text-2xl font-bold mt-0.5 ${colors.value}`}>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium leading-snug">{title}</p>
+          <p className={`text-xl sm:text-2xl font-bold mt-0.5 leading-tight break-all ${colors.value}`}>
             {typeof value === 'number' ? value.toLocaleString() : value}
           </p>
           {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>}

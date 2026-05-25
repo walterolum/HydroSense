@@ -8,7 +8,7 @@
 }
 
 @layer components {
-  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5; }
+  .card { @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-5; }
   .card-header { @apply flex items-center justify-between mb-4; }
   .btn { @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all duration-200; }
   .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow-md; }
