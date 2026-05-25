@@ -5,6 +5,24 @@
 @layer base {
   body { @apply bg-gray-50 text-gray-900 antialiased; }
   * { @apply box-border; }
+
+  /* Force placeholder text to be clearly visible on all browsers / mobile */
+  ::placeholder {
+    color: #4b5563;   /* gray-600 — readable on white & light backgrounds */
+    opacity: 1;       /* Firefox reduces placeholder opacity by default */
+  }
+  .dark ::placeholder {
+    color: #9ca3af;   /* gray-400 — readable on dark backgrounds */
+    opacity: 1;
+  }
+
+  /* Select — make the empty/placeholder option visually distinct */
+  select.select-placeholder {
+    color: #4b5563;
+  }
+  .dark select.select-placeholder {
+    color: #9ca3af;
+  }
 }
 
 @layer components {

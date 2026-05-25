@@ -239,7 +239,7 @@ export default function MultilingualReport() {
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">Report Language</label>
               <select value={sourceLang} onChange={e => setSourceLang(e.target.value as LanguageCode)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
                 {[{ code: language, nativeName: `Current (${language.toUpperCase()})` }, ...useLanguage().supportedLanguages.filter(l => l.code !== language)].map(l => (
                   <option key={l.code} value={l.code}>{l.nativeName}</option>
                 ))}
@@ -250,8 +250,10 @@ export default function MultilingualReport() {
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.type')}</label>
               <select value={form.incident_type} onChange={update('incident_type')} required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Select type...</option>
+                className={`w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium ${
+                  form.incident_type ? 'text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'
+                }`}>
+                <option value="" disabled>Select incident type…</option>
                 {INCIDENT_TYPES.map(type => (
                   <option key={type} value={type}>{t(`incident.${type}`)}</option>
                 ))}
@@ -280,7 +282,7 @@ export default function MultilingualReport() {
                   rows={5}
                   required
                   readOnly={voiceRecording}
-                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-300 ${
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder:text-gray-500 placeholder:opacity-100 dark:placeholder:text-gray-400 focus:outline-none transition-all duration-300 ${
                     voiceRecording && !form.description
                       ? 'border-red-400 ring-2 ring-red-100 dark:ring-red-900'
                       : voiceActive
@@ -429,8 +431,10 @@ export default function MultilingualReport() {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">{t('report.district')}</label>
                 <select value={form.district} onChange={update('district')} required
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Select...</option>
+                  className={`w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium ${
+                    form.district ? 'text-gray-800 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                  <option value="" disabled>Select district…</option>
                   {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
