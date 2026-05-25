@@ -48,8 +48,12 @@ export default function CitizenRegistration() {
 
       const { token, user: newUser } = res.data;
       if (token && newUser) {
-        sessionStorage.setItem('hs_token', token);
-        sessionStorage.setItem('hs_user', JSON.stringify(newUser));
+        const expiry = String(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        localStorage.setItem('hs_token', token);
+        localStorage.setItem('hs_user', JSON.stringify(newUser));
+        localStorage.setItem('hs_expiry', expiry);
+        sessionStorage.removeItem('hs_token');
+        sessionStorage.removeItem('hs_user');
       }
       setSuccess(res.data.message || 'Account created successfully! Taking you to your dashboard…');
       setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
