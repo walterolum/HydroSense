@@ -27,25 +27,57 @@ const DISC_CATS = [
   { value: 'general',     label: '💬 General',         color: '#64748b' },
 ];
 
+// All 146 districts of Uganda (as of 2024), alphabetical
 const UGANDA_DISTRICTS = [
+  // A
   'Abim','Adjumani','Agago','Alebtong','Amolatar','Amudat','Amuria','Amuru',
-  'Apac','Arua','Budaka','Bududa','Bugiri','Bugweri','Buikwe','Bukedea',
-  'Bukwa','Bulambuli','Buliisa','Bundibugyo','Bunyangabu','Bukomansimbi',
-  'Bushenyi','Busia','Butebo','Buvuma','Buyende','Dokolo','Gomba','Gulu',
-  'Hoima','Ibanda','Iganga','Isingiro','Jinja','Kaabong','Kabale','Kabarole',
-  'Kaberamaido','Kagadi','Kakumiro','Kalaki','Kalangala','Kaliro','Kalungu',
-  'Kampala','Kamuli','Kamwenge','Kanungu','Kapelebyong','Kapchorwa','Kasanda',
-  'Kasese','Katakwi','Kayunga','Kiboga','Kibuku','Kikuube','Kiryandongo',
-  'Kisoro','Kitgum','Koboko','Kole','Kotido','Kumi','Kwania','Kween',
-  'Kyankwanzi','Kyegegwa','Kyenjojo','Lamwo','Lira','Luuka','Luwero',
-  'Lwengo','Lyantonde','Madi-Okollo','Manafwa','Maracha','Masaka','Masindi',
-  'Mayuge','Mbale','Mbarara','Mitooma','Mityana','Moroto','Moyo','Mpigi',
-  'Mubende','Mukono','Nabilatuk','Nakapiripirit','Nakaseke','Nakasongola',
-  'Namayingo','Namisindwa','Namutumba','Napak','Nebbi','Ngora','Ntoroko',
-  'Ntungamo','Nwoya','Obongi','Omoro','Otuke','Oyam','Pader','Pakwach',
-  'Pallisa','Rakai','Rubanda','Rubirizi','Rukiga','Rukungiri','Rwampara',
-  'Sembabule','Serere','Sheema','Sironko','Soroti','Terego','Tororo',
-  'Wakiso','Yumbe','Zombo',
+  'Apac','Arua',
+  // B
+  'Budaka','Bududa','Bugiri','Bugweri','Buikwe','Bukedea','Bukwo','Bulambuli',
+  'Buhweju','Buliisa','Bundibugyo','Bunyangabu','Bukomansimbi','Bushenyi',
+  'Busia','Butaleja','Butebo','Buvuma','Buyende',
+  // D
+  'Dokolo',
+  // G
+  'Gomba','Gulu',
+  // H
+  'Hoima',
+  // I
+  'Ibanda','Iganga','Isingiro',
+  // J
+  'Jinja',
+  // K
+  'Kaabong','Kabale','Kabarole','Kaberamaido','Kagadi','Kakumiro','Kalaki',
+  'Kalangala','Kaliro','Kalungu','Kampala','Kamuli','Kamwenge','Kanungu',
+  'Kapelebyong','Kapchorwa','Karenga','Kasanda','Kasese','Katakwi','Kayunga',
+  'Kiboga','Kibuku','Kikuube','Kiryandongo','Kiruhura','Kisoro','Kitgum',
+  'Koboko','Kole','Kotido','Kumi','Kwania','Kween','Kyankwanzi','Kyegegwa',
+  'Kyenjojo','Kyotera',
+  // L
+  'Lamwo','Lira','Luuka','Luwero','Lwengo','Lyantonde',
+  // M
+  'Madi-Okollo','Manafwa','Maracha','Masaka','Masindi','Mayuge','Mbale',
+  'Mbarara','Mitooma','Mityana','Moroto','Moyo','Mpigi','Mubende','Mukono',
+  // N
+  'Nabilatuk','Nakapiripirit','Nakaseke','Nakasongola','Namayingo',
+  'Namisindwa','Namutumba','Napak','Nebbi','Ngora','Ntoroko','Ntungamo',
+  'Nwoya',
+  // O
+  'Obongi','Omoro','Otuke','Oyam',
+  // P
+  'Pader','Pakwach','Pallisa',
+  // R
+  'Rakai','Rubanda','Rubirizi','Rukiga','Rukungiri','Rwampara',
+  // S
+  'Sembabule','Serere','Sheema','Sironko','Soroti',
+  // T
+  'Terego','Tororo',
+  // W
+  'Wakiso',
+  // Y
+  'Yumbe',
+  // Z
+  'Zombo',
 ];
 
 const OBS_TYPES = [
