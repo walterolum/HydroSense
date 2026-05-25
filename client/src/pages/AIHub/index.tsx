@@ -734,13 +734,13 @@ export default function AIHub() {
 
           {/* AI Recommendations */}
           {(dashboard?.ai_recommendations || []).length > 0 && (
-            <div className="card" style={{ background: 'linear-gradient(135deg,#eff6ff,#f5f3ff)', border: '1px solid #bfdbfe' }}>
-              <h3 className="section-title mb-3"><Brain size={16} className="text-blue-600" /> AI Recommendations</h3>
+            <div className="rounded-2xl shadow-sm p-3 sm:p-5 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700">
+              <h3 className="section-title mb-3 text-gray-800 dark:text-gray-100"><Brain size={16} className="text-blue-600 dark:text-blue-400" /> AI Recommendations</h3>
               <div className="space-y-2">
                 {(dashboard?.ai_recommendations || []).map((r, i) => (
                   <div key={i} className="flex items-start gap-3 text-sm">
                     <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{i+1}</span>
-                    <span className="text-gray-700 dark:text-gray-300">{r}</span>
+                    <span className="text-gray-700 dark:text-gray-200">{r}</span>
                   </div>
                 ))}
               </div>
@@ -1143,12 +1143,12 @@ export default function AIHub() {
               </div>
 
               {/* AI Recommendations */}
-              <div className="rounded-2xl shadow-sm p-3 sm:p-5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+              <div className="rounded-2xl shadow-sm p-3 sm:p-5 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-gray-700">
                 <h3 className="text-base font-bold flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
                   <Brain size={16} className="text-purple-600 dark:text-purple-400" /> AI Recommendations
                 </h3>
                 {(reportData.recommendations || []).map((r: string, i: number) => (
-                  <div key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  <div key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200 mb-2">
                     <ChevronRight size={15} className="text-purple-500 dark:text-purple-400 mt-0.5 flex-shrink-0" />
                     <span>{r}</span>
                   </div>
@@ -1156,8 +1156,8 @@ export default function AIHub() {
               </div>
 
               {/* Print hint */}
-              <p className="text-center text-xs text-gray-400 dark:text-gray-600 pb-2">
-                Tap <strong>Print / Save PDF</strong> to download or print this report.
+              <p className="text-center text-xs text-gray-400 dark:text-gray-400 pb-2">
+                Click <strong>Print / Save PDF</strong> to download or print this report.
               </p>
             </div>
           )}
