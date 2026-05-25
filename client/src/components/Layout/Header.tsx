@@ -178,7 +178,7 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
           {notifOpen && (
             <div
               ref={panelRef}
-              className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl z-50 overflow-hidden"
+              className="fixed left-2 right-2 top-[62px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 lg:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl z-50 overflow-hidden"
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
