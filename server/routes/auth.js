@@ -105,7 +105,7 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
       SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '365d' }
     );
 
     // Send welcome notification in the background — never blocks the response
@@ -261,7 +261,7 @@ router.post('/verify-otp', async (req, res) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
     SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '365d' }
   );
 
   res.json({ success: true, verified: true, message: 'Account verified and activated successfully!', token, user: { ...safeUser, otp_verified: 1, active: 1 } });
@@ -396,10 +396,17 @@ router.put('/profile', authMiddleware, async (req, res) => {
   res.json({ success: true, user: updated });
 });
 
-/* ── List all users (authenticated) ── */
+/* ── List users ── */
+// national_admin: full list with all fields
+// other staff: id/name/role/district only (needed for task assignment dropdowns)
 router.get('/users', authMiddleware, async (req, res) => {
   const db = await getDb();
-  const users = await db.prepare('SELECT id, name, email, role, district, sub_county, organization, phone, avatar, active, last_login, created_at FROM users ORDER BY name').all();
+  if (req.user.role === 'national_admin') {
+    const users = await db.prepare('SELECT id, name, email, role, district, sub_county, organization, phone, avatar, active, last_login, created_at FROM users ORDER BY name').all();
+    return res.json({ success: true, data: users });
+  }
+  // Non-admin staff — limited view, active users only
+  const users = await db.prepare('SELECT id, name, role, district, organization, avatar FROM users WHERE active = 1 ORDER BY name').all();
   res.json({ success: true, data: users });
 });
 

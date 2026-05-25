@@ -7,7 +7,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "node seed.js && node index.js",
+    "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js",
     "postinstall": "node -e \"const fs=require('fs'),cp=require('child_process'),p='../ai-service/requirements.txt';if(fs.existsSync(p)){try{cp.execSync('pip3 install -r '+p,{stdio:'ignore'})}catch(e){try{cp.execSync('pip install -r '+p,{stdio:'ignore'})}catch(e2){}}}console.log('Setup complete')\""

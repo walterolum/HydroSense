@@ -355,6 +355,21 @@ function runMigrations() {
     verified INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+
+  // Bootstrap: ensure at least one active admin exists (critical for fresh deployments)
+  const adminCount = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'national_admin' AND active = 1").get().c;
+  if (adminCount === 0) {
+    const bcrypt = require('bcryptjs');
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@hydrosense.ug').toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'HydroAdmin2024!';
+    const adminName = process.env.ADMIN_NAME || 'System Administrator';
+    const hash = bcrypt.hashSync(adminPassword, 10);
+    db.prepare(
+      `INSERT OR IGNORE INTO users (name, email, password_hash, role, district, organization, active)
+       VALUES (?, ?, ?, 'national_admin', 'Kampala', 'HydroSense', 1)`
+    ).run(adminName, adminEmail, hash);
+    console.log(`[BOOTSTRAP] No admin found — default admin created: ${adminEmail}`);
+  }
 }
 
 function initSchema() {
