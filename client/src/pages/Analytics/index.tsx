@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, Brain, Activity } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Cell, RadarChart, PolarGrid, PolarAngleAxis, Radar, Legend } from 'recharts';
+import { useEffect, useState } from 'react';
+import { BarChart3, TrendingUp, Brain, Activity } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, LineChart, Line, Legend } from 'recharts';
 import { getAnalyticsOverview, getWaterSecurity, getAnalyticsTrends, getPredictions, getClimateRisk } from '../../api/client';
 import StatCard from '../../components/common/StatCard';
-import StatusBadge from '../../components/common/StatusBadge';
 
 export default function Analytics() {
   const [overview, setOverview] = useState<any>(null);
@@ -24,8 +23,6 @@ export default function Analytics() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const riskColors: Record<string, string> = { low: '#16a34a', moderate: '#d97706', high: '#dc2626' };
-  const radarDistricts = waterSecurity.slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -39,9 +36,9 @@ export default function Analytics() {
         <span className="ml-auto badge bg-white/20 text-white">Live Model</span>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
         {(['overview', 'predictions', 'climate', 'security'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-all ${tab === t ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-all ${tab === t ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
@@ -94,9 +91,9 @@ export default function Analytics() {
 
       {tab === 'predictions' && (
         <div className="space-y-6">
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-            <div className="font-semibold text-purple-800 flex items-center gap-2"><Brain size={18} /> AI Predictive Model — 6-Month Outlook</div>
-            <p className="text-sm text-purple-700 mt-1">Based on historical rainfall patterns, infrastructure degradation rates, groundwater recharge levels, and seasonal disease cycles.</p>
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700/50 rounded-xl p-4">
+            <div className="font-semibold text-purple-800 dark:text-purple-200 flex items-center gap-2"><Brain size={18} /> AI Predictive Model — 6-Month Outlook</div>
+            <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">Based on historical rainfall patterns, infrastructure degradation rates, groundwater recharge levels, and seasonal disease cycles.</p>
           </div>
           <div className="card">
             <h3 className="section-title mb-4">Predicted Risk Indicators (Next 6 Months)</h3>
@@ -117,7 +114,7 @@ export default function Analytics() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {predictions.map(p => (
               <div key={p.month} className="card">
-                <div className="font-bold text-lg text-gray-800">{p.month} Forecast</div>
+                <div className="font-bold text-lg text-gray-800 dark:text-gray-100">{p.month} Forecast</div>
                 <div className="space-y-2 mt-3 text-sm">
                   {[
                     { label: 'Borehole Failure Risk', val: p.borehole_failure_risk_pct, color: '#dc2626' },
@@ -127,18 +124,18 @@ export default function Analytics() {
                   ].map(item => (
                     <div key={item.label}>
                       <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-600">{item.label}</span>
+                        <span className="text-gray-600 dark:text-gray-400">{item.label}</span>
                         <span className="font-semibold" style={{ color: item.color }}>{item.val?.toFixed(0)}%</span>
                       </div>
-                      <div className="h-1.5 bg-gray-200 rounded-full"><div className="h-full rounded-full" style={{ width: `${item.val}%`, background: item.color }} /></div>
+                      <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full rounded-full" style={{ width: `${item.val}%`, background: item.color }} /></div>
                     </div>
                   ))}
                 </div>
                 <div className="mt-3 text-xs">
-                  <span className="font-medium">Contamination Risk: </span>
-                  <span className={`font-bold ${p.contamination_risk === 'high' ? 'text-red-600' : 'text-orange-600'}`}>{p.contamination_risk}</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Contamination Risk: </span>
+                  <span className={`font-bold ${p.contamination_risk === 'high' ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>{p.contamination_risk}</span>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">Est. {p.maintenance_needed_est} repairs needed</div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">Est. {p.maintenance_needed_est} repairs needed</div>
               </div>
             ))}
           </div>
@@ -152,14 +149,14 @@ export default function Analytics() {
               <h3 className="section-title mb-3">High-Risk Water Points (Drought Zones)</h3>
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {(climateRisk.high_risk_water_points || []).map((wp: any) => (
-                  <div key={wp.id} className="flex items-center gap-3 p-2.5 bg-red-50 rounded-lg border border-red-100">
+                  <div key={wp.id} className="flex items-center gap-3 p-2.5 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/40">
                     <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-800">{wp.name}</div>
-                      <div className="text-xs text-gray-500">{wp.district} · {wp.type?.replace(/_/g, ' ')}</div>
+                      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{wp.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{wp.district} · {wp.type?.replace(/_/g, ' ')}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs font-bold text-red-600">{wp.drought_severity?.replace(/_/g, ' ')}</div>
-                      <div className="text-xs text-gray-400">SPI {wp.spi_value?.toFixed(1)}</div>
+                      <div className="text-xs font-bold text-red-600 dark:text-red-400">{wp.drought_severity?.replace(/_/g, ' ')}</div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500">SPI {wp.spi_value?.toFixed(1)}</div>
                     </div>
                   </div>
                 ))}
@@ -170,8 +167,8 @@ export default function Analytics() {
               <div className="space-y-2">
                 {(climateRisk.resilience_scores || []).map((r: any) => (
                   <div key={r.district} className="flex items-center gap-3">
-                    <div className="w-20 text-xs text-gray-700 font-medium">{r.district}</div>
-                    <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-20 text-xs text-gray-700 dark:text-gray-300 font-medium">{r.district}</div>
+                    <div className="flex-1 h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div className="h-full rounded-full flex items-center justify-end pr-2 transition-all" style={{ width: `${r.overall_resilience_score}%`, background: r.overall_resilience_score < 40 ? '#dc2626' : r.overall_resilience_score < 60 ? '#d97706' : '#16a34a' }}>
                         <span className="text-white text-xs font-bold">{r.overall_resilience_score}</span>
                       </div>
@@ -200,22 +197,22 @@ export default function Analytics() {
                   <th className="th">Resilience</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
                 {waterSecurity.map((d: any) => (
                   <tr key={d.district} className="tr">
-                    <td className="td font-semibold">{d.district}</td>
-                    <td className="td">{d.total_points}</td>
-                    <td className="td text-green-700 font-semibold">{d.functional}</td>
+                    <td className="td font-semibold text-gray-800 dark:text-gray-100">{d.district}</td>
+                    <td className="td text-gray-700 dark:text-gray-300">{d.total_points}</td>
+                    <td className="td text-green-700 dark:text-green-400 font-semibold">{d.functional}</td>
                     <td className="td">
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-2 bg-gray-200 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${d.total_points > 0 ? (d.functional / d.total_points) * 100 : 0}%` }} /></div>
-                        <span className="text-xs">{d.total_points > 0 ? Math.round((d.functional / d.total_points) * 100) : 0}%</span>
+                        <div className="w-12 h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${d.total_points > 0 ? (d.functional / d.total_points) * 100 : 0}%` }} /></div>
+                        <span className="text-xs text-gray-700 dark:text-gray-300">{d.total_points > 0 ? Math.round((d.functional / d.total_points) * 100) : 0}%</span>
                       </div>
                     </td>
-                    <td className="td">{(d.total_beneficiaries || 0).toLocaleString()}</td>
-                    <td className="td"><span className={`font-bold ${d.avg_infra_score >= 70 ? 'text-green-600' : d.avg_infra_score >= 50 ? 'text-orange-500' : 'text-red-600'}`}>{Math.round(d.avg_infra_score || 0)}</span></td>
-                    <td className="td"><span className={`font-bold ${d.avg_quality_score >= 80 ? 'text-green-600' : d.avg_quality_score >= 60 ? 'text-orange-500' : 'text-red-600'}`}>{Math.round(d.avg_quality_score || 0)}</span></td>
-                    <td className="td"><span className={`font-bold ${d.overall_resilience_score >= 70 ? 'text-green-600' : d.overall_resilience_score >= 50 ? 'text-orange-500' : 'text-red-600'}`}>{d.overall_resilience_score || '—'}</span></td>
+                    <td className="td text-gray-700 dark:text-gray-300">{(d.total_beneficiaries || 0).toLocaleString()}</td>
+                    <td className="td"><span className={`font-bold ${d.avg_infra_score >= 70 ? 'text-green-600 dark:text-green-400' : d.avg_infra_score >= 50 ? 'text-orange-500 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>{Math.round(d.avg_infra_score || 0)}</span></td>
+                    <td className="td"><span className={`font-bold ${d.avg_quality_score >= 80 ? 'text-green-600 dark:text-green-400' : d.avg_quality_score >= 60 ? 'text-orange-500 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>{Math.round(d.avg_quality_score || 0)}</span></td>
+                    <td className="td"><span className={`font-bold ${d.overall_resilience_score >= 70 ? 'text-green-600 dark:text-green-400' : d.overall_resilience_score >= 50 ? 'text-orange-500 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>{d.overall_resilience_score || '—'}</span></td>
                   </tr>
                 ))}
               </tbody>
