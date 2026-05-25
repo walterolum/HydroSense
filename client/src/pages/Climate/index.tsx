@@ -126,12 +126,12 @@ export default function ClimateMonitor() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 mb-4">
           {drought.map(d => (
-            <div key={d.district} className="p-3 rounded-xl border-2 transition-all hover:shadow-sm" style={{ borderColor: SEVERITY_COLORS[d.severity] + '60', background: SEVERITY_COLORS[d.severity] + '10' }}>
-              <div className="font-semibold text-gray-800 text-sm">{d.district}</div>
+            <div key={d.district} className="p-3 rounded-xl border-2 transition-all hover:shadow-sm" style={{ borderColor: SEVERITY_COLORS[d.severity] + '60', background: SEVERITY_COLORS[d.severity] + '18' }}>
+              <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{d.district}</div>
               <div className="text-2xl font-bold mt-1" style={{ color: SEVERITY_COLORS[d.severity] }}>{d.spi_value?.toFixed(2)}</div>
               <div className="text-xs mt-1" style={{ color: SEVERITY_COLORS[d.severity] }}>{d.severity?.replace(/_/g, ' ')}</div>
-              <div className="text-xs text-gray-500 mt-1">GW Recharge: {d.groundwater_recharge}%</div>
-              <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">GW Recharge: {d.groundwater_recharge}%</div>
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
                 <div className="h-full rounded-full" style={{ width: `${Math.max(5, d.groundwater_recharge || 10)}%`, background: SEVERITY_COLORS[d.severity] }} />
               </div>
             </div>
@@ -167,15 +167,15 @@ export default function ClimateMonitor() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {flood.map(f => (
-            <div key={f.id} className={`p-4 rounded-xl border-l-4 ${f.flood_risk === 'critical' ? 'bg-red-50 border-red-500' : f.flood_risk === 'high' ? 'bg-orange-50 border-orange-500' : f.flood_risk === 'moderate' ? 'bg-yellow-50 border-yellow-500' : 'bg-blue-50 border-blue-400'}`}>
+            <div key={f.id} className={`p-4 rounded-xl border-l-4 ${f.flood_risk === 'critical' ? 'bg-red-50 dark:bg-red-950/30 border-red-500' : f.flood_risk === 'high' ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-500' : f.flood_risk === 'moderate' ? 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-500' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-400'}`}>
               <div className="flex items-center justify-between mb-2">
-                <div className="font-semibold text-gray-800">{f.district}</div>
-                <span className="badge" style={{ background: FLOOD_COLORS[f.flood_risk] + '20', color: FLOOD_COLORS[f.flood_risk] }}>{f.flood_risk} risk</span>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">{f.district}</div>
+                <span className="badge" style={{ background: FLOOD_COLORS[f.flood_risk] + '30', color: FLOOD_COLORS[f.flood_risk] }}>{f.flood_risk} risk</span>
               </div>
-              <div className="text-sm text-gray-600 mb-1">🌊 {f.river_name} · Level: <strong>{f.water_level_m}m</strong></div>
-              <div className="text-xs text-gray-500">Communities: {f.affected_communities}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">🌊 {f.river_name} · Level: <strong>{f.water_level_m}m</strong></div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Communities: {f.affected_communities}</div>
               {f.flood_risk === 'critical' && (
-                <div className="mt-2 text-xs font-semibold text-red-700 flex items-center gap-1">
+                <div className="mt-2 text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
                   <AlertTriangle size={12} /> IMMEDIATE EVACUATION MAY BE REQUIRED
                 </div>
               )}
@@ -203,13 +203,13 @@ export default function ClimateMonitor() {
         </ResponsiveContainer>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mt-4">
           {forecast.map(f => (
-            <div key={f.month} className="text-center p-2 rounded-lg bg-gray-50">
-              <div className="font-semibold text-sm text-gray-700">{f.month}</div>
-              <div className="text-xs text-blue-600 mt-0.5">{f.predicted_rainfall_mm} mm</div>
-              <div className={`text-xs mt-0.5 font-medium ${f.drought_risk === 'high' ? 'text-red-600' : f.drought_risk === 'moderate' ? 'text-orange-500' : 'text-green-600'}`}>
+            <div key={f.month} className="text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <div className="font-semibold text-sm text-gray-700 dark:text-gray-200">{f.month}</div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">{f.predicted_rainfall_mm} mm</div>
+              <div className={`text-xs mt-0.5 font-medium ${f.drought_risk === 'high' ? 'text-red-600 dark:text-red-400' : f.drought_risk === 'moderate' ? 'text-orange-500 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>
                 {f.drought_risk} drought
               </div>
-              <div className="text-xs text-gray-400">{f.confidence_pct}% conf.</div>
+              <div className="text-xs text-gray-400 dark:text-gray-500">{f.confidence_pct}% conf.</div>
             </div>
           ))}
         </div>
@@ -232,30 +232,30 @@ export default function ClimateMonitor() {
                   <th className="th">Overall</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
                 {resilience.map(r => (
                   <tr key={r.district} className="tr">
-                    <td className="td font-semibold">{r.district}</td>
+                    <td className="td font-semibold text-gray-800 dark:text-gray-100">{r.district}</td>
                     <td className="td">
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 bg-gray-200 rounded-full"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${r.water_access_score}%` }} /></div>
-                        <span className="text-xs">{r.water_access_score}</span>
+                        <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${r.water_access_score}%` }} /></div>
+                        <span className="text-xs text-gray-700 dark:text-gray-300">{r.water_access_score}</span>
                       </div>
                     </td>
                     <td className="td">
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 bg-gray-200 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${r.infrastructure_score}%` }} /></div>
-                        <span className="text-xs">{r.infrastructure_score}</span>
+                        <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-green-500 rounded-full" style={{ width: `${r.infrastructure_score}%` }} /></div>
+                        <span className="text-xs text-gray-700 dark:text-gray-300">{r.infrastructure_score}</span>
                       </div>
                     </td>
                     <td className="td">
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 bg-gray-200 rounded-full"><div className="h-full bg-orange-500 rounded-full" style={{ width: `${r.climate_adaptation_score}%` }} /></div>
-                        <span className="text-xs">{r.climate_adaptation_score}</span>
+                        <div className="w-12 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-orange-500 rounded-full" style={{ width: `${r.climate_adaptation_score}%` }} /></div>
+                        <span className="text-xs text-gray-700 dark:text-gray-300">{r.climate_adaptation_score}</span>
                       </div>
                     </td>
                     <td className="td">
-                      <span className={`font-bold ${r.overall_resilience_score < 40 ? 'text-red-600' : r.overall_resilience_score < 60 ? 'text-orange-600' : 'text-green-600'}`}>{r.overall_resilience_score}</span>
+                      <span className={`font-bold ${r.overall_resilience_score < 40 ? 'text-red-600 dark:text-red-400' : r.overall_resilience_score < 60 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}`}>{r.overall_resilience_score}</span>
                     </td>
                   </tr>
                 ))}
