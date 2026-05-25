@@ -94,8 +94,8 @@ export default function WaterInfrastructure() {
             {TYPES.map(t => <option key={t} value={t}>{t === 'All' ? 'All Types' : t.replace(/_/g, ' ')}</option>)}
           </select>
           <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-            <button onClick={() => setView('table')} className={`px-3 py-2 text-sm ${view === 'table' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Table</button>
-            <button onClick={() => setView('map')} className={`px-3 py-2 text-sm ${view === 'map' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Map</button>
+            <button onClick={() => setView('table')} className={`px-3 py-2 text-sm ${view === 'table' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>Table</button>
+            <button onClick={() => setView('map')} className={`px-3 py-2 text-sm ${view === 'map' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>Map</button>
           </div>
           {canAdd && (
             <button onClick={() => setShowModal(true)} className="btn-primary ml-auto">
@@ -115,8 +115,8 @@ export default function WaterInfrastructure() {
       {/* Table View */}
       {view === 'table' && (
         <div className="card p-0">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="font-semibold text-gray-700 text-sm">
+          <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+            <span className="font-semibold text-gray-700 dark:text-gray-200 text-sm">
               {loading ? 'Loading...' : `${filtered.length} water points`}
             </span>
           </div>
@@ -134,44 +134,44 @@ export default function WaterInfrastructure() {
                   <th className="th">Action</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
                 {filtered.map(wp => (
                   <tr key={wp.id} className="tr">
                     <td className="td">
-                      <div className="font-semibold text-gray-800 text-sm">{wp.name}</div>
-                      <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      <div className="font-semibold text-gray-800 dark:text-gray-100 text-sm">{wp.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-0.5">
                         <MapPin size={10} /> {wp.village && `${wp.village}, `}{wp.sub_county}, {wp.district}
                       </div>
                     </td>
-                    <td className="td">
+                    <td className="td text-gray-700 dark:text-gray-300">
                       <span>{typeIcon[wp.type] || '💧'} {wp.type?.replace(/_/g, ' ')}</span>
                     </td>
                     <td className="td"><StatusBadge status={wp.status} type="water_point" /></td>
-                    <td className="td">{(wp.beneficiaries || 0).toLocaleString()}</td>
+                    <td className="td text-gray-700 dark:text-gray-300">{(wp.beneficiaries || 0).toLocaleString()}</td>
                     <td className="td">
                       <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${wp.infrastructure_score}%`, background: wp.infrastructure_score >= 70 ? '#16a34a' : wp.infrastructure_score >= 50 ? '#d97706' : '#dc2626' }} />
                         </div>
-                        <span className="text-xs text-gray-600">{wp.infrastructure_score}</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-300">{wp.infrastructure_score}</span>
                       </div>
                     </td>
                     <td className="td">
-                      <div className="text-xs">
+                      <div className="text-xs text-gray-700 dark:text-gray-300">
                         {wp.pump_type && <div>{wp.pump_type}</div>}
-                        {wp.solar_powered === 1 && <span className="badge bg-yellow-100 text-yellow-700">☀ Solar</span>}
+                        {wp.solar_powered === 1 && <span className="badge bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400">☀ Solar</span>}
                       </div>
                     </td>
-                    <td className="td text-xs text-gray-500">
+                    <td className="td text-xs text-gray-500 dark:text-gray-400">
                       {wp.last_maintained ? new Date(wp.last_maintained).toLocaleDateString() : '—'}
                     </td>
                     <td className="td">
-                      <Link to={`/water-infrastructure/${wp.id}`} className="text-xs text-blue-600 hover:underline font-medium">View →</Link>
+                      <Link to={`/water-infrastructure/${wp.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">View →</Link>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && !loading && (
-                  <tr><td colSpan={8} className="td text-center text-gray-400 py-8">No water points found matching filters.</td></tr>
+                  <tr><td colSpan={8} className="td text-center text-gray-400 dark:text-gray-500 py-8">No water points found matching filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -185,10 +185,10 @@ export default function WaterInfrastructure() {
           <h3 className="section-title mb-4"><MapPin size={18} className="text-blue-600" /> Water Points by District</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {stats.by_district.slice(0, 15).map((d: any) => (
-              <div key={d.district} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <div className="font-semibold text-sm text-gray-700">{d.district}</div>
-                <div className="text-xs text-gray-500 mt-1">{d.total} total · <span className="text-green-600">{d.functional} functional</span></div>
-                <div className="w-full h-1.5 bg-gray-200 rounded-full mt-2">
+              <div key={d.district} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+                <div className="font-semibold text-sm text-gray-700 dark:text-gray-100">{d.district}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{d.total} total · <span className="text-green-600 dark:text-green-400">{d.functional} functional</span></div>
+                <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full mt-2">
                   <div className="h-full bg-green-500 rounded-full" style={{ width: `${d.total > 0 ? (d.functional / d.total) * 100 : 0}%` }} />
                 </div>
               </div>
