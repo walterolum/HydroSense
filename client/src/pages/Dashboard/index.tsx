@@ -274,9 +274,21 @@ export default function Dashboard() {
     navigate(`/gis?district=${encodeURIComponent(district)}`);
   }, [navigate]);
 
+  const { language, translate } = useLanguage();
   const role = user?.role || 'citizen';
-  const quickActions = QUICK_ACTIONS[role] || QUICK_ACTIONS.citizen;
+  const rawActions = QUICK_ACTIONS[role] || QUICK_ACTIONS.citizen;
   const theme = ROLE_COLORS[role] || ROLE_COLORS.citizen;
+
+  const [quickActions, setQuickActions] = useState(rawActions);
+  useEffect(() => {
+    setQuickActions(rawActions);
+    if (language === 'en') return;
+    Promise.all(rawActions.map(async a => ({
+      ...a,
+      label: await translate(a.label),
+      sub:   await translate(a.sub),
+    }))).then(setQuickActions);
+  }, [language, role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const statusData = overview ? [
     { name: 'Functional',    value: overview.water_points?.functional || 0 },
