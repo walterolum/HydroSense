@@ -297,17 +297,22 @@ Please respond with a JSON object (no markdown, raw JSON only) in this exact for
   "severity": "low, medium, high, or critical based on the description"
 }`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 600 }
-        })
-      }
-    );
+    let response = null;
+    for (const model of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 600 }
+          })
+        }
+      );
+      if (response.ok || response.status !== 429) break;
+      await new Promise(r => setTimeout(r, 800));
+    }
 
     if (!response.ok) return res.status(502).json({ error: 'AI translation failed. Please type your report manually.' });
 
@@ -369,23 +374,28 @@ Respond ONLY with raw JSON (no markdown, no explanation outside JSON):
   "severity": "low | medium | high | critical"
 }`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            role: 'user',
-            parts: [
-              { inline_data: { mime_type: mimeType, data: audioBase64 } },
-              { text: prompt }
-            ]
-          }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
-        })
-      }
-    );
+    let response = null;
+    for (const model of ['gemini-2.5-flash', 'gemini-1.5-flash']) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [
+                { inline_data: { mime_type: mimeType, data: audioBase64 } },
+                { text: prompt }
+              ]
+            }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+          })
+        }
+      );
+      if (response.ok || response.status !== 429) break;
+      await new Promise(r => setTimeout(r, 800));
+    }
 
     if (!response.ok) {
       const err = await response.text();
@@ -468,22 +478,35 @@ async function handleNativeNodeChat(req, res, targetPath) {
   };
 
   const isStream = targetPath.includes('/chat/stream');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:${isStream ? 'streamGenerateContent?alt=sse' : 'generateContent'}?key=${apiKey}`;
+  const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+  const action = isStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  let response = null;
+  let lastStatus = null;
+  for (const model of GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${action}?key=${apiKey}`;
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    lastStatus = response.status;
+    if (response.ok) break;
+    if (response.status === 429 && model !== GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
+      await new Promise(r => setTimeout(r, 800));
+      continue;
+    }
+    break;
+  }
 
   if (!response.ok) {
-    if (response.status === 429) {
+    if (lastStatus === 429) {
       throw new Error('Hydro AI is temporarily busy. Please wait a moment and try again.');
     }
-    if (response.status === 400) {
+    if (lastStatus === 400) {
       throw new Error('Invalid request to AI service. Please try rephrasing your question.');
     }
-    throw new Error(`AI service error (${response.status}). Please try again shortly.`);
+    throw new Error(`AI service error (${lastStatus}). Please try again shortly.`);
   }
 
   if (isStream) {
@@ -630,12 +653,22 @@ async function proxyToAI(req, res, targetPath) {
     // GENERIC FALLBACK FOR ALL OTHER AI ENDPOINTS
     if (!responded) {
       responded = true;
+      if (req.nativeChatError) {
+        const isRateLimit = req.nativeChatError.toLowerCase().includes('busy') || req.nativeChatError.toLowerCase().includes('429');
+        return res.status(isRateLimit ? 429 : 503).json({
+          success: false,
+          error: req.nativeChatError,
+          rateLimit: isRateLimit,
+          serverError: !isRateLimit,
+          status: isRateLimit ? 429 : 503,
+        });
+      }
       return res.status(200).json({
         success: true,
         data: [],
         analysis: "Node.js Fallback: Data simulated because AI microservice is unavailable.",
-        message: req.nativeChatError ? `AI Error: ${req.nativeChatError}` : "Node.js Fallback Response",
-        reply: req.nativeChatError ? `AI Error: ${req.nativeChatError}` : "Node.js Fallback Response",
+        message: "Node.js Fallback Response",
+        reply: "Node.js Fallback Response",
         risk_score: 50,
         predictions: []
       });
