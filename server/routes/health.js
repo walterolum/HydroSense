@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const { notifyForHealthIncident } = require('../utils/notify');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -57,6 +58,7 @@ router.post('/incidents', async (req, res) => {
       `Disease Outbreak Alert - ${district}: ${disease_type}`,
       `${cases} cases of ${disease_type} reported in ${sub_county || district}. ${deaths} deaths. ${water_source_linked ? 'Linked to water source.' : ''}`
     );
+    try { notifyForHealthIncident(disease_type, district, cases || 0, result.lastInsertRowid); } catch {}
   }
   res.status(201).json({ success: true, id: result.lastInsertRowid });
 });

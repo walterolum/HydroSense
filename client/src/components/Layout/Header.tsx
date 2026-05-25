@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Bell, Menu, Sun, Moon } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Bell, Menu, Sun, Moon, CheckCheck, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { getAlerts } from '../../api/client';
+import { getNotifications, getNotificationUnreadCount, markNotificationRead, markAllNotificationsRead } from '../../api/client';
 import AIStatusIndicator from '../common/AIStatusIndicator';
 import LanguageSwitcher from '../common/LanguageSwitcher';
 
@@ -17,22 +17,54 @@ const roleColors: Record<string, string> = {
   climate_scientist:   'bg-cyan-500',
 };
 
+interface Notification {
+  id: number;
+  subject: string | null;
+  message: string;
+  sent_at: string;
+  read_at: string | null;
+  reference_type: string | null;
+  reference_id: number | null;
+}
+
 interface HeaderProps {
   onMenuClick: () => void;
   title: string;
 }
 
+function timeAgo(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 export default function Header({ onMenuClick, title }: HeaderProps) {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [alertCount, setAlertCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [time, setTime] = useState(new Date());
+  const panelRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+
+  const fetchUnread = () => {
+    getNotificationUnreadCount()
+      .then(r => setUnreadCount(r.data.count ?? 0))
+      .catch(() => {});
+  };
+
+  const fetchNotifications = () => {
+    getNotifications({ limit: 20 })
+      .then(r => setNotifications(r.data.data ?? []))
+      .catch(() => {});
+  };
 
   useEffect(() => {
-    getAlerts({ status: 'active', limit: 1 }).then(r => setAlertCount(r.data.total)).catch(() => {});
-    const poll = setInterval(() => {
-      getAlerts({ status: 'active', limit: 1 }).then(r => setAlertCount(r.data.total)).catch(() => {});
-    }, 30000);
+    fetchUnread();
+    const poll = setInterval(fetchUnread, 30000);
     return () => clearInterval(poll);
   }, []);
 
@@ -41,8 +73,44 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
     return () => clearInterval(tick);
   }, []);
 
+  // Close panel on outside click
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        bellRef.current && !bellRef.current.contains(e.target as Node)
+      ) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
+
+  const handleBellClick = () => {
+    if (!notifOpen) fetchNotifications();
+    setNotifOpen(v => !v);
+  };
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await markNotificationRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
+      setUnreadCount(c => Math.max(0, c - 1));
+    } catch {}
+  };
+
+  const handleMarkAll = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })));
+      setUnreadCount(0);
+    } catch {}
+  };
+
   const initials = user
-    ? user.name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+    ? user.name.split(' ').map((n: string) => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
     : '?';
 
   const avatarColor = roleColors[user?.role || ''] || 'bg-blue-600';
@@ -90,18 +158,95 @@ export default function Header({ onMenuClick, title }: HeaderProps) {
             : <Moon size={18} />}
         </button>
 
-        {/* Alert bell */}
-        <a
-          href="/emergency"
-          className="relative p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-        >
-          <Bell size={18} />
-          {alertCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold animate-pulse">
-              {alertCount > 9 ? '9+' : alertCount}
-            </span>
+        {/* Notification bell */}
+        <div className="relative">
+          <button
+            ref={bellRef}
+            onClick={handleBellClick}
+            className="relative p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            title="Notifications"
+          >
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold animate-pulse">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Dropdown panel */}
+          {notifOpen && (
+            <div
+              ref={panelRef}
+              className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl z-50 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-sm font-bold text-gray-800 dark:text-gray-100">Notifications</span>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAll}
+                      className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      title="Mark all as read"
+                    >
+                      <CheckCheck size={13} />
+                      Mark all read
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setNotifOpen(false)}
+                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* List */}
+              <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                    No notifications
+                  </div>
+                ) : (
+                  notifications.map(n => (
+                    <button
+                      key={n.id}
+                      onClick={() => { if (!n.read_at) handleMarkRead(n.id); }}
+                      className={`w-full text-left px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                        n.read_at ? '' : 'bg-blue-50/60 dark:bg-blue-950/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        {/* Unread dot */}
+                        <div className="mt-1.5 flex-shrink-0">
+                          {n.read_at
+                            ? <div className="w-2 h-2 rounded-full bg-transparent border border-gray-300 dark:border-gray-600" />
+                            : <div className="w-2 h-2 rounded-full bg-blue-500" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {n.subject && (
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
+                              {n.subject}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
+                            {n.message}
+                          </p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                            {timeAgo(n.sent_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           )}
-        </a>
+        </div>
 
         {/* User avatar */}
         {user && (

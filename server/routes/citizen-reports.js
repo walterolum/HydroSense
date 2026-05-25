@@ -2,6 +2,7 @@ const express = require('express');
 const { getDb } = require('../db');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const http = require('http');
+const { notifyForIncident } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -105,6 +106,9 @@ router.post('/', authMiddleware, async (req, res) => {
         }}
     });
   }
+
+  // Notify relevant staff roles based on incident type
+  try { notifyForIncident(incident_type, severity || 'medium', district, reportId, name); } catch {}
 
   // Send notification to citizen
   postToAI('/ai/notifications/send', {

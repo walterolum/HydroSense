@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const { notifyForAlert } = require('../utils/notify');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -33,6 +34,7 @@ router.post('/', async (req, res) => {
   const { alert_type, severity, water_point_id, district, title, message } = req.body;
   if (!alert_type || !severity || !title || !message) return res.status(400).json({ success: false, error: 'Required fields missing' });
   const result = await db.prepare(`INSERT INTO alerts (alert_type, severity, water_point_id, district, title, message, source) VALUES (?, ?, ?, ?, ?, ?, 'manual')`).run(alert_type, severity, water_point_id, district, title, message);
+  try { notifyForAlert(severity, title, district, result.lastInsertRowid); } catch {}
   res.status(201).json({ success: true, id: result.lastInsertRowid });
 });
 

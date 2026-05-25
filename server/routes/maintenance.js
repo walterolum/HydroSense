@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDb } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const { notifyForMaintenance } = require('../utils/notify');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -46,6 +47,11 @@ router.post('/', async (req, res) => {
     INSERT INTO maintenance_requests (water_point_id, reported_by, issue_type, description, priority, estimated_cost, spare_parts)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(water_point_id, req.user.id, issue_type, description, priority || 'medium', estimated_cost, spare_parts);
+
+  try {
+    const wp = await db.prepare('SELECT name, district FROM water_points WHERE id = ?').get(water_point_id);
+    if (wp) notifyForMaintenance(wp.district, wp.name, result.lastInsertRowid);
+  } catch {}
 
   res.status(201).json({ success: true, id: result.lastInsertRowid, message: 'Maintenance request created' });
 });

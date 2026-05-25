@@ -150,6 +150,9 @@ export const sendNotification = (data: object) => api.post('/notifications/send'
 export const broadcastNotification = (data: object) => api.post('/notifications/broadcast', data);
 export const getNotifications = (params?: object) => api.get('/notifications', { params });
 export const getNotificationStats = () => api.get('/notifications/stats');
+export const getNotificationUnreadCount = () => api.get('/notifications/unread-count');
+export const markNotificationRead = (id: number) => api.patch(`/notifications/${id}/read`);
+export const markAllNotificationsRead = () => api.patch('/notifications/read-all');
 
 // Incident Analysis
 export const getIncidentAnalysisDashboard = (params?: object) => api.get('/incident-analysis/dashboard', { params });
