@@ -472,14 +472,74 @@ export default function AIHub() {
     }
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const buildLocalReport = () => {
+    const aiSum    = (dashboard as any)?.ai_summary    || {};
+    const sysStats = (dashboard as any)?.system_stats  || {};
+    const climate  = (dashboard as any)?.climate_outlook || {};
+    const recs     = (dashboard as any)?.ai_recommendations || [];
+    const now      = new Date().toISOString();
+    const scope    = district ? `District: ${district}` : 'National (All Districts)';
+    const total    = sysStats.total_water_points   || 0;
+    const func     = sysStats.functional_water_points ?? sysStats.functional ?? 0;
+    const funcPct  = total > 0 ? Math.round((func / total) * 100) : 0;
+    const critical = aiSum.critical_failure_risk   || 0;
+    const hotspots = aiSum.contamination_hotspots  || 0;
+    const anomCount= aiSum.sensor_anomalies        || 0;
+    const smAlerts = aiSum.smart_alerts_generated  || 0;
+    const pendMaint= sysStats.pending_maintenance  || 0;
+
+    return {
+      title: 'HYDROSENSE AI Executive Summary Report',
+      generated_at: now,
+      scope,
+      role,
+      executive_summary:
+        `As of ${now.slice(0, 10)}, HYDROSENSE AI has analysed ${total} water points across ${scope}. ` +
+        `${func} (${funcPct}%) are currently functional. ` +
+        `${critical} sites are at critical failure risk, ${hotspots} contamination hotspots detected, ` +
+        `and ${anomCount} sensor anomalies flagged in the last 24 hours. ` +
+        `${smAlerts} AI-generated smart alerts are active and ${pendMaint} maintenance requests remain pending.`,
+      key_findings: [
+        `Total water points monitored: ${total}`,
+        `Functional water points: ${func} (${funcPct}%)`,
+        `Critical failure risk sites: ${critical}`,
+        `Contamination hotspots detected: ${hotspots}`,
+        `Sensor anomalies (last 24h): ${anomCount}`,
+        `AI smart alerts generated: ${smAlerts}`,
+        `Pending maintenance requests: ${pendMaint}`,
+        climate.outlook ? `Climate outlook: ${String(climate.outlook).replace(/_/g, ' ')}` : null,
+      ].filter(Boolean),
+      recommendations: recs.length > 0 ? recs : [
+        'Conduct immediate inspection of all critical-risk water points.',
+        'Investigate contamination hotspots and issue public health advisories.',
+        'Resolve flagged sensor anomalies to ensure accurate monitoring.',
+        'Clear pending maintenance backlog to prevent service disruptions.',
+        'Review and action all pending citizen environmental reports.',
+      ],
+      narrative: null,
+    };
+  };
+
   const handleGenerateReport = async () => {
     setGenReport(true);
+    // Build report immediately from already-loaded dashboard data
+    const localReport = buildLocalReport();
+    setReportData(localReport);
+    setTab('AI Reports');
+
+    // Then try to enrich it with a Gemini narrative in the background
     try {
       const res = await generateAIReport('executive_summary', role, district);
-      setReportData(res.data.report);
-      setTab('AI Reports');
-    } catch { /* offline */ }
-    finally { setGenReport(false); }
+      if (res.data?.report) {
+        setReportData(res.data.report);
+      } else if (localReport.narrative === null) {
+        // API returned something but no report — keep local report, it's already set
+      }
+    } catch {
+      // Network/server error — local report already visible, nothing to do
+    } finally {
+      setGenReport(false);
+    }
   };
 
   if (loading) {
