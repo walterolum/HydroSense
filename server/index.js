@@ -692,6 +692,121 @@ async function proxyToAI(req, res, targetPath) {
 app.all('/api/ai/health', (req, res) => proxyToAI(req, res, '/ai/health'));
 app.all('/api/ai/system/ping', (req, res) => proxyToAI(req, res, '/ai/system/ping'));
 
+// ── Native Node.js report generation (Gemini + DB — no Python service needed) ──
+app.post('/api/ai/reports/generate', authMiddleware, async (req, res) => {
+  try {
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      try {
+        const envPath = path.join(__dirname, '.env');
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf8');
+          const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
+          if (match) apiKey = match[1].trim();
+        }
+      } catch {}
+    }
+
+    const { role = 'district_officer', district = null } = req.body || {};
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    // Pull live stats from DB
+    let stats = {};
+    try {
+      const totalWp   = await db.prepare("SELECT COUNT(*) as c FROM water_points").get();
+      const funcWp    = await db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+      const alerts    = await db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+      const pending   = await db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
+      const unsafe    = await db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+      const reports   = await db.prepare("SELECT COUNT(*) as c FROM citizen_reports WHERE status='pending'").get();
+      stats = {
+        total: totalWp.c, functional: funcWp.c,
+        activeAlerts: alerts.c, pendingMaint: pending.c,
+        unsafeTests: unsafe.c, pendingReports: reports.c,
+      };
+    } catch { stats = { total: 0, functional: 0, activeAlerts: 0, pendingMaint: 0, unsafeTests: 0, pendingReports: 0 }; }
+
+    const scope = district ? `District: ${district}` : 'National (All Districts)';
+    const funcPct = stats.total > 0 ? Math.round((stats.functional / stats.total) * 100) : 0;
+
+    const execSummary =
+      `As of ${now.slice(0, 10)}, HYDROSENSE AI has analysed ${stats.total} water points across ${scope}. ` +
+      `${stats.functional} (${funcPct}%) are currently functional. ` +
+      `${stats.activeAlerts} active alerts require attention, with ${stats.pendingMaint} pending maintenance requests ` +
+      `and ${stats.unsafeTests} unsafe water quality records on file.`;
+
+    const keyFindings = [
+      `Total water points monitored: ${stats.total}`,
+      `Functional water points: ${stats.functional} (${funcPct}%)`,
+      `Active system alerts: ${stats.activeAlerts}`,
+      `Pending maintenance requests: ${stats.pendingMaint}`,
+      `Unsafe water quality records: ${stats.unsafeTests}`,
+      `Pending citizen reports: ${stats.pendingReports}`,
+    ];
+
+    const defaultRecs = [
+      'Prioritise inspection of non-functional water points to restore access.',
+      'Investigate and resolve active alerts before they escalate.',
+      'Clear backlog of pending maintenance requests, starting with high-priority sites.',
+      'Follow up on unsafe water quality records with immediate testing.',
+      'Review and process pending citizen reports for timely community response.',
+    ];
+
+    let narrative = null;
+    if (apiKey) {
+      const prompt =
+        `Write a concise 2-paragraph executive summary for a water infrastructure management report. ` +
+        `Scope: ${scope}. Role: ${role.replace(/_/g, ' ')}. ` +
+        `Key data: ${stats.total} water points, ${funcPct}% functional, ${stats.activeAlerts} active alerts, ` +
+        `${stats.pendingMaint} pending maintenance, ${stats.unsafeTests} unsafe water quality records. ` +
+        `Be professional, specific to water infrastructure, and action-oriented.`;
+
+      const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+      let gRes = null;
+      for (const model of GEMINI_MODELS) {
+        gRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 600 },
+            }),
+          }
+        );
+        if (gRes.ok) break;
+        if (gRes.status === 429 && model !== GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
+          await new Promise(r => setTimeout(r, 800));
+          continue;
+        }
+        break;
+      }
+      if (gRes && gRes.ok) {
+        const gData = await gRes.json();
+        narrative = gData.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      }
+    }
+
+    return res.json({
+      status: 'ok',
+      report: {
+        title: `HYDROSENSE AI ${(req.body?.report_type || 'executive_summary').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Report`,
+        generated_at: now,
+        scope,
+        role,
+        executive_summary: execSummary,
+        key_findings: keyFindings,
+        recommendations: defaultRecs,
+        narrative,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Wildcard route that captures full path after /api/ai/
 app.all('/api/ai/:path(*)', authMiddleware, (req, res) => {
   const targetPath = '/ai/' + req.params.path;
