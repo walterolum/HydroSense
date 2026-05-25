@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Users, MessageSquare, Plus, Phone, Filter, Eye, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import {
@@ -35,8 +36,37 @@ function obsIcon(type: string) {
   return '🔍';
 }
 
+const COMM_STRINGS = [
+  'Water Reports','Environmental Observations',
+  'Multiple Reporting Channels Available',
+  'Submit Report','New Report','Community Reports',
+  'By Issue Type','By Channel','By District',
+  'Reporter','District / Village','Issue','Severity','Channel','Status','Date','Action',
+  'Total Reports','Open Reports','Resolved','Critical Open',
+  'Awaiting response','High severity unresolved',
+  'Accept','Resolve',
+  'No reports found','No observations found',
+  'Environmental Observations',
+  'All','Submit','Cancel',
+  'Review','Approve','Reject',
+];
+
+function useCommunityStrings() {
+  const { language, translate } = useLanguage();
+  const cacheRef = useRef<Record<string, Record<string,string>>>({});
+  const [ts, setTs] = useState<Record<string,string>>({});
+  useEffect(() => {
+    if (language === 'en') { setTs({}); return; }
+    if (cacheRef.current[language]) { setTs(cacheRef.current[language]); return; }
+    Promise.all(COMM_STRINGS.map(s => translate(s).then(t => [s,t] as [string,string])))
+      .then(pairs => { const m = Object.fromEntries(pairs); cacheRef.current[language]=m; setTs(m); });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (s: string) => ts[s] || s;
+}
+
 export default function CommunityReports() {
   const { user } = useAuth();
+  const t = useCommunityStrings();
   const [activeTab, setActiveTab] = useState<'reports' | 'observations'>('reports');
 
   /* ── Community Reports state ── */
@@ -125,13 +155,13 @@ export default function CommunityReports() {
           onClick={() => setActiveTab('reports')}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'reports' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
         >
-          💧 Water Reports
+          💧 {t('Water Reports')}
         </button>
         <button
           onClick={() => setActiveTab('observations')}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'observations' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
         >
-          🔬 Environmental Observations
+          🔬 {t('Environmental Observations')}
         </button>
       </div>
 
@@ -142,7 +172,7 @@ export default function CommunityReports() {
             <div className="flex items-start gap-3">
               <Phone size={24} className="flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-semibold">Multiple Reporting Channels Available</h3>
+                <h3 className="font-semibold">{t('Multiple Reporting Channels Available')}</h3>
                 <div className="text-sm text-green-100 mt-1 grid sm:grid-cols-3 gap-2">
                   <div>📱 <strong>SMS:</strong> Text WATER to 8002</div>
                   <div>📟 <strong>USSD:</strong> Dial *285# then select 2</div>
@@ -150,21 +180,21 @@ export default function CommunityReports() {
                 </div>
               </div>
               <button onClick={() => setShowModal(true)} className="ml-auto btn bg-white text-green-700 hover:bg-green-50 text-sm flex-shrink-0">
-                <Plus size={14} /> Submit Report
+                <Plus size={14} /> {t('Submit Report')}
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard loading={loading} title="Total Reports"  value={stats?.total || 0} icon={MessageSquare} color="blue" />
-            <StatCard loading={loading} title="Open Reports"   value={stats?.by_status?.find((s: any) => s.status === 'open')?.count || 0} subtitle="Awaiting response" icon={MessageSquare} color="red" />
-            <StatCard loading={loading} title="Resolved"       value={stats?.by_status?.find((s: any) => s.status === 'resolved')?.count || 0} icon={Users} color="green" />
-            <StatCard loading={loading} title="Critical Open"  value={stats?.open_critical || 0} subtitle="High severity unresolved" icon={Filter} color="orange" />
+            <StatCard loading={loading} title={t('Total Reports')}  value={stats?.total || 0} icon={MessageSquare} color="blue" />
+            <StatCard loading={loading} title={t('Open Reports')}   value={stats?.by_status?.find((s: any) => s.status === 'open')?.count || 0} subtitle={t('Awaiting response')} icon={MessageSquare} color="red" />
+            <StatCard loading={loading} title={t('Resolved')}       value={stats?.by_status?.find((s: any) => s.status === 'resolved')?.count || 0} icon={Users} color="green" />
+            <StatCard loading={loading} title={t('Critical Open')}  value={stats?.open_critical || 0} subtitle={t('High severity unresolved')} icon={Filter} color="orange" />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="card">
-              <h3 className="section-title mb-3">By Issue Type</h3>
+              <h3 className="section-title mb-3">{t('By Issue Type')}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie data={stats?.by_issue?.slice(0, 6) || []} dataKey="count" nameKey="issue_type" cx="50%" cy="50%" outerRadius={65} label={({ count }: any) => count}>
@@ -175,7 +205,7 @@ export default function CommunityReports() {
               </ResponsiveContainer>
             </div>
             <div className="card">
-              <h3 className="section-title mb-3">By Channel</h3>
+              <h3 className="section-title mb-3">{t('By Channel')}</h3>
               <div className="space-y-2">
                 {(stats?.by_channel || []).map((c: any) => (
                   <div key={c.channel} className="flex items-center gap-2">
@@ -190,7 +220,7 @@ export default function CommunityReports() {
               </div>
             </div>
             <div className="card">
-              <h3 className="section-title mb-3">By District</h3>
+              <h3 className="section-title mb-3">{t('By District')}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={(stats?.by_district || []).slice(0, 6)} layout="vertical" margin={{ left: 40, right: 10 }}>
                   <XAxis type="number" tick={{ fontSize: 10 }} />
@@ -204,26 +234,26 @@ export default function CommunityReports() {
 
           <div className="card p-0">
             <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-3">
-              <h3 className="section-title">Community Reports</h3>
+              <h3 className="section-title">{t('Community Reports')}</h3>
               <div className="flex gap-2 ml-4 flex-wrap">
                 {['all', 'open', 'under_review', 'in_progress', 'resolved'].map(f => (
                   <button key={f} onClick={() => setFilter(f)} className={`px-2.5 py-1 rounded-lg text-xs ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{f.replace(/_/g, ' ')}</button>
                 ))}
               </div>
-              <button onClick={() => { setShowModal(true); setModalError(''); }} className="btn-primary text-xs ml-auto"><Plus size={14} /> New Report</button>
+              <button onClick={() => { setShowModal(true); setModalError(''); }} className="btn-primary text-xs ml-auto"><Plus size={14} /> {t('New Report')}</button>
             </div>
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
-                    <th className="th">Reporter</th>
-                    <th className="th">District / Village</th>
-                    <th className="th">Issue</th>
-                    <th className="th">Severity</th>
-                    <th className="th">Channel</th>
-                    <th className="th">Status</th>
-                    <th className="th">Date</th>
-                    <th className="th">Action</th>
+                    <th className="th">{t('Reporter')}</th>
+                    <th className="th">{t('District / Village')}</th>
+                    <th className="th">{t('Issue')}</th>
+                    <th className="th">{t('Severity')}</th>
+                    <th className="th">{t('Channel')}</th>
+                    <th className="th">{t('Status')}</th>
+                    <th className="th">{t('Date')}</th>
+                    <th className="th">{t('Action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -245,8 +275,8 @@ export default function CommunityReports() {
                       <td className="td"><StatusBadge status={r.status} type="report" /></td>
                       <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(r.created_at).toLocaleDateString()}</td>
                       <td className="td">
-                        {r.status === 'open'        && <button onClick={() => handleStatus(r.id, 'in_progress')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">Accept</button>}
-                        {r.status === 'in_progress' && <button onClick={() => handleStatus(r.id, 'resolved')}    className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">Resolve</button>}
+                        {r.status === 'open'        && <button onClick={() => handleStatus(r.id, 'in_progress')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">{t('Accept')}</button>}
+                        {r.status === 'in_progress' && <button onClick={() => handleStatus(r.id, 'resolved')}    className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">{t('Resolve')}</button>}
                         {r.status === 'resolved'    && <span className="text-xs text-green-500">✓</span>}
                       </td>
                     </tr>
