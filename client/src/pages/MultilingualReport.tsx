@@ -313,7 +313,6 @@ export default function MultilingualReport() {
                 <VoiceRecorder
                   onRecordingComplete={handleVoiceResult}
                   onLiveUpdate={handleVoiceLiveUpdate}
-                  language={sourceLang}
                 />
               </div>
             </div>

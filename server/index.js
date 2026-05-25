@@ -325,6 +325,88 @@ Please respond with a JSON object (no markdown, raw JSON only) in this exact for
 });
 
 // ═══════════════════════════════════════════════════════════════
+// AUDIO / VIDEO TRANSCRIBE — raw audio blob → Gemini multimodal
+// Supports any language including Luganda, Acholi, Ateso, Lugbara,
+// Runyankore, Lusoga, Rukiga, Luo, Swahili and any other language
+// ═══════════════════════════════════════════════════════════════
+app.post('/api/ai/audio-transcribe', async (req, res) => {
+  try {
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      try {
+        const envPath = path.join(__dirname, '.env');
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf8');
+          const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
+          if (match) apiKey = match[1].trim();
+        }
+      } catch {}
+    }
+    if (!apiKey) return res.status(503).json({ error: 'AI service not configured' });
+
+    const { audioBase64, mimeType = 'audio/webm' } = req.body;
+    if (!audioBase64) return res.status(400).json({ error: 'No audio data provided' });
+
+    const prompt = `You are an expert transcription and translation assistant for Uganda's HydroSense water management platform.
+
+Listen carefully to this audio recording. The speaker may be speaking in ANY Ugandan or East African language, including but not limited to:
+- Luganda, Acholi, Ateso/Teso, Lugbara, Runyankore/Nkore, Lusoga, Rukiga, Luo, Langi, Madi, Alur, Kakwa
+- Swahili, English, or any mixture (code-switching is common)
+
+Your task:
+1. Transcribe the audio EXACTLY as spoken (in the original language)
+2. Identify the language(s) spoken
+3. Translate accurately to English — preserve all details about water issues, health problems, environmental damage, and locations
+4. Classify the incident type and severity — this information is critical for Uganda's water, health, and environmental sectors
+
+Respond ONLY with raw JSON (no markdown, no explanation outside JSON):
+{
+  "original": "exact transcription in the original language(s) spoken",
+  "detectedLanguage": "name of the language(s) detected",
+  "english": "accurate, complete English translation — do not omit any details",
+  "explanation": "2-3 sentence professional summary of the reported issue, its urgency, and recommended action for the water/health management team",
+  "incidentType": "one of: water_contamination | broken_water_point | flooding | sewage_leak | illegal_dumping | pollution | environmental_hazard | infrastructure_damage | health_outbreak | other",
+  "severity": "low | medium | high | critical"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: mimeType, data: audioBase64 } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('Gemini audio transcribe error:', err);
+      return res.status(502).json({ error: 'Audio transcription failed' });
+    }
+
+    const data = await response.json();
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(502).json({ error: 'Could not parse transcription response' });
+
+    const result = JSON.parse(jsonMatch[0]);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('audio-transcribe error:', err);
+    res.status(500).json({ error: 'Transcription failed' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // NATIVE NODE.JS GEMINI CHAT FALLBACK
 // ═══════════════════════════════════════════════════════════════
 
