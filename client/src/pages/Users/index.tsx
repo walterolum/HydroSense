@@ -650,18 +650,11 @@ export default function UserManagement() {
               {/* Role */}
               <div>
                 <label className="label">Role *</label>
-                <div className="grid grid-cols-2 gap-2">
+                <select className="input" required value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
                   {Object.entries(ROLE_LABELS).map(([r, label]) => (
-                    <button key={r} type="button"
-                      onClick={() => setForm({ ...form, role: r })}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium text-left border transition-all flex items-center gap-2
-                        ${form.role === r
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 text-gray-600 dark:text-gray-400'}`}>
-                      <span>{ROLE_ICONS[r]}</span> {label}
-                    </button>
+                    <option key={r} value={r}>{ROLE_ICONS[r]} {label}</option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {/* District + Sub-county */}
