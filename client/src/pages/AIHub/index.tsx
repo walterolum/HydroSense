@@ -4,7 +4,7 @@ import {
   Brain, AlertTriangle, Droplets, Wrench, TestTube, CloudRain,
   Activity, TrendingUp, TrendingDown, Zap, RefreshCw, FileText,
   Shield, Eye, Cpu, BarChart3, ChevronRight, Map,
-  MessageSquare, GitCompare, Target, Radio, Globe, Layers,
+  MessageSquare, GitCompare, Target, Radio, Globe, Layers, Printer,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -464,6 +464,13 @@ export default function AIHub() {
   };
 
   useEffect(() => { load(); }, [role, district, aiOnlineCtx]);
+
+  // Auto-generate when user opens the AI Reports tab with no report yet
+  useEffect(() => {
+    if (tab === 'AI Reports' && !reportData && !genReport) {
+      handleGenerateReport();
+    }
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerateReport = async () => {
     setGenReport(true);
@@ -960,19 +967,67 @@ export default function AIHub() {
       {/* ══════════════ TAB: AI REPORTS ══════════════ */}
       {tab === 'AI Reports' && (
         <div className="space-y-5">
+
+          {/* Loading state */}
+          {genReport && !reportData && (
+            <div className="card flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                style={{ background: 'linear-gradient(135deg,#2563eb,#7c3aed)' }}>
+                <Brain size={26} className="text-white animate-pulse" />
+              </div>
+              <div className="font-bold text-gray-700 dark:text-gray-300 text-base">Generating AI Report…</div>
+              <div className="text-sm text-gray-400 mt-1">Analysing system data and compiling insights</div>
+              <div className="mt-4 flex gap-1.5">
+                {[0,1,2].map(i => (
+                  <span key={i} className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-bounce"
+                    style={{ animationDelay: `${i * 150}ms` }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state — generation failed or not started yet */}
+          {!genReport && !reportData && (
+            <div className="card flex flex-col items-center justify-center py-16 text-center">
+              <FileText size={40} className="text-gray-300 dark:text-gray-600 mb-3" />
+              <div className="font-bold text-gray-600 dark:text-gray-300">No Report Yet</div>
+              <p className="text-sm text-gray-400 mt-1 mb-5 max-w-xs">
+                Generate an AI-powered executive summary of the current water infrastructure status.
+              </p>
+              <button onClick={handleGenerateReport} className="btn-primary flex items-center gap-2">
+                <Brain size={15} /> Generate AI Report
+              </button>
+            </div>
+          )}
+
+          {/* Report content */}
           {reportData && (
-            <div className="space-y-4">
-              <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border-blue-200 dark:border-blue-800">
-                <div className="flex items-start justify-between">
-                  <div>
+            <div id="printable-report" className="space-y-4">
+
+              {/* Report header */}
+              <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div className="min-w-0 flex-1">
                     <h3 className="section-title"><FileText size={16} className="text-blue-600" /> {reportData.title}</h3>
-                    <p className="text-xs text-gray-500 mt-1">{reportData.scope} · Generated {new Date(reportData.generated_at).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {reportData.scope} · Generated {new Date(reportData.generated_at).toLocaleString()}
+                    </p>
                   </div>
-                  <button onClick={handleGenerateReport} disabled={genReport} className="btn-primary text-xs px-3 py-1.5">
-                    {genReport ? 'Generating...' : 'Regenerate'}
-                  </button>
+                  <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+                    >
+                      <Printer size={13} /> Print / Save PDF
+                    </button>
+                    <button onClick={handleGenerateReport} disabled={genReport} className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1.5">
+                      {genReport ? <><RefreshCw size={12} className="animate-spin" /> Generating…</> : <><RefreshCw size={12} /> Regenerate</>}
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Executive Summary + Key Findings */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="card">
                   <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">Executive Summary</h4>
@@ -986,7 +1041,7 @@ export default function AIHub() {
                 <div className="card">
                   <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">Key Findings</h4>
                   <div className="space-y-2">
-                    {reportData.key_findings.map((f: string, i: number) => (
+                    {(reportData.key_findings || []).map((f: string, i: number) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         <span className="w-5 h-5 rounded-lg bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{i+1}</span>
                         <span className="text-gray-700 dark:text-gray-300">{f}</span>
@@ -995,15 +1050,24 @@ export default function AIHub() {
                   </div>
                 </div>
               </div>
-              <div className="card" style={{ background: 'linear-gradient(135deg,#eff6ff,#f5f3ff)', border: '1px solid #bfdbfe' }}>
-                <h3 className="section-title mb-3"><Brain size={16} className="text-purple-600" /> AI Recommendations</h3>
+
+              {/* AI Recommendations */}
+              <div className="rounded-2xl shadow-sm p-3 sm:p-5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+                <h3 className="text-base font-bold flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
+                  <Brain size={16} className="text-purple-600 dark:text-purple-400" /> AI Recommendations
+                </h3>
                 {(reportData.recommendations || []).map((r: string, i: number) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 mb-2">
-                    <ChevronRight size={15} className="text-purple-500 mt-0.5 flex-shrink-0" />
+                    <ChevronRight size={15} className="text-purple-500 dark:text-purple-400 mt-0.5 flex-shrink-0" />
                     <span>{r}</span>
                   </div>
                 ))}
               </div>
+
+              {/* Print hint */}
+              <p className="text-center text-xs text-gray-400 dark:text-gray-600 pb-2">
+                Tap <strong>Print / Save PDF</strong> to download or print this report.
+              </p>
             </div>
           )}
         </div>
