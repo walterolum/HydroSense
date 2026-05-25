@@ -69,9 +69,9 @@ if (process.env.RESET_DB === '1') {
     DELETE FROM sqlite_sequence;
   `);
   // Create one system administrator so the system can be accessed after reset
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@hydrosense.ug').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'HydroAdmin2024!';
-  const adminName = process.env.ADMIN_NAME || 'System Administrator';
+  const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+  const adminName = process.env.ADMIN_NAME || 'Walter Olum';
   const hash = bcrypt.hashSync(adminPassword, 10);
   db.prepare(
     `INSERT INTO users (name, email, password_hash, role, district, organization, active)

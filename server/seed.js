@@ -56,17 +56,20 @@ db.exec(`
   DELETE FROM sqlite_sequence;
 `);
 
-// Create the one admin account
-const password = process.env.ADMIN_PASSWORD || 'Admin2024!';
-const hash = bcrypt.hashSync(password, 10);
+// Create the national admin account
+const adminEmail    = process.env.ADMIN_EMAIL    || 'walter.olum@hydrosense.ug';
+const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+const adminName     = process.env.ADMIN_NAME     || 'Walter Olum';
+const hash = bcrypt.hashSync(adminPassword, 10);
 db.prepare(`
-  INSERT INTO users (name, email, password_hash, role, district, organization, phone, active)
-  VALUES (?, ?, ?, 'national_admin', 'Kampala', 'HydroSense', '', 1)
-`).run('System Administrator', 'admin@hydrosense.ug', hash);
+  INSERT INTO users (name, email, password_hash, role, district, organization, active)
+  VALUES (?, ?, ?, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1)
+`).run(adminName, adminEmail, hash);
 
 console.log('\n✅ Database initialised with admin account only.');
 console.log('─────────────────────────────────────────────');
-console.log('  Email   : admin@hydrosense.ug');
-console.log(`  Password: ${password}`);
+console.log(`  Name    : ${adminName}`);
+console.log(`  Email   : ${adminEmail}`);
+console.log(`  Password: ${adminPassword}`);
 console.log('─────────────────────────────────────────────');
 console.log('All other users must be created by the admin.');

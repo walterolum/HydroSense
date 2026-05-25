@@ -26,6 +26,30 @@ function runMigrations() {
     applied_at TEXT DEFAULT (datetime('now'))
   )`);
 
+  // One-time: establish Walter Olum as the sole national admin
+  const walterDone = db.prepare("SELECT name FROM _migrations WHERE name = 'setup_walter_admin_v1'").get();
+  if (!walterDone) {
+    const bcrypt = require('bcryptjs');
+    db.pragma('foreign_keys = OFF');
+    // Nullify FK references on existing admin accounts before removing them
+    const existingAdmins = db.prepare("SELECT id FROM users WHERE role = 'national_admin'").all();
+    existingAdmins.forEach(a => {
+      db.prepare('UPDATE task_assignments SET assigned_to=NULL WHERE assigned_to=?').run(a.id);
+      db.prepare('UPDATE task_assignments SET assigned_by=NULL WHERE assigned_by=?').run(a.id);
+      db.prepare('UPDATE citizen_reports SET user_id=NULL WHERE user_id=?').run(a.id);
+      db.prepare('UPDATE volunteer_events SET created_by=NULL WHERE created_by=?').run(a.id);
+    });
+    db.prepare("DELETE FROM users WHERE role = 'national_admin'").run();
+    db.pragma('foreign_keys = ON');
+    const hash = bcrypt.hashSync('walter123', 10);
+    db.prepare(
+      `INSERT OR IGNORE INTO users (name, email, password_hash, role, district, organization, active)
+       VALUES ('Walter Olum', 'walter.olum@hydrosense.ug', ?, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1)`
+    ).run(hash);
+    db.prepare("INSERT INTO _migrations (name) VALUES ('setup_walter_admin_v1')").run();
+    console.log('[MIGRATION] setup_walter_admin_v1: Walter Olum set as national admin.');
+  }
+
   // One-time: remove all demo/seed users except national_admin accounts
   const v1done = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v1'").get();
   if (!v1done) {
@@ -360,15 +384,15 @@ function runMigrations() {
   const adminCount = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'national_admin' AND active = 1").get().c;
   if (adminCount === 0) {
     const bcrypt = require('bcryptjs');
-    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@hydrosense.ug').toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'HydroAdmin2024!';
-    const adminName = process.env.ADMIN_NAME || 'System Administrator';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+    const adminName = process.env.ADMIN_NAME || 'Walter Olum';
     const hash = bcrypt.hashSync(adminPassword, 10);
     db.prepare(
       `INSERT OR IGNORE INTO users (name, email, password_hash, role, district, organization, active)
-       VALUES (?, ?, ?, 'national_admin', 'Kampala', 'HydroSense', 1)`
+       VALUES (?, ?, ?, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1)`
     ).run(adminName, adminEmail, hash);
-    console.log(`[BOOTSTRAP] No admin found — default admin created: ${adminEmail}`);
+    console.log(`[BOOTSTRAP] No admin found — Walter Olum admin created: ${adminEmail}`);
   }
 }
 
