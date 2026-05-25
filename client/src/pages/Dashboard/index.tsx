@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Droplets, AlertTriangle, Wrench, TestTube, Heart, CloudRain,
@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell,
 } from 'recharts';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { useWeather, weatherInfo } from '../../hooks/useWeather';
 import StatusBadge from '../../components/common/StatusBadge';
 import {
@@ -127,6 +128,16 @@ function MetricCard({ label, value, sub, icon: Icon, from, to, loading, delay = 
   label: string; value: string | number; sub?: string;
   icon: React.ElementType; from: string; to: string; loading: boolean; delay?: number;
 }) {
+  const { language, translate } = useLanguage();
+  const [tLabel, setTLabel] = useState(label);
+  const [tSub, setTSub]     = useState(sub || '');
+
+  useEffect(() => {
+    if (language === 'en') { setTLabel(label); setTSub(sub || ''); return; }
+    translate(label).then(setTLabel);
+    if (sub) translate(sub).then(setTSub);
+  }, [language, label, sub]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="relative overflow-hidden rounded-2xl border shadow-sm ripple-hover animate-drop-in transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
       style={{ background: `linear-gradient(135deg, ${from}18 0%, ${to}12 100%)`, borderColor: `${from}40`, animationDelay: `${delay}ms` }}>
@@ -134,7 +145,7 @@ function MetricCard({ label, value, sub, icon: Icon, from, to, loading, delay = 
         style={{ background: `linear-gradient(90deg, ${from}60, ${to}60, ${from}60)` }} />
       <div className="relative p-4">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider leading-tight">{label}</p>
+          <p className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider leading-tight">{tLabel}</p>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${from}22` }}>
             <Icon size={16} style={{ color: from }} />
           </div>
@@ -143,7 +154,7 @@ function MetricCard({ label, value, sub, icon: Icon, from, to, loading, delay = 
           ? <div className="h-8 w-20 rounded-lg animate-pulse bg-gray-200 dark:bg-gray-700" />
           : <p className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{value}</p>
         }
-        {sub && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight font-medium">{sub}</p>}
+        {sub && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-tight font-medium">{tSub}</p>}
       </div>
     </div>
   );
@@ -199,10 +210,41 @@ function AlertCard({ alert, index, onViewMap }: { alert: any; index: number; onV
   );
 }
 
+// Batch-translate a fixed set of UI strings; caches per language
+function useDashboardStrings() {
+  const { language, translate } = useLanguage();
+  const cache = useRef<Record<string, Record<string, string>>>({});
+  const STRINGS = [
+    'Good Morning', 'Good Afternoon', 'Good Evening',
+    'Online', 'Water Points', 'Active Alerts', 'Coverage',
+    'Active System Alerts', 'Critical', 'No active alerts',
+    'All Clear — No Active Alerts', 'Quick Actions',
+    'View All', 'Open Emergency Center',
+  ];
+  const [map, setMap] = useState<Record<string, string>>(Object.fromEntries(STRINGS.map(s => [s, s])));
+
+  useEffect(() => {
+    if (language === 'en') {
+      setMap(Object.fromEntries(STRINGS.map(s => [s, s])));
+      return;
+    }
+    if (cache.current[language]) { setMap(cache.current[language]); return; }
+    Promise.all(STRINGS.map(s => translate(s).then(t => [s, t] as [string, string])))
+      .then(pairs => {
+        const m = Object.fromEntries(pairs);
+        cache.current[language] = m;
+        setMap(m);
+      });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (s: string) => map[s] ?? s;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const now = useClock();
+  const ts = useDashboardStrings();
   const { weather, wError, loading: wLoading, fetchWeatherByDistrict } = useWeather(user?.district || 'Kampala');
 
   const [overview, setOverview]       = useState<any>(null);
@@ -313,7 +355,7 @@ export default function Dashboard() {
             {/* Online indicator */}
             <div className="flex items-center gap-1.5 mt-3 mb-3">
               <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-xs font-bold text-green-600 dark:text-green-400">Online</span>
+              <span className="text-xs font-bold text-green-600 dark:text-green-400">{ts('Online')}</span>
             </div>
 
             {/* Role badge */}
@@ -339,7 +381,7 @@ export default function Dashboard() {
                 <TrendingUp size={10} /> HydroSense · Live Dashboard
               </p>
               <h1 className="text-xl font-extrabold text-white leading-tight">
-                Good {now.getHours() < 12 ? 'Morning' : now.getHours() < 17 ? 'Afternoon' : 'Evening'}, {user?.name?.split(' ')[0]} 👋
+                {ts(now.getHours() < 12 ? 'Good Morning' : now.getHours() < 17 ? 'Good Afternoon' : 'Good Evening')}, {user?.name?.split(' ')[0]} 👋
               </h1>
               <p className="text-white/80 text-xs mt-1 font-semibold">
                 {ROLE_LABELS[role] || role} · {user?.district || 'Uganda'}
@@ -354,7 +396,7 @@ export default function Dashboard() {
                 <div key={s.label} className="bg-white/15 backdrop-blur-sm rounded-xl p-3 border border-white/25 hover:bg-white/25 transition-all">
                   <s.icon size={14} className="text-white/80 mb-1" />
                   <div className="text-xl font-extrabold text-white leading-none">{s.value}</div>
-                  <div className="text-[11px] text-white/70 mt-0.5 font-medium">{s.label}</div>
+                  <div className="text-[11px] text-white/70 mt-0.5 font-medium">{ts(s.label)}</div>
                 </div>
               ))}
             </div>
@@ -471,10 +513,10 @@ export default function Dashboard() {
             <div>
               <h3 className="text-base font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                 <AlertTriangle size={15} className="text-red-500" />
-                Active Alerts
+                {ts('Active Alerts')}
                 {criticalAlerts.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-xs font-bold animate-pulse ml-1">
-                    {criticalAlerts.length} Critical
+                    {criticalAlerts.length} {ts('Critical')}
                   </span>
                 )}
               </h3>
@@ -508,7 +550,7 @@ export default function Dashboard() {
               <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <CheckCircle size={22} className="text-green-600 dark:text-green-400" />
               </div>
-              <p className="text-sm font-bold text-gray-800 dark:text-gray-100">All Clear — No Active Alerts</p>
+              <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{ts('All Clear — No Active Alerts')}</p>
             </div>
           )}
 
