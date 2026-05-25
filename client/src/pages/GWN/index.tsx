@@ -10,12 +10,44 @@ import {
 } from 'recharts';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import StatCard from '../../components/common/StatCard';
+
+const GWN_STRINGS = [
+  'GUARDIAN WATER NETWORK — CITIZEN SCIENCE',
+  'Report Pollution · Protect Water · Save Lives',
+  'Every report helps protect Uganda\'s water. Anonymous reporting available.',
+  'Total Reports','Verified','Critical',
+  'Report Incident',
+  'Feed','Statistics','Hotspots','Analytics',
+  'Filter Reports','All Districts','All Statuses','All Types',
+  'Clear Filters','No reports found',
+  'Total Reports','Resolved','Resolution Rate','Community Votes',
+  'By Type','By District','By Severity',
+  'Save','Cancel','Saving...',
+  'Assigned Agency','Resolution Notes',
+  'Escalate to National','Verified by authorities',
+  'votes','Report Details','Close',
+  'Hotspot Pollution Areas',
+];
+
+function useGWNStrings() {
+  const { language, translate } = useLanguage();
+  const cacheRef = useRef<Record<string, Record<string,string>>>({});
+  const [ts, setTs] = useState<Record<string,string>>({});
+  useEffect(() => {
+    if (language === 'en') { setTs({}); return; }
+    if (cacheRef.current[language]) { setTs(cacheRef.current[language]); return; }
+    Promise.all(GWN_STRINGS.map(s => translate(s).then(tr => [s,tr] as [string,string])))
+      .then(pairs => { const m = Object.fromEntries(pairs); cacheRef.current[language]=m; setTs(m); });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (s: string) => ts[s] || s;
+}
 
 const api = axios.create({ baseURL: '/api' });
 api.interceptors.request.use(cfg => {
-  const t = sessionStorage.getItem('hs_token');
-  if (t) cfg.headers.Authorization = `Bearer ${t}`;
+  const tok = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
+  if (tok) cfg.headers.Authorization = `Bearer ${tok}`;
   return cfg;
 });
 
@@ -81,6 +113,7 @@ const BLANK = {
 
 export default function GWN() {
   const { user } = useAuth();
+  const t = useGWNStrings();
   const [tab, setTab]               = useState('feed');
   const [stats, setStats]           = useState<any>(null);
   const [reports, setReports]       = useState<any[]>([]);
@@ -246,10 +279,10 @@ export default function GWN() {
     });
   };
 
-  const typeChart = (stats?.byType || []).map((t: any) => ({
-    name: REPORT_TYPES.find(r => r.value === t.report_type)?.label?.split(' ')[1] || t.report_type.replace(/_/g, ' '),
-    count: t.count,
-    value: t.report_type,
+  const typeChart = (stats?.byType || []).map((tc: any) => ({
+    name: REPORT_TYPES.find(r => r.value === tc.report_type)?.label?.split(' ')[1] || tc.report_type.replace(/_/g, ' '),
+    count: tc.count,
+    value: tc.report_type,
   }));
 
   const hasFilters = !!(filterStatus || filterDistrict || filterType);
@@ -268,22 +301,22 @@ export default function GWN() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Shield size={18} className="text-emerald-300" />
-              <span className="text-emerald-300 text-sm font-semibold tracking-wide">GUARDIAN WATER NETWORK — CITIZEN SCIENCE</span>
+              <span className="text-emerald-300 text-sm font-semibold tracking-wide">{t('GUARDIAN WATER NETWORK — CITIZEN SCIENCE')}</span>
             </div>
-            <h2 className="text-2xl font-extrabold">Report Pollution · Protect Water · Save Lives</h2>
-            <p className="text-emerald-100 text-sm mt-1">Every report helps protect Uganda's water. Anonymous reporting available.</p>
+            <h2 className="text-2xl font-extrabold">{t('Report Pollution · Protect Water · Save Lives')}</h2>
+            <p className="text-emerald-100 text-sm mt-1">{t('Every report helps protect Uganda\'s water. Anonymous reporting available.')}</p>
             <div className="flex flex-wrap gap-2 mt-3">
               <button onClick={() => { setFilterStatus(''); setFilterDistrict(''); setFilterType(''); setTab('feed'); }}
                 className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-semibold border border-white/20 hover:bg-white/25 transition-colors">
-                {stats?.total || 0} Total Reports
+                {stats?.total || 0} {t('Total Reports')}
               </button>
               <button onClick={() => { setFilterStatus('verified'); setTab('feed'); }}
                 className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-semibold border border-white/20 hover:bg-white/25 transition-colors">
-                {stats?.verified || 0} Verified
+                {stats?.verified || 0} {t('Verified')}
               </button>
               <button onClick={() => { setTab('hotspots'); }}
                 className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-semibold border border-white/20 hover:bg-white/25 transition-colors">
-                {stats?.critical || 0} Critical
+                {stats?.critical || 0} {t('Critical')}
               </button>
             </div>
           </div>
@@ -294,7 +327,7 @@ export default function GWN() {
             </button>
             <button onClick={() => { setShowModal(true); setModalError(''); }}
               className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-bold flex items-center gap-2 shadow-lg transition-colors">
-              <Plus size={16} /> Report Incident
+              <Plus size={16} /> {t('Report Incident')}
             </button>
           </div>
         </div>
@@ -336,13 +369,13 @@ export default function GWN() {
 
       {/* ── Tabs ── */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
-        {['feed', 'hotspots', 'analytics', 'channels'].map(t => (
-          <button key={t} onClick={() => setTab(t)}
+        {(['feed', 'hotspots', 'analytics', 'channels'] as const).map(tk => (
+          <button key={tk} onClick={() => setTab(tk)}
             className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all
-              ${tab === t
+              ${tab === tk
                 ? 'bg-emerald-600 text-white shadow'
                 : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'}`}>
-            {t === 'feed' ? '📡 Live Feed' : t === 'hotspots' ? '🔥 Hotspots' : t === 'analytics' ? '📊 Analytics' : '📱 Channels'}
+            {tk === 'feed' ? `📡 ${t('Feed')}` : tk === 'hotspots' ? `🔥 ${t('Hotspots')}` : tk === 'analytics' ? `📊 ${t('Analytics')}` : `📱 Channels`}
           </button>
         ))}
       </div>
@@ -358,7 +391,7 @@ export default function GWN() {
 
               <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
                 className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-emerald-400">
-                <option value="">All Statuses</option>
+                <option value="">{t('All Statuses')}</option>
                 {['submitted', 'verified', 'investigating', 'resolved', 'rejected'].map(s => (
                   <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                 ))}
@@ -366,20 +399,20 @@ export default function GWN() {
 
               <select value={filterDistrict} onChange={e => setFilterDistrict(e.target.value)}
                 className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-emerald-400">
-                <option value="">All Districts</option>
+                <option value="">{t('All Districts')}</option>
                 {DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
 
               <select value={filterType} onChange={e => setFilterType(e.target.value)}
                 className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-emerald-400">
-                <option value="">All Types</option>
+                <option value="">{t('All Types')}</option>
                 {REPORT_TYPES.map(rt => <option key={rt.value} value={rt.value}>{rt.label}</option>)}
               </select>
 
               {hasFilters && (
                 <button onClick={() => { setFilterStatus(''); setFilterDistrict(''); setFilterType(''); }}
                   className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
-                  <X size={12} /> Clear Filters
+                  <X size={12} /> {t('Clear Filters')}
                 </button>
               )}
 
@@ -411,8 +444,8 @@ export default function GWN() {
               <div className="flex items-start gap-3">
                 {/* Type icon */}
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                  style={{ background: (REPORT_TYPES.find(t => t.value === r.report_type)?.color || '#6b7280') + '20' }}>
-                  {REPORT_TYPES.find(t => t.value === r.report_type)?.label?.split(' ')[0] || '🚨'}
+                  style={{ background: (REPORT_TYPES.find(rt => rt.value === r.report_type)?.color || '#6b7280') + '20' }}>
+                  {REPORT_TYPES.find(rt => rt.value === r.report_type)?.label?.split(' ')[0] || '🚨'}
                 </div>
 
                 {/* Main content */}
@@ -898,7 +931,7 @@ export default function GWN() {
               <div className="rounded-xl bg-gray-50 dark:bg-gray-800 p-4 space-y-2">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">
-                    {REPORT_TYPES.find(t => t.value === detailReport.report_type)?.label?.split(' ')[0] || '🚨'}
+                    {REPORT_TYPES.find(rt => rt.value === detailReport.report_type)?.label?.split(' ')[0] || '🚨'}
                   </span>
                   <div>
                     <div className="font-bold text-gray-800 dark:text-gray-100 capitalize">
