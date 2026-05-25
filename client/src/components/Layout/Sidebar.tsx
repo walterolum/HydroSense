@@ -160,7 +160,7 @@ interface SidebarProps { open: boolean; onClose: () => void; }
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { language, translate } = useLanguage();
+  const { language } = useLanguage();
   const [showProfile, setShowProfile] = useState(false);
   const [translatedLabels, setTranslatedLabels] = useState<Record<string, string>>({});
   const translateCacheRef = useRef<Record<string, Record<string, string>>>({});
@@ -171,7 +171,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
   const filtered  = navItems.filter(item => item.roles.includes(userRole));
 
-  // Translate nav labels + group labels when language changes
+  // Translate nav labels + group labels when language changes (batch)
   useEffect(() => {
     if (language === 'en') { setTranslatedLabels({}); return; }
     const cached = translateCacheRef.current[language];
@@ -184,13 +184,22 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       'Sign Out',
     ];
     const unique = [...new Set(allStrings)];
+    const token = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
 
-    Promise.all(unique.map(s => translate(s).then(t => [s, t] as [string, string])))
-      .then(pairs => {
-        const map = Object.fromEntries(pairs);
+    fetch('/api/ai/translate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ texts: unique, target_language: language, source_language: 'en' }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        const txts: string[] = data.texts ?? unique;
+        const map: Record<string, string> = {};
+        unique.forEach((s, i) => { map[s] = txts[i] ?? s; });
         translateCacheRef.current[language] = map;
         setTranslatedLabels(map);
-      });
+      })
+      .catch(() => {});
   }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tl = (s: string) => translatedLabels[s] || s;
