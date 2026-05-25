@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Mic, Square, Loader2, Languages, CheckCircle, AlertCircle, Video, Sparkles } from 'lucide-react';
+import { Mic, Square, Loader2, Languages, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 
 const LANGUAGES = [
   { code: 'auto', name: '🌍 Auto-Detect Any Language', bcp47: 'mul' },
@@ -393,13 +393,6 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-red-400 text-red-600 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all"
           >
             <Mic size={18} /> Record Voice
-          </button>
-          <button
-            type="button"
-            onClick={() => startRecording(true)}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border-2 border-dashed border-purple-400 text-purple-600 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-all"
-          >
-            <Video size={18} /> Record Video
           </button>
         </div>
       )}
