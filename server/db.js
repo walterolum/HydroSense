@@ -27,13 +27,37 @@ function runMigrations() {
   )`);
 
   // One-time: remove all demo/seed users except national_admin accounts
-  const alreadyDone = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v1'").get();
-  if (!alreadyDone) {
+  const v1done = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v1'").get();
+  if (!v1done) {
     db.pragma('foreign_keys = OFF');
     db.prepare("DELETE FROM users WHERE role != 'national_admin'").run();
     db.pragma('foreign_keys = ON');
     db.prepare("INSERT INTO _migrations (name) VALUES ('remove_demo_users_v1')").run();
     console.log('[MIGRATION] remove_demo_users_v1: all non-admin demo accounts deleted.');
+  }
+
+  // One-time: remove ALL known demo accounts (including the demo national_admin)
+  const v2done = db.prepare("SELECT name FROM _migrations WHERE name = 'remove_demo_users_v2'").get();
+  if (!v2done) {
+    const demoEmails = [
+      'admin@mwe.go.ug',
+      'officer@gulu.go.ug',
+      'committee@arua.ug',
+      'john@citizen.ug',
+      'sarah@actionaid.org',
+      'tech@maintenance.ug',
+      'health@moh.go.ug',
+      'climate@nema.go.ug',
+      'officer@lira.go.ug',
+      'officer@moroto.go.ug',
+      'admin@hydrosense.ug',
+    ];
+    const placeholders = demoEmails.map(() => '?').join(',');
+    db.pragma('foreign_keys = OFF');
+    db.prepare(`DELETE FROM users WHERE email IN (${placeholders})`).run(...demoEmails);
+    db.pragma('foreign_keys = ON');
+    db.prepare("INSERT INTO _migrations (name) VALUES ('remove_demo_users_v2')").run();
+    console.log('[MIGRATION] remove_demo_users_v2: all hardcoded demo accounts deleted.');
   }
 
   add(`ALTER TABLE users ADD COLUMN avatar TEXT`);
