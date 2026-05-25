@@ -6,7 +6,7 @@ import StatCard from '../../components/common/StatCard';
 import { useAuth } from '../../contexts/AuthContext';
 
 const api = axios.create({ baseURL: '/api' });
-api.interceptors.request.use(cfg => { const t = sessionStorage.getItem('hs_token'); if (t) cfg.headers.Authorization = `Bearer ${t}`; return cfg; });
+api.interceptors.request.use(cfg => { const tok = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token'); if (tok) cfg.headers.Authorization = `Bearer ${tok}`; return cfg; });
 
 const SEV_COLORS: Record<string,string> = { emergency:'#7f1d1d', critical:'#dc2626', high:'#ea580c', medium:'#d97706', low:'#16a34a' };
 const SEV_BG: Record<string,string>     = { emergency:'border-red-600 bg-red-50', critical:'border-red-500 bg-red-50', high:'border-orange-500 bg-orange-50', medium:'border-yellow-400 bg-yellow-50', low:'border-green-400 bg-green-50' };

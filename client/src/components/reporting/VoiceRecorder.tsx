@@ -146,7 +146,7 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   ): Promise<VoiceResult | null> => {
     try {
       const base64 = await blobToBase64(audioBlob);
-      const token  = sessionStorage.getItem('hs_token');
+      const token  = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
       const res = await fetch('/api/ai/audio-transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -167,7 +167,7 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
 
   const translateText = useCallback(async (text: string, audioBlob?: Blob): Promise<VoiceResult> => {
     try {
-      const token = sessionStorage.getItem('hs_token');
+      const token = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
       const res = await fetch('/api/ai/voice-translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -198,7 +198,7 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
     const captureStartMs = Date.now() - startTimeRef.current - CAPTION_INTERVAL_MS;
     try {
       const base64 = await blobToBase64(blob);
-      const token  = sessionStorage.getItem('hs_token');
+      const token  = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
       const res = await fetch('/api/ai/audio-transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },

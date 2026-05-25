@@ -150,7 +150,7 @@ export default function MultilingualReport() {
         audioData.append('audio', audioBlob, 'recording.webm');
         await fetch('/api/citizen-reports/upload-media', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token')}` },
           body: audioData,
         });
       }
@@ -162,7 +162,7 @@ export default function MultilingualReport() {
         imgData.append('image', imageFile);
         await fetch('/api/citizen-reports/upload-media', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${sessionStorage.getItem('hs_token')}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token')}` },
           body: imgData,
         });
       }

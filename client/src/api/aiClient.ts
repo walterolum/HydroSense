@@ -268,7 +268,7 @@ export interface AIDashboard {
 }
 
 ai.interceptors.request.use(config => {
-  const token = sessionStorage.getItem('hs_token');
+  const token = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
   const params = config.params || {};
@@ -542,7 +542,7 @@ export async function sendChatMessageStream(
 
   const streamRequestId = `fe_stream_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-  const token = sessionStorage.getItem('hs_token');
+  const token = localStorage.getItem('hs_token') || sessionStorage.getItem('hs_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'X-Request-ID': streamRequestId
