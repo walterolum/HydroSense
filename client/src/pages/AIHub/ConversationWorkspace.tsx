@@ -201,11 +201,16 @@ export default function ConversationWorkspace() {
   const [messages, setMessages]           = useState<AIMessage[]>([]);
   const [input, setInput]                 = useState('');
   const [loading, setLoading]             = useState(false);
-  const [sidebarOpen, setSidebarOpen]     = useState(true);
+  const [sidebarOpen, setSidebarOpen]     = useState(false);
   const [category, setCategory]           = useState('all');
   const [file, setFile]                   = useState<File | null>(null);
   const [imagePreview, setImagePreview]   = useState<string | null>(null);
   const [hoveredMsg, setHoveredMsg]       = useState<number | null>(null);
+
+  // Open sidebar by default on desktop
+  useEffect(() => {
+    if (window.innerWidth >= 768) setSidebarOpen(true);
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -231,6 +236,10 @@ export default function ConversationWorkspace() {
     } catch {}
   };
 
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  };
+
   const handleNewChat = async () => {
     try {
       const res = await createAIConversation({ title: 'New Chat', category: 'general' });
@@ -243,6 +252,7 @@ export default function ConversationWorkspace() {
       setActiveConv(id);
       setMessages([]);
       setInput('');
+      closeSidebarOnMobile();
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch {}
   };
@@ -394,19 +404,40 @@ export default function ConversationWorkspace() {
 
   return (
     <>
-      {/* Inject bounce keyframes once */}
       <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}`}</style>
 
-      <div className="flex h-[calc(100vh-7rem)] gap-0 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <div className="relative flex h-[calc(100dvh-7rem)] bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+
+        {/* ── Sidebar backdrop (mobile only) ── */}
+        {sidebarOpen && (
+          <div
+            className="absolute inset-0 z-20 bg-black/30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
         {/* ── Sidebar ── */}
-        <div className={`${sidebarOpen ? 'w-64 xl:w-72' : 'w-0'} transition-all duration-200 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 flex flex-col flex-shrink-0 overflow-hidden`}>
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+        <div className={`
+          absolute inset-y-0 left-0 z-30 flex flex-col
+          w-72 bg-gray-50 dark:bg-gray-800/80 border-r border-gray-200 dark:border-gray-700
+          transition-transform duration-200
+          md:relative md:translate-x-0 md:z-auto md:flex-shrink-0
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${!sidebarOpen ? 'md:hidden' : ''}
+        `}>
+          {/* Sidebar header */}
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex gap-2">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm"
             >
               <Plus size={15} /> New Conversation
+            </button>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="md:hidden p-2.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X size={16} />
             </button>
           </div>
 
@@ -431,8 +462,8 @@ export default function ConversationWorkspace() {
               conversations.map(conv => (
                 <div
                   key={conv.id}
-                  onClick={() => setActiveConv(conv.id)}
-                  className={`group px-3 py-2.5 mx-1.5 my-0.5 rounded-lg cursor-pointer transition-colors ${
+                  onClick={() => { setActiveConv(conv.id); closeSidebarOnMobile(); }}
+                  className={`group px-3 py-3 mx-1.5 my-0.5 rounded-lg cursor-pointer transition-colors ${
                     activeConv === conv.id
                       ? 'bg-blue-50 dark:bg-blue-900/25 border border-blue-200 dark:border-blue-800/50'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700/40'
@@ -442,18 +473,18 @@ export default function ConversationWorkspace() {
                     <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${activeConv === conv.id ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-1">
-                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate leading-snug">{conv.title}</span>
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate leading-snug">{conv.title}</span>
                         <button
                           onClick={e => handleDelete(conv.id, e)}
                           className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all p-0.5 rounded flex-shrink-0"
                         >
-                          <Trash2 size={11} />
+                          <Trash2 size={12} />
                         </button>
                       </div>
                       {conv.last_message && (
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5 leading-snug">{conv.last_message}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5 leading-snug">{conv.last_message}</p>
                       )}
-                      <div className="text-[9px] text-gray-400 dark:text-gray-600 mt-1">
+                      <div className="text-[10px] text-gray-400 dark:text-gray-600 mt-1">
                         {conv.message_count || 0} msgs · {new Date(conv.updated_at).toLocaleDateString()}
                       </div>
                     </div>
@@ -468,61 +499,81 @@ export default function ConversationWorkspace() {
         <div className="flex-1 flex flex-col min-w-0">
 
           {!activeConv ? (
-            /* ── Empty / Welcome state ── */
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="text-center max-w-sm">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <Sparkles size={28} className="text-white" />
-                </div>
-                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Hydro AI Workspace</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                  Ask about water systems, environmental data, climate alerts, infrastructure status, and more.
-                </p>
-                <div className="flex flex-col gap-2">
-                  {suggestions.map(s => (
-                    <button
-                      key={s}
-                      onClick={async () => { await handleNewChat(); setTimeout(() => setInput(s), 300); }}
-                      className="w-full px-4 py-2.5 text-left text-xs bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 rounded-xl text-gray-600 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-300 transition-all"
-                    >
-                      {s}
-                    </button>
-                  ))}
+            /* ── Welcome / empty state ── */
+            <div className="flex-1 flex flex-col">
+              {/* Mobile top bar */}
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 flex-shrink-0">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  title="Open conversations"
+                >
+                  <MessageSquare size={18} />
+                </button>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Hydro AI Conversations</span>
+              </div>
+
+              <div className="flex-1 flex items-center justify-center p-6">
+                <div className="text-center max-w-sm w-full">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <Sparkles size={28} className="text-white" />
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">Hydro AI Workspace</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                    Ask about water systems, environmental data, climate alerts, infrastructure status, and more.
+                  </p>
+                  <button
+                    onClick={handleNewChat}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl text-sm font-semibold transition-all shadow-sm mb-4"
+                  >
+                    <Plus size={16} /> Start New Conversation
+                  </button>
+                  <div className="flex flex-col gap-2">
+                    {suggestions.map(s => (
+                      <button
+                        key={s}
+                        onClick={async () => { await handleNewChat(); setTimeout(() => setInput(s), 300); }}
+                        className="w-full px-4 py-2.5 text-left text-sm bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 rounded-xl text-gray-600 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-300 transition-all"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           ) : (
             <>
               {/* ── Chat Header ── */}
-              <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900 flex-shrink-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {!sidebarOpen && (
-                    <button onClick={() => setSidebarOpen(true)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                      <ChevronLeft size={16} />
-                    </button>
-                  )}
-                  <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <MessageSquare size={15} />
+              <div className="px-3 py-2.5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-900 flex-shrink-0 gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                    title="Toggle conversations"
+                  >
+                    <MessageSquare size={16} />
                   </button>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">{activeTitle}</div>
                     <div className="text-[10px] text-gray-400 flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${aiOnline ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${aiOnline ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`} />
                       {aiOnline ? 'Hydro AI online' : statusMessage}
-                      {messages.length > 0 && <span className="ml-1">· {messages.length} messages</span>}
+                      {messages.length > 0 && <span className="ml-1 hidden sm:inline">· {messages.length} messages</span>}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={handleSummarize}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
-                  <FileText size={13} /> Summarize
+                  <FileText size={13} />
+                  <span className="hidden sm:inline">Summarize</span>
                 </button>
               </div>
 
               {/* ── Messages ── */}
-              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5 bg-white dark:bg-gray-900">
+              <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 space-y-5 bg-white dark:bg-gray-900">
                 {messages.length === 0 && !loading && (
                   <div className="flex flex-col items-center justify-center h-full text-center py-10">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-3">
@@ -535,7 +586,6 @@ export default function ConversationWorkspace() {
 
                 {messages.map((msg, idx) => renderMessage(msg, idx))}
 
-                {/* Typing indicator */}
                 {loading && (
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-sm">
@@ -583,7 +633,7 @@ export default function ConversationWorkspace() {
               )}
 
               {/* ── Input Area ── */}
-              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
+              <div className="px-3 py-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-shrink-0">
                 <div className="flex items-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 px-3 py-2 focus-within:border-blue-400 dark:focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/30 transition-all">
                   <input
                     ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.txt"
@@ -602,7 +652,7 @@ export default function ConversationWorkspace() {
                     value={input}
                     onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="Ask Hydro AI about water systems, climate data, alerts…"
+                    placeholder="Ask Hydro AI anything…"
                     rows={1}
                     className="flex-1 bg-transparent resize-none text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none leading-relaxed py-1"
                     style={{ maxHeight: 120 }}

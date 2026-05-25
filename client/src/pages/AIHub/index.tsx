@@ -525,54 +525,54 @@ export default function AIHub() {
     <div className="space-y-5">
 
       {/* ── Hero Banner ── */}
-      <div className="rounded-2xl p-5 text-white relative overflow-hidden"
+      <div className="rounded-2xl p-4 sm:p-5 text-white relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg,#1e1b4b 0%,#1d4ed8 50%,#0891b2 100%)' }}>
         <div className="absolute -right-6 -top-6 w-40 h-40 rounded-full bg-white/5" />
         <div className="absolute right-8 bottom-0 w-24 h-24 rounded-full bg-white/4" />
-        <div className="relative flex items-start justify-between flex-wrap gap-4">
-          <div>
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <Brain size={20} className="text-cyan-300" />
-              <span className="text-cyan-300 text-sm font-semibold tracking-wide">HYDROSENSE AI ENGINE</span>
+              <Brain size={16} className="text-cyan-300 flex-shrink-0" />
+              <span className="text-cyan-300 text-xs font-semibold tracking-wide">HYDROSENSE AI ENGINE</span>
             </div>
-            <h2 className="text-2xl font-extrabold tracking-tight">AI Intelligence Hub</h2>
-            <p className="text-blue-200 text-sm mt-0.5">
-              {role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} Dashboard
-              {district ? ` · ${district} District` : ' · National'}
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">AI Intelligence Hub</h2>
+            <p className="text-blue-200 text-xs sm:text-sm mt-0.5 truncate">
+              {role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              {district ? ` · ${district}` : ' · National'}
             </p>
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-1.5 mt-2">
               {[
                 `${aiSum?.critical_failure_risk || 0} Critical`,
                 `${aiSum?.sensor_anomalies || 0} Anomalies`,
                 `${aiSum?.smart_alerts_generated || 0} AI Alerts`,
               ].map(t => (
-                <span key={t} className="px-2.5 py-1 rounded-xl bg-white/15 text-xs font-semibold border border-white/20">
+                <span key={t} className="px-2 py-0.5 rounded-lg bg-white/15 text-[11px] font-semibold border border-white/20">
                   {t}
                 </span>
               ))}
             </div>
           </div>
-          <div className="flex gap-2 items-start flex-shrink-0">
+          <div className="flex gap-1.5 items-start flex-shrink-0">
             <button onClick={load}
-              className="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 transition-colors border border-white/20"
+              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 transition-colors border border-white/20"
               title="Refresh AI data">
-              <RefreshCw size={16} className="text-white" />
+              <RefreshCw size={15} className="text-white" />
             </button>
             <button onClick={handleGenerateReport} disabled={genReport}
-              className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 border border-white/25 text-sm font-bold transition-colors flex items-center gap-2">
-              {genReport ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                         : <FileText size={15} />}
-              {genReport ? 'Generating...' : 'AI Report'}
+              className="px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 border border-white/25 text-xs font-bold transition-colors flex items-center gap-1.5">
+              {genReport ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                         : <FileText size={13} />}
+              {genReport ? 'Generating…' : 'AI Report'}
             </button>
           </div>
         </div>
       </div>
 
       {/* ── Tabs ── */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
         {tabs.map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all ${
               tab === t
                 ? 'bg-blue-600 text-white shadow-lg'
                 : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
