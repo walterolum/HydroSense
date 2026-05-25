@@ -5,13 +5,14 @@ import {
   MapPin, Calendar, Clock, ChevronRight, Star, Award,
   Leaf, CloudRain, Zap, Camera, Eye, X, Loader2,
   CheckCircle, Globe, Wind, Flame, ImagePlus, Navigation, Crosshair,
+  Mic, MicOff, Languages,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getCitizenDashboard, getDiscussions, createDiscussion, likeDiscussion,
   getDiscussionReplies, postDiscussionReply,
   getVolunteerEvents, joinEvent, leaveEvent,
-  getCitizenAchievements, submitObservation,
+  getCitizenAchievements, submitObservation, voiceTranslate,
 } from '../../api/client';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
@@ -31,6 +32,18 @@ const OBS_TYPES = [
   '🏭 Industrial Discharge', '🌿 Algae Bloom',
   '💨 Bad Odor', '🗑️ Illegal Dumping',
   '🌊 Flooding / Overflow', '🔴 Oil Spill',
+];
+
+const OBS_LANGS = [
+  { code: 'en-US', srCode: 'en-US', label: 'English'    },
+  { code: 'lg',    srCode: 'lg',    label: 'Luganda'     },
+  { code: 'sw',    srCode: 'sw-KE', label: 'Kiswahili'   },
+  { code: 'nyn',   srCode: 'en-UG', label: 'Runyankore'  },
+  { code: 'ach',   srCode: 'en-UG', label: 'Acholi'      },
+  { code: 'teo',   srCode: 'en-UG', label: 'Ateso'       },
+  { code: 'lgg',   srCode: 'en-UG', label: 'Lugbara'     },
+  { code: 'fr',    srCode: 'fr-FR', label: 'French'      },
+  { code: 'ar',    srCode: 'ar-SA', label: 'Arabic'      },
 ];
 
 const EVENT_TYPES: Record<string, { label: string; color: string; icon: string }> = {
@@ -130,6 +143,13 @@ export default function CitizenHub() {
   const [obsPhotoUrl, setObsPhotoUrl]   = useState<string|null>(null);
   const [gpsLoading,  setGpsLoading]    = useState(false);
   const [gpsError,    setGpsError]      = useState('');
+  /* observation voice + language */
+  const [obsLang,       setObsLang]       = useState(OBS_LANGS[0]);
+  const [obsRecording,  setObsRecording]  = useState(false);
+  const [obsTranslating,setObsTranslating]= useState(false);
+  const [obsOriginal,   setObsOriginal]   = useState('');
+  const [voiceUnsupported, setVoiceUnsupported] = useState(false);
+  const speechRef = useRef<any>(null);
 
   /* education expand */
   const [expandedEdu, setExpandedEdu] = useState<number|null>(null);
@@ -253,6 +273,53 @@ export default function CitizenHub() {
       },
       { enableHighAccuracy: true, timeout: 10000 },
     );
+  };
+
+  const handleVoiceRecord = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setVoiceUnsupported(true); return; }
+    if (obsRecording) { speechRef.current?.stop(); return; }
+
+    const sr = new SR();
+    speechRef.current = sr;
+    sr.lang = obsLang.srCode;
+    sr.interimResults = false;
+    sr.maxAlternatives = 1;
+    setObsRecording(true);
+    setVoiceUnsupported(false);
+
+    sr.onresult = async (e: any) => {
+      const transcript: string = e.results[0][0].transcript;
+      setObsRecording(false);
+      if (obsLang.code === 'en-US') {
+        setObsForm(f => ({ ...f, description: f.description ? f.description + ' ' + transcript : transcript }));
+      } else {
+        setObsOriginal(transcript);
+        setObsTranslating(true);
+        try {
+          const r = await voiceTranslate({ text: transcript, sourceLang: obsLang.code, languageName: obsLang.label });
+          setObsForm(f => ({ ...f, description: r.data?.english || transcript }));
+        } catch {
+          setObsForm(f => ({ ...f, description: transcript }));
+        } finally {
+          setObsTranslating(false);
+        }
+      }
+    };
+    sr.onerror = () => setObsRecording(false);
+    sr.onend   = () => setObsRecording(false);
+    sr.start();
+  };
+
+  const handleTranslateTyped = async () => {
+    if (!obsForm.description || obsLang.code === 'en-US') return;
+    setObsOriginal(obsForm.description);
+    setObsTranslating(true);
+    try {
+      const r = await voiceTranslate({ text: obsForm.description, sourceLang: obsLang.code, languageName: obsLang.label });
+      if (r.data?.english) setObsForm(f => ({ ...f, description: r.data.english }));
+    } catch {}
+    finally { setObsTranslating(false); }
   };
 
   const submitObs = async (e: React.FormEvent) => {
@@ -1053,10 +1120,85 @@ export default function CitizenHub() {
                   </a>
                 )}
               </div>
+              {/* Language selector */}
               <div>
-                <label className="label">What did you observe? *</label>
-                <textarea className="input" rows={3} required placeholder="Describe what you saw in detail..."
-                  value={obsForm.description} onChange={e => setObsForm(f => ({ ...f, description: e.target.value }))} />
+                <label className="label flex items-center gap-1.5"><Languages size={13} /> Language / Lingua</label>
+                <select
+                  className="input"
+                  value={obsLang.code}
+                  onChange={e => {
+                    const lang = OBS_LANGS.find(l => l.code === e.target.value) || OBS_LANGS[0];
+                    setObsLang(lang);
+                    setObsOriginal('');
+                  }}
+                >
+                  {OBS_LANGS.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+                </select>
+                {obsLang.code !== 'en-US' && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    You can speak or type in {obsLang.label} — we will translate to English automatically.
+                  </p>
+                )}
+              </div>
+
+              {/* Description + voice */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="label mb-0">What did you observe? *</label>
+                  <button
+                    type="button"
+                    onClick={handleVoiceRecord}
+                    title={obsRecording ? 'Stop recording' : 'Record voice'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                      obsRecording
+                        ? 'bg-red-500 text-white animate-pulse'
+                        : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                    }`}
+                  >
+                    {obsRecording ? <MicOff size={13} /> : <Mic size={13} />}
+                    {obsRecording ? 'Stop' : 'Record Voice'}
+                  </button>
+                </div>
+
+                {voiceUnsupported && (
+                  <p className="text-xs text-red-500 mb-1.5">Voice input requires Chrome browser. Please type instead.</p>
+                )}
+
+                {obsTranslating ? (
+                  <div className="input flex items-center justify-center gap-2 text-sm text-gray-400 min-h-[80px]">
+                    <Loader2 size={14} className="animate-spin text-emerald-500" />
+                    Translating to English…
+                  </div>
+                ) : (
+                  <textarea
+                    className="input"
+                    rows={3}
+                    required
+                    placeholder={obsLang.code === 'en-US'
+                      ? 'Describe what you saw in detail…'
+                      : `Type in ${obsLang.label} or tap Record Voice…`}
+                    value={obsForm.description}
+                    onChange={e => { setObsForm(f => ({ ...f, description: e.target.value })); setObsOriginal(''); }}
+                  />
+                )}
+
+                {/* Original text shown after translation */}
+                {obsOriginal && (
+                  <div className="mt-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                    <span className="font-semibold">Original ({obsLang.label}):</span> {obsOriginal}
+                  </div>
+                )}
+
+                {/* Manual translate button for typed non-English text */}
+                {obsLang.code !== 'en-US' && obsForm.description && !obsOriginal && !obsTranslating && (
+                  <button
+                    type="button"
+                    onClick={handleTranslateTyped}
+                    className="mt-2 w-full py-2 rounded-xl text-xs font-semibold border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Languages size={13} /> Translate to English
+                  </button>
+                )}
               </div>
               <div>
                 <label className="label">Photo Evidence (optional)</label>

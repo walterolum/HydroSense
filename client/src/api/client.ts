@@ -153,6 +153,8 @@ export const getNotificationStats = () => api.get('/notifications/stats');
 export const getNotificationUnreadCount = () => api.get('/notifications/unread-count');
 export const markNotificationRead = (id: number) => api.patch(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => api.patch('/notifications/read-all');
+export const voiceTranslate = (data: { text: string; sourceLang: string; languageName: string }) =>
+  api.post('/ai/voice-translate', data);
 
 // Incident Analysis
 export const getIncidentAnalysisDashboard = (params?: object) => api.get('/incident-analysis/dashboard', { params });
