@@ -739,38 +739,6 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_oq_priority ON offline_queue(priority);
   `);
 
-  /* ── Seed Phase 3 & 6 sample data (idempotent) ──────────────────── */
-  const gwn = db.prepare('SELECT COUNT(*) as c FROM gwn_reports').get();
-  if (gwn.c === 0) {
-    const ins = db.prepare(`INSERT INTO gwn_reports
-      (reporter_name,reporter_type,report_type,description,district,village,lat,lng,severity,status,community_votes,satellite_verified,ai_score,ai_risk,ai_action)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    [
-      ['Okello James','community','sewage_leak','Raw sewage overflowing into community borehole compound. Strong odor and brown water.','Gulu','Pece Ward',0.33,32.57,'high','verified',7,1,85.2,'sewage_contamination','Close borehole. Deploy health team within 24h.'],
-      ['Anonymous','citizen','illegal_dumping','Truck dumping chemical waste near Nile tributary at night. Oily sheen on water.','Jinja','Bugembe',0.43,33.22,'critical','investigating',12,1,92.1,'industrial_chemical','Emergency response required. Issue injunction on factory.'],
-      ['Mary Atim','citizen','algae_bloom','Thick green algae covering entire pond. Fish dying. Community cannot use the water.','Lira','Ojwina',2.24,32.89,'medium','submitted',3,0,61.0,'algae_pollution','Water quality test. Algae treatment required.'],
-      ['Field Officer','field_officer','oil_spill','Oily sheen on 200m river stretch. Upstream factory is likely source.','Soroti','Arapai',1.71,33.62,'critical','investigating',5,0,89.7,'oil_petroleum','Containment booms. Factory inspection warrant.'],
-      ['Peter Omara','community','discoloration','Borehole water is yellowish and smells of sulfur after recent blasting nearby.','Moroto','Moroto TC',2.53,34.66,'medium','verified',4,0,55.4,'mineral_contamination','Lab test. Possible geological contamination.'],
-    ].forEach(r => ins.run(...r));
-
-    const iins = db.prepare(`INSERT INTO env_incidents
-      (incident_type,title,description,district,lat,lng,severity,status,affected_population,ai_risk_score,satellite_evidence)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
-    [
-      ['industrial_discharge','Jinja Chemical Plant Discharge into Nile Tributary','Confirmed industrial chemical discharge. E.coli 890 CFU, pH 3.2. Multiple agencies notified.','Jinja',0.43,33.23,'critical','investigating',8500,94.2,1],
-      ['sewage_overflow','Gulu Municipal Sewage Overflow','Major sewage overflow affecting 3 community water points. Cholera risk elevated.','Gulu',0.33,32.56,'high','active',12000,78.5,0],
-      ['illegal_dumping','Soroti Industrial Waste at Wetland','Repeated illegal waste dumping at protected wetland. Heavy metals detected in soil.','Soroti',1.70,33.60,'high','active',3200,71.3,0],
-    ].forEach(r => iins.run(...r));
-
-    const hins = db.prepare(`INSERT INTO pollution_hotspots (name,hotspot_type,district,lat,lng,pollution_score,report_count,dominant_type,risk_level) VALUES (?,?,?,?,?,?,?,?,?)`);
-    [
-      ['Kampala-Jinja Road Industrial Zone','industrial','Jinja',0.32,33.10,78.5,14,'industrial_discharge','high'],
-      ['Gulu Municipal Sewage Zone','urban','Gulu',0.33,32.56,72.0,9,'sewage_overflow','high'],
-      ['Soroti Wetland Dump Site','industrial','Soroti',1.70,33.60,65.0,8,'illegal_dumping','medium'],
-      ['Lira Abattoir Runoff Area','urban','Lira',2.25,32.90,55.0,6,'agricultural_runoff','medium'],
-      ['Moroto Mining Zone','industrial','Moroto',2.52,34.65,48.0,4,'mineral_contamination','medium'],
-    ].forEach(h => hins.run(...h));
-  }
 }
 
 module.exports = { getDb };
