@@ -63,15 +63,22 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
   // interim text shown while recording (from Web Speech API)
   const [interim, setInterim]     = useState('');
 
-  const audioRecorderRef = useRef<MediaRecorder | null>(null);
-  const videoRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef   = useRef<Blob[]>([]);
-  const videoChunksRef   = useRef<Blob[]>([]);
-  const recognitionRef   = useRef<any>(null);
-  const timerRef         = useRef<ReturnType<typeof setInterval>>();
-  const startTimeRef     = useRef(0);
-  const streamRef        = useRef<MediaStream | null>(null);
-  const interimAccRef    = useRef(''); // English interim from Web Speech
+  const audioRecorderRef   = useRef<MediaRecorder | null>(null);
+  const videoRecorderRef   = useRef<MediaRecorder | null>(null);
+  const audioChunksRef     = useRef<Blob[]>([]);
+  const videoChunksRef     = useRef<Blob[]>([]);
+  const recognitionRef     = useRef<any>(null);
+  const timerRef           = useRef<ReturnType<typeof setInterval>>();
+  const startTimeRef       = useRef(0);
+  const streamRef          = useRef<MediaStream | null>(null);
+  const interimAccRef      = useRef(''); // English interim from Web Speech
+  // callback ref — attaches stream to the preview <video> as soon as it mounts
+  const videoPreviewCb     = useCallback((el: HTMLVideoElement | null) => {
+    if (el && streamRef.current) {
+      el.srcObject = streamRef.current;
+      el.play().catch(() => {});
+    }
+  }, []);
 
   const lang    = LANGUAGES.find(l => l.code === langCode) || LANGUAGES[0];
   const isEn    = langCode === 'en';
@@ -399,28 +406,72 @@ export default function VoiceRecorder({ onRecordingComplete, onLiveUpdate, maxDu
       {/* RECORDING */}
       {phase === 'recording' && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-              {withVideo && <Video size={13} className="text-purple-500 flex-shrink-0" />}
-              <span className="text-sm font-bold text-red-700 dark:text-red-400 truncate">
-                Recording · {fmt(duration)}
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-                {lang.name.replace(/^[^\s]+\s/, '')}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex-shrink-0 ml-3"
-            >
-              <Square size={12} /> Stop
-            </button>
-          </div>
 
-          {/* Interim text hint */}
-          {interim && (
+          {/* ── Live camera preview with caption overlay ── */}
+          {withVideo && (
+            <div className="relative rounded-xl overflow-hidden bg-black border-2 border-purple-500 shadow-lg">
+              <video
+                ref={videoPreviewCb}
+                autoPlay
+                muted
+                playsInline
+                className="w-full max-h-64 object-cover"
+              />
+
+              {/* REC badge top-left */}
+              <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1 z-10">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-white text-[11px] font-extrabold tracking-wider">REC {fmt(duration)}</span>
+              </div>
+
+              {/* Stop button top-right */}
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="absolute top-2 right-2 flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-600/90 backdrop-blur-sm text-white text-[11px] font-bold hover:bg-red-700 transition-colors z-10"
+              >
+                <Square size={10} /> Stop
+              </button>
+
+              {/* Live caption bar at bottom */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-3 pt-6 pb-2.5 z-10">
+                {interim ? (
+                  <p className="text-white text-sm text-center font-semibold leading-snug drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                    {interim}
+                  </p>
+                ) : (
+                  <p className="text-white/50 text-xs text-center italic">
+                    Listening… speak clearly
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Status bar (audio-only mode) ── */}
+          {!withVideo && (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <span className="text-sm font-bold text-red-700 dark:text-red-400 truncate">
+                  Recording · {fmt(duration)}
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                  {lang.name.replace(/^[^\s]+\s/, '')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex-shrink-0 ml-3"
+              >
+                <Square size={12} /> Stop
+              </button>
+            </div>
+          )}
+
+          {/* Interim text hint — audio-only mode */}
+          {!withVideo && interim && (
             <div className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-600">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
                 🎤 Mic picking up… (Gemini will give final accurate text)
