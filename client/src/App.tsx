@@ -229,12 +229,12 @@ export default function App() {
             <Route path="gwn" element={<RoleRoute path="/gwn"><GWN /></RoleRoute>} />
             <Route path="incident-command" element={<RoleRoute path="/incident-command"><IncidentCommand /></RoleRoute>} />
             <Route path="citizen-hub" element={<RoleRoute path="/citizen-hub"><CitizenHub /></RoleRoute>} />
-          <Route path="citizen-report" element={<RoleRoute path="/water-infrastructure"><CitizenReport /></RoleRoute>} />
-          <Route path="multilingual-report" element={<RoleRoute path="/water-infrastructure"><MultilingualReport /></RoleRoute>} />
-          <Route path="report-status" element={<RoleRoute path="/water-infrastructure"><IncidentAnalysis /></RoleRoute>} />
-          <Route path="track-reports" element={<RoleRoute path="/water-infrastructure"><CitizenTracking /></RoleRoute>} />
-          <Route path="incident-analysis" element={<RoleRoute path="/incident-command"><IncidentAnalysis /></RoleRoute>} />
-          <Route path="task-assignment" element={<RoleRoute path="/water-infrastructure"><TaskAssignment /></RoleRoute>} />
+          <Route path="citizen-report" element={<RoleRoute path="/citizen-report"><CitizenReport /></RoleRoute>} />
+          <Route path="multilingual-report" element={<RoleRoute path="/multilingual-report"><MultilingualReport /></RoleRoute>} />
+          <Route path="report-status" element={<RoleRoute path="/report-status"><IncidentAnalysis /></RoleRoute>} />
+          <Route path="track-reports" element={<RoleRoute path="/track-reports"><CitizenTracking /></RoleRoute>} />
+          <Route path="incident-analysis" element={<RoleRoute path="/incident-analysis"><IncidentAnalysis /></RoleRoute>} />
+          <Route path="task-assignment" element={<RoleRoute path="/task-assignment"><TaskAssignment /></RoleRoute>} />
           </Route>
 
           {/* Catch-all — boot to login */}

@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { getDb } = require('./db');
 const { errorHandler } = require('./middleware/error-handler');
 const { authMiddleware } = require('./middleware/auth');
+const { securityHeaders } = require('./middleware/security');
 const requestLogger = require('./middleware/request-logger');
 
 // ── One-time database reset (set RESET_DB=1 in env AND RESET_CONFIRM=<email> to guard against accidental wipe) ──
@@ -222,6 +223,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(securityHeaders);
 app.use(requestLogger);
 app.use(cors({
   origin: function (origin, callback) {
@@ -959,14 +961,14 @@ async function fetchBaseStats(district) {
   const w = district ? 'WHERE district = ?' : '';
   const wAnd = district ? 'AND district = ?' : '';
   try {
-    const totalWp    = db.prepare(`SELECT COUNT(*) as c FROM water_points ${w}`).get(...p);
-    const funcWp     = db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status='functional' ${wAnd}`).get(...p);
-    const nonFuncWp  = db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status!='functional' ${wAnd}`).get(...p);
-    const critAlerts = db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE severity='critical' AND status='active' ${wAnd}`).get(...p);
-    const allAlerts  = db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE status='active' ${wAnd}`).get(...p);
-    const pendMaint  = db.prepare(`SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending' ${wAnd}`).get(...p);
-    const unsafeQ    = db.prepare(`SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0 ${wAnd}`).get(...p);
-    const pendRep    = db.prepare(`SELECT COUNT(*) as c FROM citizen_reports WHERE status='pending' ${wAnd}`).get(...p);
+    const totalWp    = await db.prepare(`SELECT COUNT(*) as c FROM water_points ${w}`).get(...p);
+    const funcWp     = await db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status='functional' ${wAnd}`).get(...p);
+    const nonFuncWp  = await db.prepare(`SELECT COUNT(*) as c FROM water_points WHERE status!='functional' ${wAnd}`).get(...p);
+    const critAlerts = await db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE severity='critical' AND status='active' ${wAnd}`).get(...p);
+    const allAlerts  = await db.prepare(`SELECT COUNT(*) as c FROM alerts WHERE status='active' ${wAnd}`).get(...p);
+    const pendMaint  = await db.prepare(`SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending' ${wAnd}`).get(...p);
+    const unsafeQ    = await db.prepare(`SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0 ${wAnd}`).get(...p);
+    const pendRep    = await db.prepare(`SELECT COUNT(*) as c FROM citizen_reports WHERE status='pending' ${wAnd}`).get(...p);
     return {
       total: totalWp.c, func: funcWp.c, nonFunc: nonFuncWp.c,
       critAlerts: critAlerts.c, allAlerts: allAlerts.c,
@@ -1005,15 +1007,15 @@ app.get('/api/ai/risk/live-summary', authMiddleware, async (req, res) => {
 app.get('/api/ai/risk/district-summaries', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
-    const districts = db.prepare(`
+    const districts = await db.prepare(`
       SELECT district,
         COUNT(*) as total,
         SUM(CASE WHEN status='functional' THEN 1 ELSE 0 END) as functional
       FROM water_points GROUP BY district ORDER BY district
     `).all();
-    const alertRows = db.prepare(`SELECT district, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY district`).all();
+    const alertRows = await db.prepare(`SELECT district, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY district`).all();
     const alertMap  = Object.fromEntries(alertRows.map(r => [r.district, r.c]));
-    const maintRows = db.prepare(`SELECT district, COUNT(*) as c FROM maintenance_requests WHERE status='pending' GROUP BY district`).all();
+    const maintRows = await db.prepare(`SELECT district, COUNT(*) as c FROM maintenance_requests WHERE status='pending' GROUP BY district`).all();
     const maintMap  = Object.fromEntries(maintRows.map(r => [r.district, r.c]));
 
     const summaries = districts.map(d => {
@@ -1037,7 +1039,7 @@ app.get('/api/ai/risk/heatmap', authMiddleware, async (req, res) => {
   try {
     const db = await getDb();
     const district = req.query.district || null;
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT wp.id, wp.name, wp.district, wp.status,
         (SELECT COUNT(*) FROM alerts a WHERE a.water_point_id = wp.id AND a.status='active') as alert_count,
         (SELECT COUNT(*) FROM citizen_reports cr WHERE cr.district = wp.district AND cr.created_at > datetime('now','-30 days')) as recent_reports

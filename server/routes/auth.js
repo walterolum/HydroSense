@@ -81,8 +81,11 @@ router.post('/register', async (req, res) => {
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Name is required' });
     if (!email || !email.trim()) return res.status(400).json({ success: false, error: 'Email is required' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ success: false, error: 'Invalid email format' });
     if (!password || password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+    if (password.length > 128) return res.status(400).json({ success: false, error: 'Password too long (max 128 characters)' });
     if (!phone) return res.status(400).json({ success: false, error: 'Phone number is required' });
+    if (name.trim().length > 100) return res.status(400).json({ success: false, error: 'Name too long (max 100 characters)' });
 
     const emailKey = email.toLowerCase().trim();
     const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(emailKey);
@@ -178,7 +181,7 @@ router.post('/send-otp', async (req, res) => {
   const smsDelivered   = smsResult   && smsResult.status   !== 'mock';
   const noneDelivered  = !emailDelivered && !smsDelivered;
 
-  console.log(`[OTP] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider} code:${raw}`);
+  console.log(`[OTP] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider}`);
 
   return res.json({
     success:         true,
@@ -193,8 +196,7 @@ router.post('/send-otp', async (req, res) => {
     sms_sent:        smsDelivered,
     phone_hint:      phone ? phone.slice(0, 7) + '****' : null,
     expires_in:      300,
-    // Show code on screen when no real provider delivered it
-    otp_display:     noneDelivered ? raw : null,
+    ...(noneDelivered && process.env.NODE_ENV !== 'production' ? { otp_display: raw } : {}),
   });
 });
 
@@ -284,9 +286,9 @@ router.post('/resend-otp', async (req, res) => {
   const phone = bodyPhone || (userRecord?.phone) || null;
   const raw   = await generateAndStoreOTP(db, emailKey, 'registration', ip);
 
-  const logDelivery = (channel, result, ph = null) => {
+  const logDelivery = async (channel, result, ph = null) => {
     try {
-      db.prepare(`INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id) VALUES (?, ?, ?, ?, ?, ?)`)
+      await db.prepare(`INSERT INTO otp_delivery_log (email, phone, channel, provider, status, provider_message_id) VALUES (?, ?, ?, ?, ?, ?)`)
         .run(emailKey, ph, channel, result?.provider || 'unknown', result?.status || 'failed', result?.messageId || null);
     } catch {}
   };
@@ -295,12 +297,12 @@ router.post('/resend-otp', async (req, res) => {
     sendRealEmail(emailKey, raw, 'registration').catch(() => null),
     phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
   ]);
-  logDelivery('email', emailResult);
-  if (phone) logDelivery('sms', smsResult, phone);
+  await logDelivery('email', emailResult);
+  if (phone) await logDelivery('sms', smsResult, phone);
 
   const emailOk = emailResult && emailResult.status !== 'mock';
   const smsOk   = smsResult   && smsResult.status   !== 'mock';
-  console.log(`[OTP][RESEND] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider}: ${raw}`);
+  console.log(`[OTP][RESEND] ${emailKey} → email:${emailResult?.provider} sms:${smsResult?.provider}`);
   res.json({
     success:        true,
     message:        !emailOk && !smsOk ? 'Use the code shown on screen' : 'New verification code sent!',
@@ -308,7 +310,7 @@ router.post('/resend-otp', async (req, res) => {
     sms_sent:       smsOk,
     sms_provider:   smsResult?.provider || null,
     expires_in:     300,
-    otp_display:    !emailOk && !smsOk ? raw : null,
+    ...(!emailOk && !smsOk && process.env.NODE_ENV !== 'production' ? { otp_display: raw } : {}),
   });
 });
 
@@ -316,6 +318,8 @@ router.post('/resend-otp', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password, rememberMe } = req.body;
   if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
+  if (typeof email !== 'string' || typeof password !== 'string') return res.status(400).json({ success: false, error: 'Invalid input types' });
+  if (password.length > 128) return res.status(400).json({ success: false, error: 'Input too long' });
 
   const db = await getDb();
   const user = await db.prepare('SELECT * FROM users WHERE email = ? AND active = 1').get(email.toLowerCase().trim());
@@ -561,16 +565,11 @@ router.post('/forgot-password', async (req, res) => {
   const phone = user.phone || null;
   if (phone) {
     sendSMS(phone, otp).catch(console.error);
-  } else {
-    // Fetch it if not in the 'user' object (fallback)
-    const userForPhone = await db.prepare('SELECT phone FROM users WHERE email = ?').get(emailKey);
-    if (userForPhone && userForPhone.phone) {
-      sendSMS(userForPhone.phone, otp).catch(console.error);
-    }
   }
 
-  console.log(`[PASSWORD RESET] OTP for ${emailKey}: ${otp}`);
-  res.json({ success: true, message: 'Password reset OTP sent to your email and phone', otp_debug: otp });
+  console.log(`[PASSWORD RESET] OTP sent to ${emailKey}`);
+  const isDev = process.env.NODE_ENV !== 'production';
+  res.json({ success: true, message: 'Password reset OTP sent to your email and phone', ...(isDev ? { otp_debug: otp } : {}) });
 });
 
 /* ── Reset Password (with OTP validation) ── */
@@ -581,7 +580,7 @@ router.post('/reset-password', async (req, res) => {
 
   const db = await getDb();
   const emailKey = email.toLowerCase().trim();
-  const record = db.prepare(`
+  const record = await db.prepare(`
     SELECT * FROM otp_codes
     WHERE email = ? AND purpose = 'password_reset' AND used = 0 AND datetime(expires_at) > datetime('now')
     ORDER BY created_at DESC LIMIT 1
@@ -591,10 +590,10 @@ router.post('/reset-password', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
   }
 
-  db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
+  await db.prepare(`UPDATE otp_codes SET used = 1 WHERE id = ?`).run(record.id);
 
   const hash = bcrypt.hashSync(password, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, emailKey);
+  await db.prepare('UPDATE users SET password_hash = ? WHERE email = ?').run(hash, emailKey);
 
   res.json({ success: true, message: 'Password has been reset successfully. You can now log in.' });
 });
@@ -603,12 +602,12 @@ router.post('/reset-password', async (req, res) => {
 router.put('/language', authMiddleware, async (req, res) => {
   const { language } = req.body;
   if (!language) return res.status(400).json({ success: false, error: 'Language code required' });
-  (await getDb()).prepare('UPDATE users SET language = ? WHERE id = ?').run(language, req.user.id);
+  await (await getDb()).prepare('UPDATE users SET language = ? WHERE id = ?').run(language, req.user.id);
   res.json({ success: true, language });
 });
 
 router.get('/language', authMiddleware, async (req, res) => {
-  const row = (await getDb()).prepare('SELECT language FROM users WHERE id = ?').get(req.user.id);
+  const row = await (await getDb()).prepare('SELECT language FROM users WHERE id = ?').get(req.user.id);
   res.json({ success: true, language: row?.language || 'en' });
 });
 

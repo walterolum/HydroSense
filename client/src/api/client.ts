@@ -16,6 +16,8 @@ api.interceptors.response.use(
   res => res,
   err => {
     if (err.response?.status === 401) {
+      localStorage.removeItem('hs_token');
+      localStorage.removeItem('hs_user');
       sessionStorage.removeItem('hs_token');
       sessionStorage.removeItem('hs_user');
       window.location.href = '/login';

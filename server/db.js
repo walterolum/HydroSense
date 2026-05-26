@@ -199,6 +199,7 @@ class PGDatabase {
     } catch (err) {
       console.error('[PG] Exec error:', err.message);
       console.error('[PG] SQL:', sql.slice(0, 500));
+      throw err;
     }
   }
 
