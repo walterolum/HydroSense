@@ -106,7 +106,7 @@ echo  Press Ctrl+C to stop.
 echo.
 
 :restart_loop
-"%PYTHON%" -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info --loop asyncio
+"%PYTHON%" start.py
 echo.
 echo  [AI Service stopped. Restarting in 5 seconds...]
 timeout /t 5 /nobreak >nul
