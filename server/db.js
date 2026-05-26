@@ -5,15 +5,18 @@ const path = require('path');
 
 // ── PostgreSQL Connection Configuration ──────────────────────────────────
 const PG_CONFIG = {
-  host: process.env.PG_HOST || 'localhost',
+  host: process.env.PG_HOST || 'ep-lucky-grass-aqiciugk-pooler.c-8.us-east-1.aws.neon.tech',
   port: parseInt(process.env.PG_PORT, 10) || 5432,
-  database: process.env.PG_DATABASE || 'hydrosense',
-  user: process.env.PG_USER || 'hydrosense',
-  password: process.env.PG_PASSWORD || 'hydrosense',
+  database: process.env.PG_DATABASE || 'neondb',
+  user: process.env.PG_USER || 'neondb_owner',
+  password: process.env.PG_PASSWORD || 'npg_M21iepYOmkfd',
   max: parseInt(process.env.PG_POOL_MAX, 10) || 20,
   idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT, 10) || 30000,
   connectionTimeoutMillis: parseInt(process.env.PG_CONNECTION_TIMEOUT, 10) || 5000,
   application_name: 'hydrosense-server',
+  ssl: {
+    rejectUnauthorized: false //Enforces SSL connectionto neon
+  }
 };
 
 let pool;

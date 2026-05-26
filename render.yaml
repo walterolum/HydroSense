@@ -1,4 +1,5 @@
 services:
+  # ── Backend (Node.js + Socket.IO) ───────────────────────────────────
   - type: web
     name: hydrosense-server
     env: node
@@ -10,24 +11,48 @@ services:
         value: 18
       - key: PORT
         value: 5000
+      - key: NODE_ENV
+        value: production
       - key: PG_HOST
-        value: localhost
+        sync: false
       - key: PG_PORT
         value: 5432
       - key: PG_DATABASE
-        value: hydrosense
+        sync: false
       - key: PG_USER
-        value: hydrosense
+        sync: false
       - key: PG_PASSWORD
         sync: false
+      - key: PG_SSLMODE
+        value: require
       - key: PG_POOL_MAX
-        value: 20
+        value: 10
+      - key: JWT_SECRET
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: AI_SERVICE_URL
+        sync: false
 
-databases:
-  - name: hydrosense-db
-    databaseName: hydrosense
-    user: hydrosense
+  # ── AI Microservice (Python/FastAPI) ─────────────────────────────────
+  - type: web
+    name: hydrosense-ai
+    env: python
     plan: starter
-    version: "16"
+    buildCommand: cd ai-service && pip install -r requirements.txt
+    startCommand: cd ai-service && python start.py
+    envVars:
+      - key: PG_HOST
+        sync: false
+      - key: PG_PORT
+        value: 5432
+      - key: PG_DATABASE
+        sync: false
+      - key: PG_USER
+        sync: false
+      - key: PG_PASSWORD
+        sync: false
+      - key: PG_SSLMODE
+        value: require
+      - key: GEMINI_API_KEY
+        sync: false
