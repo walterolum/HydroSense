@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const { authMiddleware, requireRole, SECRET } = require('../middleware/auth');
 const { sendOTP: sendRealEmail } = require('../utils/email');
+const { sendWelcomeEmail } = require('../utils/email');
 const { sendSMS } = require('../utils/sms');
 
 const router = express.Router();
@@ -661,6 +662,11 @@ router.post('/google', async (req, res) => {
       user = await db.prepare(
         'SELECT id, name, email, role, district, sub_county, phone, organization, avatar, active, language FROM users WHERE id = ?'
       ).get(result.lastInsertRowid);
+
+      // Send welcome email in the background
+      setImmediate(() => {
+        sendWelcomeEmail(user.email, user.name).catch(() => {});
+      });
     }
 
     if (!user || !user.active) {

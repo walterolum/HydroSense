@@ -198,6 +198,124 @@ async function sendViaNodemailer(to, otp, purpose) {
 }
 
 /* ─────────────────────────────────────────────────────────
+   WELCOME EMAIL — sent after Google OAuth sign-up
+───────────────────────────────────────────────────────── */
+function buildWelcomeHTML(name) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <tr><td style="background:linear-gradient(135deg,#1d4ed8,#0891b2);padding:28px 32px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:8px;">💧</div>
+          <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:-0.5px;">HYDROSENSE</h1>
+          <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;">Ministry of Water &amp; Environment · Uganda</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <h2 style="color:#111827;margin:0 0 12px;font-size:20px;">Welcome to HydroSense, ${name}!</h2>
+          <p style="color:#6b7280;margin:0 0 24px;line-height:1.7;font-size:14px;">
+            You have successfully signed in with your Google account. Your HydroSense community account is now active.
+          </p>
+          <table width="100%" style="margin-bottom:24px;">
+            <tr><td align="center" style="background:#f0fdf4;border:2px dashed #86efac;border-radius:12px;padding:20px;">
+              <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:2px;">Your Account Details</p>
+              <p style="margin:0;font-size:14px;color:#374151;"><strong>Role:</strong> Community Member</p>
+              <p style="margin:4px 0 0;font-size:14px;color:#374151;"><strong>Email:</strong> Already verified via Google</p>
+            </td></tr>
+          </table>
+          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0 0 16px;">
+            You can now report water issues, participate in community discussions, track maintenance requests,
+            and receive real-time alerts about water quality and climate events in your area.
+          </p>
+          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0;">
+            If you have any questions, contact your community water officer or local district office.
+          </p>
+        </td></tr>
+        <tr><td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
+            &copy; ${YEAR} HydroSense Platform · Climate-Resilient Water Management · Uganda<br>
+            <span style="color:#d1d5db;">256-bit Encrypted · JWT Secured · ISO 27001</span>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendWelcomeEmail(to, name) {
+  const subject = 'Welcome to HydroSense — Community Account Activated';
+
+  const result =
+    await sendViaGeneric(to, name, subject) ||
+    await sendViaSendGridGeneric(to, name, subject) ||
+    await sendViaNodemailerGeneric(to, name, subject);
+
+  if (!result) {
+    console.warn(`[EMAIL][MOCK] Welcome email would be sent to ${to} (no provider configured)`);
+    return { provider: 'mock', messageId: null, status: 'mock' };
+  }
+  return result;
+}
+
+async function sendViaGeneric(to, name, subject) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'api-key': apiKey },
+      body: JSON.stringify({
+        sender: { name: FROM_NAME(), email: FROM_ADDR() },
+        to: [{ email: to }],
+        subject,
+        htmlContent: buildWelcomeHTML(name),
+        tags: ['welcome', 'google-oauth'],
+      }),
+    });
+    if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(`Brevo ${response.status}: ${e.message || ''}`); }
+    const data = await response.json();
+    console.log(`[EMAIL][Brevo] Welcome sent to ${to} | msgId: ${data.messageId}`);
+    return { provider: 'brevo', messageId: data.messageId, status: 'sent' };
+  } catch (err) { console.error(`[EMAIL][Brevo] Error: ${err.message}`); return null; }
+}
+
+async function sendViaSendGridGeneric(to, name, subject) {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: FROM_ADDR(), name: FROM_NAME() },
+        subject,
+        content: [{ type: 'text/html', value: buildWelcomeHTML(name) }],
+      }),
+    });
+    if (!response.ok) { const b = await response.text(); throw new Error(`SendGrid ${response.status}: ${b}`); }
+    const msgId = response.headers.get('X-Message-Id') || null;
+    console.log(`[EMAIL][SendGrid] Welcome sent to ${to} | msgId: ${msgId}`);
+    return { provider: 'sendgrid', messageId: msgId, status: 'sent' };
+  } catch (err) { console.error(`[EMAIL][SendGrid] Error: ${err.message}`); return null; }
+}
+
+async function sendViaNodemailerGeneric(to, name, subject) {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'YOUR_GMAIL_APP_PASSWORD_HERE') return null;
+  try {
+    const info = await getTransporter().sendMail({
+      from: `"${FROM_NAME()}" <${process.env.EMAIL_USER}>`,
+      to, subject, html: buildWelcomeHTML(name),
+    });
+    console.log(`[EMAIL][Gmail] Welcome sent to ${to} | msgId: ${info.messageId}`);
+    return { provider: 'nodemailer-gmail', messageId: info.messageId, status: 'sent' };
+  } catch (err) { console.error(`[EMAIL][Gmail] Error: ${err.message}`); return null; }
+}
+
+/* ─────────────────────────────────────────────────────────
    PUBLIC: sendOTP — tries providers in priority order
    Returns { provider, messageId, status } or false
 ───────────────────────────────────────────────────────── */
@@ -214,4 +332,4 @@ async function sendOTP(to, otp, purpose = 'registration') {
   return result;
 }
 
-module.exports = { sendOTP };
+module.exports = { sendOTP, sendWelcomeEmail };
