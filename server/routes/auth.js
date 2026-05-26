@@ -611,4 +611,74 @@ router.get('/language', authMiddleware, async (req, res) => {
   res.json({ success: true, language: row?.language || 'en' });
 });
 
+/* ── Google OAuth Sign-In ── */
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ success: false, error: 'Google credential is required' });
+
+    const { OAuth2Client } = require('google-auth-library');
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) return res.status(503).json({ success: false, error: 'Google authentication not configured' });
+
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email) {
+      return res.status(400).json({ success: false, error: 'Could not verify Google identity' });
+    }
+
+    const emailKey = payload.email.toLowerCase().trim();
+    const db = await getDb();
+
+    // Look up existing user or create a new one
+    let user = await db.prepare(
+      'SELECT id, name, email, role, district, sub_county, phone, organization, avatar, active, last_login, language FROM users WHERE email = ?'
+    ).get(emailKey);
+
+    if (user) {
+      // Existing user — update name/avatar from Google if they changed
+      const googleName = payload.name || user.name;
+      const googleAvatar = payload.picture || user.avatar;
+      if (googleName !== user.name || googleAvatar !== user.avatar) {
+        await db.prepare('UPDATE users SET name = ?, avatar = ?, last_login = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(googleName, googleAvatar, user.id);
+        user.name = googleName;
+        user.avatar = googleAvatar;
+      } else {
+        await db.prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
+      }
+    } else {
+      // New community user — auto-register with Google profile
+      const googleName = (payload.name || payload.email.split('@')[0]).trim();
+      const googlePicture = payload.picture || null;
+      const result = await db.prepare(`
+        INSERT INTO users (name, email, password_hash, role, district, organization, active, otp_verified, avatar)
+        VALUES (?, ?, '', 'citizen', 'Other', 'Community User', 1, 1, ?)
+      `).run(googleName, emailKey, googlePicture);
+
+      user = await db.prepare(
+        'SELECT id, name, email, role, district, sub_county, phone, organization, avatar, active, language FROM users WHERE id = ?'
+      ).get(result.lastInsertRowid);
+    }
+
+    if (!user || !user.active) {
+      return res.status(403).json({ success: false, error: 'Account is deactivated' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
+      SECRET,
+      { expiresIn: '365d' }
+    );
+
+    console.log(`[GOOGLE AUTH] ${emailKey} signed in via Google`);
+    res.json({ success: true, token, user, expires_in: '365d' });
+  } catch (err) {
+    console.error('[GOOGLE AUTH] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Google authentication failed' });
+  }
+});
+
 module.exports = router;

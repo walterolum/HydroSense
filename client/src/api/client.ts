@@ -30,6 +30,7 @@ export default api;
 
 // Auth
 export const login = (email: string, password: string, rememberMe = false) => api.post('/auth/login', { email, password, rememberMe });
+export const googleLogin = (credential: string) => api.post('/auth/google', { credential });
 export const getMe = () => api.get('/auth/me');
 export const getUsers = () => api.get('/auth/users');
 // Password change (own account)

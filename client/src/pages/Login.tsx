@@ -1,7 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus } from 'lucide-react';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: { client_id: string; callback: (response: { credential: string }) => void }) => void;
+          renderButton: (element: HTMLElement, options: Record<string, unknown>) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 const slides = [
   {
@@ -157,14 +171,62 @@ export default function Login() {
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [activeFeature, setActiveFeature] = useState<number | null>(null);
 
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const locationState = useLocation().state as { from?: string } | null;
+  const googleButtonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setActiveSlide(s => (s + 1) % slides.length), 4500);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.google && googleButtonRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleLogin,
+        });
+        window.google.accounts.id.renderButton(googleButtonRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          width: googleButtonRef.current.offsetWidth || 380,
+          logo_alignment: 'left',
+        });
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+      if (existing) existing.remove();
+    };
+  }, []);
+
+  const handleGoogleLogin = async (response: { credential: string }) => {
+    setError('');
+    setLoading(true);
+    try {
+      await loginWithGoogle(response.credential);
+      setLoginSuccess(true);
+      const redirectTo = locationState?.from || '/dashboard';
+      setTimeout(() => navigate(redirectTo, { replace: true }), 800);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Google sign-in failed. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -621,6 +683,16 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-medium">or continue with</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* Google Sign-In */}
+          <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
 
           {/* Security indicators */}
           <div className="flex items-center justify-center gap-4 mt-5">

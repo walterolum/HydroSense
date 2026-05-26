@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '../types';
-import { login as apiLogin, getMe } from '../api/client';
+import { login as apiLogin, googleLogin as apiGoogleLogin, getMe } from '../api/client';
 
 const SESSION_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000; // 14 days inactivity for non-remembered sessions
 const WARNING_BEFORE_MS  =  1 * 24 * 60 * 60 * 1000; // 1 day warning before expiry
@@ -70,6 +70,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   isRole: (...roles: string[]) => boolean;
   refreshUser: () => Promise<void>;
@@ -186,6 +187,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (credential: string) => {
+    const res = await apiGoogleLogin(credential);
+    const { token: t, user: u } = res.data;
+    saveSession(t, u, true);
+    setToken(t);
+    setUser(u);
+    setRemembered(true);
+    stopSessionTimer();
+    setSessionRemaining(null);
+    setSessionWarning(false);
+  };
+
   const isRole = (...roles: string[]) => !!user && roles.includes(user.role);
 
   const refreshUser = async () => {
@@ -206,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, token, loading,
-      login, logout, isRole,
+      login, loginWithGoogle, logout, isRole,
       refreshUser, patchUser,
       sessionTimeRemaining, sessionWarning, extendSession,
     }}>
