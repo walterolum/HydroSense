@@ -3,19 +3,10 @@ Dynamic Environmental Risk Scoring Module
 Real-time risk assessment, heatmap generation, and predictive risk analysis.
 """
 
-import sqlite3
-import os
+from pg_db import get_db, put_db
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
-
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
-
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def compute_environmental_risk_index(district: str = None) -> Dict[str, Any]:
@@ -29,7 +20,7 @@ def compute_environmental_risk_index(district: str = None) -> Dict[str, Any]:
     health_risk = _compute_health_risk(conn, district_filter, district_param)
     community_risk = _compute_community_risk(conn, district_filter, district_param)
 
-    conn.close()
+    put_db(conn)
 
     overall = round(
         water_quality_risk * 0.25
@@ -153,7 +144,7 @@ def calculate_water_security_score(district: str = None) -> Dict[str, Any]:
             FROM water_points wp {district_filter}""",
         district_param,
     ).fetchone()
-    conn.close()
+    put_db(conn)
     if not wp_stats or wp_stats[0] == 0:
         return {"water_security_score": 0, "level": "insufficient_data"}
 
@@ -192,7 +183,7 @@ def compute_live_risk_summary() -> Dict[str, Any]:
     pending_reports = conn.execute(
         "SELECT COUNT(*) as c FROM community_reports WHERE status = 'pending'"
     ).fetchone()
-    conn.close()
+    put_db(conn)
 
     return {
         "critical_alerts": critical_alerts[0] if critical_alerts else 0,
@@ -236,7 +227,7 @@ def compute_all_district_risk_summary() -> List[Dict]:
     districts = conn.execute(
         "SELECT DISTINCT district FROM water_points ORDER BY district"
     ).fetchall()
-    conn.close()
+    put_db(conn)
 
     summaries = []
     for d in districts:

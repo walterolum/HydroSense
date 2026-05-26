@@ -234,9 +234,11 @@ router.delete('/events/:id/leave', authMiddleware, async (req, res) => {
    CITIZEN OBSERVATIONS (auth required)
 ───────────────────────────────────────────────────────────── */
 // Ensure status column exists
-try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN status TEXT DEFAULT 'new'`); } catch {}
-try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN reviewed_by TEXT`); } catch {}
-try { getDb().exec(`ALTER TABLE citizen_observations ADD COLUMN review_note TEXT`); } catch {}
+;(async () => {
+  try { const db = await getDb(); await db.exec(`ALTER TABLE citizen_observations ADD COLUMN status TEXT DEFAULT 'new'`); } catch {}
+  try { const db = await getDb(); await db.exec(`ALTER TABLE citizen_observations ADD COLUMN reviewed_by TEXT`); } catch {}
+  try { const db = await getDb(); await db.exec(`ALTER TABLE citizen_observations ADD COLUMN review_note TEXT`); } catch {}
+})();
 
 // GET /observations — role-filtered list for staff; own observations for citizens
 router.get('/observations', authMiddleware, async (req, res) => {

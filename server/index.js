@@ -16,144 +16,150 @@ const requestLogger = require('./middleware/request-logger');
 
 // ── One-time database reset (set RESET_DB=1 in env, deploy once, then remove) ──
 if (process.env.RESET_DB === '1') {
-  const bcrypt = require('bcryptjs');
-  const db = getDb();
-  console.log('[RESET] Clearing all data from database...');
-  db.exec(`
-    DELETE FROM citizen_report_tracking;
-    DELETE FROM report_media;
-    DELETE FROM incident_analysis;
-    DELETE FROM task_assignments;
-    DELETE FROM response_tickets;
-    DELETE FROM otp_attempt_log;
-    DELETE FROM otp_delivery_log;
-    DELETE FROM otp_codes;
-    DELETE FROM citizen_reports;
-    DELETE FROM resilience_scores;
-    DELETE FROM maintenance_funds;
-    DELETE FROM budget_records;
-    DELETE FROM governance_audit;
-    DELETE FROM health_incidents;
-    DELETE FROM community_reports;
-    DELETE FROM alerts;
-    DELETE FROM water_quality_tests;
-    DELETE FROM flood_alerts;
-    DELETE FROM drought_index;
-    DELETE FROM climate_readings;
-    DELETE FROM maintenance_requests;
-    DELETE FROM sensor_readings;
-    DELETE FROM sensors;
-    DELETE FROM spare_parts;
-    DELETE FROM water_points;
-    DELETE FROM gwn_reports;
-    DELETE FROM env_incidents;
-    DELETE FROM pollution_hotspots;
-    DELETE FROM agency_assignments;
-    DELETE FROM citizen_discussions;
-    DELETE FROM citizen_replies;
-    DELETE FROM discussion_likes;
-    DELETE FROM volunteer_events;
-    DELETE FROM event_registrations;
-    DELETE FROM citizen_observations;
-    DELETE FROM notification_log;
-    DELETE FROM ai_conversations;
-    DELETE FROM ai_messages;
-    DELETE FROM ai_decision_log;
-    DELETE FROM ai_analytics_cache;
-    DELETE FROM language_corpus;
-    DELETE FROM dialect_patterns;
-    DELETE FROM accent_profiles;
-    DELETE FROM translation_feedback;
-    DELETE FROM offline_queue;
-    DELETE FROM users;
-    DELETE FROM sqlite_sequence;
-  `);
-  // Create one system administrator so the system can be accessed after reset
-  const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
-  const adminName = process.env.ADMIN_NAME || 'Walter Olum';
-  const hash = bcrypt.hashSync(adminPassword, 10);
-  db.prepare(
-    `INSERT INTO users (name, email, password_hash, role, district, organization, active)
-     VALUES (?, ?, ?, 'national_admin', 'Kampala', 'HydroSense', 1)`
-  ).run(adminName, adminEmail, hash);
-  console.log('[RESET] Database cleared. Fresh admin account created:');
-  console.log(`[RESET]   Email:    ${adminEmail}`);
-  console.log(`[RESET]   Password: ${adminPassword}`);
-  console.log('[RESET] Remove RESET_DB from env variables before next deploy.');
+  (async () => {
+    const bcrypt = require('bcryptjs');
+    const db = await getDb();
+    console.log('[RESET] Clearing all data from database...');
+    await db.exec(`
+      DELETE FROM citizen_report_tracking;
+      DELETE FROM report_media;
+      DELETE FROM incident_analysis;
+      DELETE FROM task_assignments;
+      DELETE FROM response_tickets;
+      DELETE FROM otp_attempt_log;
+      DELETE FROM otp_delivery_log;
+      DELETE FROM otp_codes;
+      DELETE FROM citizen_reports;
+      DELETE FROM resilience_scores;
+      DELETE FROM maintenance_funds;
+      DELETE FROM budget_records;
+      DELETE FROM governance_audit;
+      DELETE FROM health_incidents;
+      DELETE FROM community_reports;
+      DELETE FROM alerts;
+      DELETE FROM water_quality_tests;
+      DELETE FROM flood_alerts;
+      DELETE FROM drought_index;
+      DELETE FROM climate_readings;
+      DELETE FROM maintenance_requests;
+      DELETE FROM sensor_readings;
+      DELETE FROM sensors;
+      DELETE FROM spare_parts;
+      DELETE FROM water_points;
+      DELETE FROM gwn_reports;
+      DELETE FROM env_incidents;
+      DELETE FROM pollution_hotspots;
+      DELETE FROM agency_assignments;
+      DELETE FROM citizen_discussions;
+      DELETE FROM citizen_replies;
+      DELETE FROM discussion_likes;
+      DELETE FROM volunteer_events;
+      DELETE FROM event_registrations;
+      DELETE FROM citizen_observations;
+      DELETE FROM notification_log;
+      DELETE FROM ai_conversations;
+      DELETE FROM ai_messages;
+      DELETE FROM ai_decision_log;
+      DELETE FROM ai_analytics_cache;
+      DELETE FROM language_corpus;
+      DELETE FROM dialect_patterns;
+      DELETE FROM accent_profiles;
+      DELETE FROM translation_feedback;
+      DELETE FROM offline_queue;
+      DELETE FROM users;
+      DELETE FROM sqlite_sequence;
+    `);
+    // Create one system administrator so the system can be accessed after reset
+    const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+    const adminName = process.env.ADMIN_NAME || 'Walter Olum';
+    const hash = bcrypt.hashSync(adminPassword, 10);
+    await db.prepare(
+      `INSERT INTO users (name, email, password_hash, role, district, organization, active)
+       VALUES (?, ?, ?, 'national_admin', 'Kampala', 'HydroSense', 1)`
+    ).run(adminName, adminEmail, hash);
+    console.log('[RESET] Database cleared. Fresh admin account created:');
+    console.log(`[RESET]   Email:    ${adminEmail}`);
+    console.log(`[RESET]   Password: ${adminPassword}`);
+    console.log('[RESET] Remove RESET_DB from env variables before next deploy.');
+  })();
 }
 
 // ── Remove demo accounts, keep national_admin (set CLEAR_DEMO=1, deploy once, remove) ──
 if (process.env.CLEAR_DEMO === '1') {
-  const db = getDb();
-  console.log('[CLEAR_DEMO] Saving admin accounts and wiping all demo data...');
+  (async () => {
+    const db = await getDb();
+    console.log('[CLEAR_DEMO] Saving admin accounts and wiping all demo data...');
 
-  // Save all national_admin accounts before clearing
-  const admins = db.prepare("SELECT * FROM users WHERE role = 'national_admin'").all();
+    // Save all national_admin accounts before clearing
+    const admins = await db.prepare("SELECT * FROM users WHERE role = 'national_admin'").all();
 
-  // Disable FK checks so we can wipe all tables in any order
-  db.pragma('foreign_keys = OFF');
-  db.exec(`
-    DELETE FROM citizen_report_tracking;
-    DELETE FROM report_media;
-    DELETE FROM incident_analysis;
-    DELETE FROM task_assignments;
-    DELETE FROM response_tickets;
-    DELETE FROM otp_attempt_log;
-    DELETE FROM otp_delivery_log;
-    DELETE FROM otp_codes;
-    DELETE FROM citizen_reports;
-    DELETE FROM resilience_scores;
-    DELETE FROM maintenance_funds;
-    DELETE FROM budget_records;
-    DELETE FROM governance_audit;
-    DELETE FROM health_incidents;
-    DELETE FROM community_reports;
-    DELETE FROM alerts;
-    DELETE FROM water_quality_tests;
-    DELETE FROM flood_alerts;
-    DELETE FROM drought_index;
-    DELETE FROM climate_readings;
-    DELETE FROM maintenance_requests;
-    DELETE FROM sensor_readings;
-    DELETE FROM sensors;
-    DELETE FROM spare_parts;
-    DELETE FROM water_points;
-    DELETE FROM gwn_reports;
-    DELETE FROM env_incidents;
-    DELETE FROM pollution_hotspots;
-    DELETE FROM agency_assignments;
-    DELETE FROM citizen_discussions;
-    DELETE FROM citizen_replies;
-    DELETE FROM discussion_likes;
-    DELETE FROM volunteer_events;
-    DELETE FROM event_registrations;
-    DELETE FROM citizen_observations;
-    DELETE FROM notification_log;
-    DELETE FROM ai_conversations;
-    DELETE FROM ai_messages;
-    DELETE FROM ai_decision_log;
-    DELETE FROM ai_analytics_cache;
-    DELETE FROM language_corpus;
-    DELETE FROM dialect_patterns;
-    DELETE FROM accent_profiles;
-    DELETE FROM translation_feedback;
-    DELETE FROM offline_queue;
-    DELETE FROM users;
-    DELETE FROM sqlite_sequence;
-  `);
-  db.pragma('foreign_keys = ON');
+    // Disable FK checks so we can wipe all tables in any order
+    await db.pragma('foreign_keys = OFF');
+    await db.exec(`
+      DELETE FROM citizen_report_tracking;
+      DELETE FROM report_media;
+      DELETE FROM incident_analysis;
+      DELETE FROM task_assignments;
+      DELETE FROM response_tickets;
+      DELETE FROM otp_attempt_log;
+      DELETE FROM otp_delivery_log;
+      DELETE FROM otp_codes;
+      DELETE FROM citizen_reports;
+      DELETE FROM resilience_scores;
+      DELETE FROM maintenance_funds;
+      DELETE FROM budget_records;
+      DELETE FROM governance_audit;
+      DELETE FROM health_incidents;
+      DELETE FROM community_reports;
+      DELETE FROM alerts;
+      DELETE FROM water_quality_tests;
+      DELETE FROM flood_alerts;
+      DELETE FROM drought_index;
+      DELETE FROM climate_readings;
+      DELETE FROM maintenance_requests;
+      DELETE FROM sensor_readings;
+      DELETE FROM sensors;
+      DELETE FROM spare_parts;
+      DELETE FROM water_points;
+      DELETE FROM gwn_reports;
+      DELETE FROM env_incidents;
+      DELETE FROM pollution_hotspots;
+      DELETE FROM agency_assignments;
+      DELETE FROM citizen_discussions;
+      DELETE FROM citizen_replies;
+      DELETE FROM discussion_likes;
+      DELETE FROM volunteer_events;
+      DELETE FROM event_registrations;
+      DELETE FROM citizen_observations;
+      DELETE FROM notification_log;
+      DELETE FROM ai_conversations;
+      DELETE FROM ai_messages;
+      DELETE FROM ai_decision_log;
+      DELETE FROM ai_analytics_cache;
+      DELETE FROM language_corpus;
+      DELETE FROM dialect_patterns;
+      DELETE FROM accent_profiles;
+      DELETE FROM translation_feedback;
+      DELETE FROM offline_queue;
+      DELETE FROM users;
+      DELETE FROM sqlite_sequence;
+    `);
+    await db.pragma('foreign_keys = ON');
 
-  // Re-insert the saved admin accounts with their original IDs and passwords intact
-  const ins = db.prepare(`
-    INSERT INTO users (id, name, email, password_hash, role, district, organization, phone, active, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  admins.forEach(a => ins.run(a.id, a.name, a.email, a.password_hash, a.role, a.district, a.organization, a.phone, a.active, a.created_at));
+    // Re-insert the saved admin accounts with their original IDs and passwords intact
+    const ins = await db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, role, district, organization, phone, active, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const a of admins) {
+      await ins.run(a.id, a.name, a.email, a.password_hash, a.role, a.district, a.organization, a.phone, a.active, a.created_at);
+    }
 
-  console.log(`[CLEAR_DEMO] Done. ${admins.length} admin account(s) preserved, all demo data removed.`);
-  admins.forEach(a => console.log(`[CLEAR_DEMO]   Kept: ${a.email} (${a.name})`));
-  console.log('[CLEAR_DEMO] Remove CLEAR_DEMO from env variables before next deploy.');
+    console.log(`[CLEAR_DEMO] Done. ${admins.length} admin account(s) preserved, all demo data removed.`);
+    admins.forEach(a => console.log(`[CLEAR_DEMO]   Kept: ${a.email} (${a.name})`));
+    console.log('[CLEAR_DEMO] Remove CLEAR_DEMO from env variables before next deploy.');
+  })();
 }
 
 const app = express();
@@ -576,7 +582,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
   }
 
   const { message = '', history = [], role = 'citizen', district = '' } = req.body || {};
-  const db = getDb();
+  const db = await getDb();
 
   // ── Pull live system data for context ──
   let statsStr = '';
@@ -584,17 +590,17 @@ async function handleNativeNodeChat(req, res, targetPath) {
   let waterQualityStr = '';
   let citizenReportStr = '';
   try {
-    const totalWp  = db.prepare("SELECT COUNT(*) as c FROM water_points").get();
-    const funcWp   = db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
-    const alerts   = db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
-    const pending  = db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
-    const unsafe   = db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+    const totalWp  = await db.prepare("SELECT COUNT(*) as c FROM water_points").get();
+    const funcWp   = await db.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+    const alerts   = await db.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+    const pending  = await db.prepare("SELECT COUNT(*) as c FROM maintenance_requests WHERE status='pending'").get();
+    const unsafe   = await db.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
     statsStr = `Water infrastructure: ${totalWp.c} total water points, ${funcWp.c} functional. ` +
                `${alerts.c} active alerts. ${pending.c} pending maintenance. ` +
                `${unsafe.c} unsafe water quality records.`;
 
     // Health / disease outbreak data
-    const outbreaks = db.prepare(
+    const outbreaks = await db.prepare(
       "SELECT disease_type, SUM(cases) as total_cases, SUM(deaths) as total_deaths, COUNT(*) as incidents, " +
       "GROUP_CONCAT(DISTINCT district) as districts, outbreak_status " +
       "FROM health_incidents GROUP BY disease_type, outbreak_status ORDER BY total_cases DESC LIMIT 10"
@@ -608,7 +614,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
     }
 
     // Water quality summary
-    const qualSummary = db.prepare(
+    const qualSummary = await db.prepare(
       "SELECT parameter_tested, COUNT(*) as tests, SUM(CASE WHEN overall_safe=0 THEN 1 ELSE 0 END) as failed " +
       "FROM water_quality_tests GROUP BY parameter_tested ORDER BY failed DESC LIMIT 5"
     ).all();
@@ -619,7 +625,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
     }
 
     // Recent citizen reports
-    const reports = db.prepare(
+    const reports = await db.prepare(
       "SELECT incident_type, COUNT(*) as c, severity FROM citizen_reports WHERE status='pending' GROUP BY incident_type ORDER BY c DESC LIMIT 5"
     ).all();
     if (reports.length > 0) {
@@ -724,9 +730,9 @@ async function handleNativeNodeChat(req, res, targetPath) {
 
     let reply = '';
     try {
-      const db2 = getDb();
+      const db2 = await getDb();
       if (isHealth) {
-        const outbreaks = db2.prepare(
+        const outbreaks = await db2.prepare(
           "SELECT disease_type, SUM(cases) as c, SUM(deaths) as d, COUNT(*) as incidents, GROUP_CONCAT(DISTINCT district) as districts, outbreak_status " +
           "FROM health_incidents GROUP BY disease_type ORDER BY c DESC LIMIT 8"
         ).all();
@@ -741,28 +747,28 @@ async function handleNativeNodeChat(req, res, targetPath) {
             `The system monitors health incidents linked to water sources. All districts appear to be in normal health status at this time.`;
         }
       } else if (isWater) {
-        const wp = db2.prepare("SELECT status, COUNT(*) as c FROM water_points GROUP BY status").all();
-        const unsafe2 = db2.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
+        const wp = await db2.prepare("SELECT status, COUNT(*) as c FROM water_points GROUP BY status").all();
+        const unsafe2 = await db2.prepare("SELECT COUNT(*) as c FROM water_quality_tests WHERE overall_safe=0").get();
         reply = `**Water Infrastructure Status**\n\n` +
           wp.map(w => `- **${w.status}**: ${w.c} water points`).join('\n') +
           `\n- **Unsafe quality records**: ${unsafe2.c}`;
       } else if (isMaint) {
-        const maint = db2.prepare("SELECT status, COUNT(*) as c FROM maintenance_requests GROUP BY status").all();
+        const maint = await db2.prepare("SELECT status, COUNT(*) as c FROM maintenance_requests GROUP BY status").all();
         reply = `**Maintenance Summary**\n\n` + maint.map(m => `- **${m.status}**: ${m.c} requests`).join('\n');
       } else if (isAlert) {
-        const alts = db2.prepare("SELECT severity, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY severity ORDER BY c DESC").all();
+        const alts = await db2.prepare("SELECT severity, COUNT(*) as c FROM alerts WHERE status='active' GROUP BY severity ORDER BY c DESC").all();
         reply = alts.length > 0
           ? `**Active Alerts**\n\n` + alts.map(a => `- **${a.severity}**: ${a.c}`).join('\n')
           : `No active alerts in the system.`;
       } else if (isReport) {
-        const reps = db2.prepare("SELECT incident_type, COUNT(*) as c FROM citizen_reports WHERE status='pending' GROUP BY incident_type ORDER BY c DESC LIMIT 6").all();
+        const reps = await db2.prepare("SELECT incident_type, COUNT(*) as c FROM citizen_reports WHERE status='pending' GROUP BY incident_type ORDER BY c DESC LIMIT 6").all();
         reply = reps.length > 0
           ? `**Pending Citizen Reports**\n\n` + reps.map(r => `- **${r.incident_type}**: ${r.c}`).join('\n')
           : `No pending citizen reports at this time.`;
       } else {
-        const twp = db2.prepare("SELECT COUNT(*) as c FROM water_points").get();
-        const fwp = db2.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
-        const ta  = db2.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
+        const twp = await db2.prepare("SELECT COUNT(*) as c FROM water_points").get();
+        const fwp = await db2.prepare("SELECT COUNT(*) as c FROM water_points WHERE status='functional'").get();
+        const ta  = await db2.prepare("SELECT COUNT(*) as c FROM alerts WHERE status='active'").get();
         reply = `**HYDROSENSE System Overview**\n\n` +
           `- **${twp.c}** total water points · **${fwp.c}** functional\n` +
           `- **${ta.c}** active alerts\n\n` +
@@ -1516,12 +1522,12 @@ process.on('unhandledRejection', (reason) => {
 // ═══════════════════════════════════════════════════════════════
 const { notifyRoles: _notifyRoles } = require('./utils/notify');
 
-cron.schedule('0 * * * *', () => {
+cron.schedule('0 * * * *', async () => {
   try {
-    const db = getDb();
+    const db = await getDb();
 
     // Events that start within the next 24 hours (date-only comparison for simplicity)
-    const upcoming = db.prepare(`
+    const upcoming = await db.prepare(`
       SELECT id, title, event_date, event_time, location, district, event_type
       FROM volunteer_events
       WHERE status = 'active'
@@ -1532,7 +1538,7 @@ cron.schedule('0 * * * *', () => {
       const reminderSubject = `⏰ Reminder: ${ev.title} is tomorrow`;
 
       // Avoid duplicate reminders: skip if we already sent this reminder today
-      const alreadySent = db.prepare(
+      const alreadySent = await db.prepare(
         `SELECT 1 FROM notification_log WHERE subject=? AND sent_at > datetime('now','-23 hours') LIMIT 1`
       ).get(reminderSubject);
       if (alreadySent) continue;
@@ -1550,7 +1556,7 @@ cron.schedule('0 * * * *', () => {
     }
 
     // Same-day reminders: events happening today, notify registered participants
-    const today = db.prepare(`
+    const today = await db.prepare(`
       SELECT e.id, e.title, e.event_date, e.event_time, e.location, e.district,
              er.user_id, u.role
       FROM volunteer_events e
@@ -1566,12 +1572,12 @@ cron.schedule('0 * * * *', () => {
       todayReminderSent.add(key);
 
       const todaySubject = `🌟 Today: ${row.title}`;
-      const alreadySent = db.prepare(
+      const alreadySent = await db.prepare(
         `SELECT 1 FROM notification_log WHERE subject=? AND recipient_id=? AND sent_at > datetime('now','-10 hours') LIMIT 1`
       ).get(todaySubject, row.user_id);
       if (alreadySent) continue;
 
-      db.prepare(
+      await db.prepare(
         `INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district)
          VALUES (?, ?, 'in_app', ?, ?, 'sent', 'volunteer_event', ?, ?)`
       ).run(

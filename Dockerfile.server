@@ -1,0 +1,15 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install build deps needed for pg-native (optional, we use pg without native)
+RUN apk add --no-cache g++ make python3
+
+COPY server/package.json server/package-lock.json* ./
+RUN npm ci --only=production
+
+COPY server/ .
+
+EXPOSE 5000
+
+CMD ["node", "index.js"]

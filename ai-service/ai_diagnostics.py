@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from collections import deque
 import asyncio
+from pg_db import get_db, put_db
 
 logger = logging.getLogger("hydra.diagnostics")
 
@@ -188,14 +189,12 @@ class HealthMonitor:
         return self._status
 
     async def check(self) -> Dict:
-        import sqlite3
         start = time.time()
         db_ok = False
-        db_path = os.getenv("DB_PATH", "../server/watermonitor.db")
         try:
-            conn = sqlite3.connect(db_path)
+            conn = get_db()
             conn.execute("SELECT 1").fetchone()
-            conn.close()
+            put_db(conn)
             db_ok = True
         except Exception:
             pass

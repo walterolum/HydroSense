@@ -4,28 +4,21 @@ Provides water failure prediction, anomaly detection, maintenance forecasting,
 contamination risk, and climate forecasting using real DB data.
 """
 
-import sqlite3
 import os
 import math
 import random
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
+from pg_db import get_db, put_db, transform_sql, execute as pg_execute
 
 
 # ─────────────────────────────────────────────
-# DB helpers
+# DB helpers (PostgreSQL via pg_db)
 # ─────────────────────────────────────────────
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 
 def rows_to_dicts(rows) -> List[Dict]:
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows] if rows else []
 
 
 # ─────────────────────────────────────────────
@@ -142,7 +135,7 @@ def predict_water_failure(district: Optional[str] = None) -> List[Dict]:
         results.sort(key=lambda x: x["failure_risk_score"], reverse=True)
         return results
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _failure_recommendation(score: float, wp: Dict) -> str:
@@ -220,7 +213,7 @@ def predict_maintenance(district: Optional[str] = None) -> List[Dict]:
         results.sort(key=lambda x: ["immediate","urgent","scheduled","routine"].index(x["priority"]))
         return results
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _estimate_cost(wp_type: str, priority: str) -> int:
@@ -288,7 +281,7 @@ def predict_contamination(district: Optional[str] = None) -> List[Dict]:
         results.sort(key=lambda x: x["contamination_risk"], reverse=True)
         return results
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _contamination_score(r: Dict):
@@ -437,7 +430,7 @@ def detect_anomalies(district: Optional[str] = None) -> List[Dict]:
         anomalies.sort(key=lambda x: x["z_score"], reverse=True)
         return anomalies
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _anomaly_recommendation(sensor_type: str, direction: str, severity: str) -> str:
@@ -540,7 +533,7 @@ def generate_climate_forecast(district: Optional[str] = None) -> Dict:
             "recommendations": _climate_recommendations(avg_spi, spi_trend),
         }
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _seasonal_rain(month: int, base: float) -> float:
@@ -644,10 +637,10 @@ def get_dashboard(role: str, district: Optional[str] = None) -> Dict:
     conn = get_db()
     try:
         # Basic counts
-        total_wp   = conn.execute("SELECT COUNT(*) FROM water_points").fetchone()[0]
-        func_wp    = conn.execute("SELECT COUNT(*) FROM water_points WHERE status='functional'").fetchone()[0]
-        active_al  = conn.execute("SELECT COUNT(*) FROM alerts WHERE status='active'").fetchone()[0]
-        pending_mr = conn.execute("SELECT COUNT(*) FROM maintenance_requests WHERE status='pending'").fetchone()[0]
+        total_wp   = conn.execute("SELECT COUNT(*) as count FROM water_points").fetchone()['count']
+        func_wp    = conn.execute("SELECT COUNT(*) as count FROM water_points WHERE status='functional'").fetchone()['count']
+        active_al  = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE status='active'").fetchone()['count']
+        pending_mr = conn.execute("SELECT COUNT(*) as count FROM maintenance_requests WHERE status='pending'").fetchone()['count']
 
         failures      = predict_water_failure(district)
         critical_count = sum(1 for f in failures if f["risk_level"] == "critical")
@@ -699,7 +692,7 @@ def get_dashboard(role: str, district: Optional[str] = None) -> Dict:
 
         return base
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _district_risk_summary(failures: List[Dict]) -> List[Dict]:

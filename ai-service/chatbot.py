@@ -1,6 +1,5 @@
 import os
 import re
-import sqlite3
 import asyncio
 import time
 import uuid
@@ -11,9 +10,9 @@ from typing import List, Dict, Optional, AsyncGenerator, Tuple
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-logger = logging.getLogger("hydrosense.chatbot")
+from pg_db import get_db, put_db, transform_sql, execute as pg_execute
 
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
+logger = logging.getLogger("hydrosense.chatbot")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:streamGenerateContent?alt=sse"
 
 # ── Multilingual support ──
@@ -84,11 +83,7 @@ def cancel_stale_requests(timeout: float = 60.0):
 
 SYSTEM_PROMPT = ML_SYSTEM_PROMPT
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH, timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
+# DB access moved to pg_db.get_db()
 
 def build_context(user_message: str, role: str, district: Optional[str]) -> str:
     conn = get_db()
@@ -114,7 +109,7 @@ def build_context(user_message: str, role: str, district: Optional[str]) -> str:
         try:
             role_rows = conn.execute("SELECT role, COUNT(*) AS c FROM users GROUP BY role").fetchall()
             if role_rows:
-                parts.append(f"User breakdown by role: {', '.join(f'{r['c']} {r['role']}' for r in role_rows)}.")
+                parts.append("User breakdown by role: " + ", ".join(f"{r['c']} {r['role']}" for r in role_rows) + ".")
         except Exception:
             pass
 
@@ -126,31 +121,31 @@ def build_context(user_message: str, role: str, district: Optional[str]) -> str:
             pass
 
         try:
-            pollution_count = conn.execute("SELECT COUNT(*) FROM pollution_reports WHERE reported_at > datetime('now', '-30 days')").fetchone()[0]
+            pollution_count = conn.execute("SELECT COUNT(*) as count FROM pollution_reports WHERE reported_at > NOW() - INTERVAL '30 days'").fetchone()['count']
             parts.append(f"Pollution reports (last 30 days): {pollution_count}.")
         except Exception:
             pass
 
         if any(w in msg_lower for w in ["district", "water point", "borehole", "sensor", "alert", "maintenance"]):
             if district:
-                wp = conn.execute("SELECT COUNT(*) AS c, SUM(beneficiaries) AS b FROM water_points WHERE district=?", [district]).fetchone()
+                wp = conn.execute("SELECT COUNT(*) AS c, SUM(beneficiaries) AS b FROM water_points WHERE district=%s", (district,)).fetchone()
                 parts.append(f"District {district}: {wp['c']} water points, {wp['b'] or 0} beneficiaries.")
 
         if any(w in msg_lower for w in ["quality", "contamination", "safe", "ph", "ecoli", "e.coli", "turbidity"]):
-            unsafe = conn.execute("SELECT COUNT(*) FROM water_quality_tests WHERE overall_safe=0 AND tested_at > datetime('now','-30 days')").fetchone()[0]
+            unsafe = conn.execute("SELECT COUNT(*) as count FROM water_quality_tests WHERE overall_safe=0 AND tested_at > NOW() - INTERVAL '30 days'").fetchone()['count']
             parts.append(f"Water quality: {unsafe} unsafe sources in the last 30 days.")
 
         if any(w in msg_lower for w in ["drought", "rainfall", "climate", "flood", "spi", "forecast"]):
             drought = conn.execute("SELECT severity, COUNT(*) AS c FROM drought_index GROUP BY severity").fetchall()
-            parts.append(f"Drought index: {', '.join(f'{r['c']} {r['severity']}' for r in drought)}.")
+            parts.append("Drought index: " + ", ".join(f"{r['c']} {r['severity']}" for r in drought) + ".")
 
         if any(w in msg_lower for w in ["health", "disease", "outbreak", "cholera", "typhoid"]):
             h = conn.execute("SELECT SUM(cases) AS cases, COUNT(*) AS incidents FROM health_incidents WHERE outbreak_status='active'").fetchone()
             parts.append(f"Health: {h['incidents']} active outbreaks, {h['cases'] or 0} total cases.")
 
         if any(w in msg_lower for w in ["sensor", "iot", "reading", "battery", "offline"]):
-            low_bat = conn.execute("SELECT COUNT(*) FROM sensors WHERE battery_level < 20").fetchone()[0]
-            offline = conn.execute("SELECT COUNT(*) FROM sensors WHERE status='offline'").fetchone()[0]
+            low_bat = conn.execute("SELECT COUNT(*) as count FROM sensors WHERE battery_level < 20").fetchone()['count']
+            offline = conn.execute("SELECT COUNT(*) as count FROM sensors WHERE status='offline'").fetchone()['count']
             parts.append(f"IoT network: {low_bat} sensors low battery, {offline} offline.")
 
         if any(w in msg_lower for w in ["budget", "fund", "funding", "allocation", "expenditure", "spend"]):
@@ -163,7 +158,7 @@ def build_context(user_message: str, role: str, district: Optional[str]) -> str:
 
         if any(w in msg_lower for w in ["governance", "committee", "wuc", "water user", "council"]):
             try:
-                committees = conn.execute("SELECT COUNT(*) FROM water_user_committees").fetchone()[0]
+                committees = conn.execute("SELECT COUNT(*) as count FROM water_user_committees").fetchone()['count']
                 parts.append(f"Governance: {committees} Water User Committees registered.")
             except Exception:
                 pass
@@ -172,7 +167,7 @@ def build_context(user_message: str, role: str, district: Optional[str]) -> str:
     except Exception as e:
         return f"Live system data temporarily unavailable. ({e})"
     finally:
-        conn.close()
+        put_db(conn)
 
 async def call_gemini_stream(
     message: str,
@@ -358,8 +353,8 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"how many water points|total water points|number of (water|boreholes)", msg):
-            total = conn.execute("SELECT COUNT(*) FROM water_points").fetchone()[0]
-            func = conn.execute("SELECT COUNT(*) FROM water_points WHERE status='functional'").fetchone()[0]
+            total = conn.execute("SELECT COUNT(*) as count FROM water_points").fetchone()['count']
+            func = conn.execute("SELECT COUNT(*) as count FROM water_points WHERE status='functional'").fetchone()['count']
             nonfunc = total - func
             return (
                 f"**Water Point Summary**\n\n"
@@ -381,8 +376,8 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"maintenance|repair|broken|fix", msg):
-            pending = conn.execute("SELECT COUNT(*) FROM maintenance_requests WHERE status='pending'").fetchone()[0]
-            urgent = conn.execute("SELECT COUNT(*) FROM maintenance_requests WHERE priority='critical' AND status='pending'").fetchone()[0]
+            pending = conn.execute("SELECT COUNT(*) as count FROM maintenance_requests WHERE status='pending'").fetchone()['count']
+            urgent = conn.execute("SELECT COUNT(*) as count FROM maintenance_requests WHERE priority='critical' AND status='pending'").fetchone()['count']
             return (
                 f"**Maintenance Status**\n\n"
                 f"\u2022 **Pending requests**: {pending}\n"
@@ -394,8 +389,8 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"quality|contamination|safe|unsafe|e.coli|ecoli|turbidity|ph\b", msg):
-            unsafe = conn.execute("SELECT COUNT(*) FROM water_quality_tests WHERE overall_safe=0 AND tested_at > datetime('now','-30 days')").fetchone()[0]
-            avg_score = conn.execute("SELECT AVG(water_safety_score) FROM water_quality_tests WHERE tested_at > datetime('now','-30 days')").fetchone()[0]
+            unsafe = conn.execute("SELECT COUNT(*) as count FROM water_quality_tests WHERE overall_safe=0 AND tested_at > NOW() - INTERVAL '30 days'").fetchone()['count']
+            avg_score = conn.execute("SELECT AVG(water_safety_score) as avg FROM water_quality_tests WHERE tested_at > NOW() - INTERVAL '30 days'").fetchone()['avg']
             return (
                 f"**Water Quality Overview (Last 30 Days)**\n\n"
                 f"\u2022 **Unsafe test results**: {unsafe}\n"
@@ -426,9 +421,9 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"sensor|iot|reading|battery|signal|offline", msg):
-            total = conn.execute("SELECT COUNT(*) FROM sensors").fetchone()[0]
-            offline = conn.execute("SELECT COUNT(*) FROM sensors WHERE status='offline'").fetchone()[0]
-            low_bat = conn.execute("SELECT COUNT(*) FROM sensors WHERE battery_level < 20").fetchone()[0]
+            total = conn.execute("SELECT COUNT(*) as count FROM sensors").fetchone()['count']
+            offline = conn.execute("SELECT COUNT(*) as count FROM sensors WHERE status='offline'").fetchone()['count']
+            low_bat = conn.execute("SELECT COUNT(*) as count FROM sensors WHERE battery_level < 20").fetchone()['count']
             return (
                 f"**IoT Sensor Network**\n\n"
                 f"\u2022 **Total sensors**: {total} across 7 sensor types\n"
@@ -439,7 +434,7 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"beneficiar|people|population|serve|community", msg):
-            bens = conn.execute("SELECT SUM(beneficiaries) FROM water_points").fetchone()[0]
+            bens = conn.execute("SELECT SUM(beneficiaries) as sum FROM water_points").fetchone()['sum']
             return (
                 f"**Community Impact**\n\n"
                 f"\u2022 **Total beneficiaries served**: {bens:,} people across 15 districts\n\n"
@@ -463,7 +458,7 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
             )
 
         if re.search(r"predict|forecast|ai|machine learning|risk|failure", msg):
-            failures = conn.execute("SELECT COUNT(*) FROM water_points WHERE infrastructure_score < 40").fetchone()[0]
+            failures = conn.execute("SELECT COUNT(*) as count FROM water_points WHERE infrastructure_score < 40").fetchone()['count']
             return (
                 f"**AI Prediction Engine**\n\n"
                 f"\u2022 **Water points with low infrastructure score (< 40)**: {failures} \u2014 at elevated failure risk\n\n"
@@ -502,12 +497,12 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
 
         if re.search(r"\breport|generate|summarise|summarize|overview\b|situation", msg):
             try:
-                total_wp = conn.execute("SELECT COUNT(*) FROM water_points").fetchone()[0]
-                func_wp = conn.execute("SELECT COUNT(*) FROM water_points WHERE status='functional'").fetchone()[0]
-                alerts = conn.execute("SELECT COUNT(*) FROM alerts WHERE status='active'").fetchone()[0]
-                pending = conn.execute("SELECT COUNT(*) FROM maintenance_requests WHERE status='pending'").fetchone()[0]
-                unsafe = conn.execute("SELECT COUNT(*) FROM water_quality_tests WHERE overall_safe=0 AND tested_at > datetime('now','-30 days')").fetchone()[0]
-                bens = conn.execute("SELECT SUM(beneficiaries) FROM water_points").fetchone()[0] or 0
+                total_wp = conn.execute("SELECT COUNT(*) as count FROM water_points").fetchone()['count']
+                func_wp = conn.execute("SELECT COUNT(*) as count FROM water_points WHERE status='functional'").fetchone()['count']
+                alerts = conn.execute("SELECT COUNT(*) as count FROM alerts WHERE status='active'").fetchone()['count']
+                pending = conn.execute("SELECT COUNT(*) as count FROM maintenance_requests WHERE status='pending'").fetchone()['count']
+                unsafe = conn.execute("SELECT COUNT(*) as count FROM water_quality_tests WHERE overall_safe=0 AND tested_at > NOW() - INTERVAL '30 days'").fetchone()['count']
+                bens = conn.execute("SELECT SUM(beneficiaries) as sum FROM water_points").fetchone()['sum'] or 0
                 date_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
                 scope = f"District: {district}" if district else "National"
                 return (
@@ -541,7 +536,7 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
 
         if re.search(r"governance|committee|wuc|water user|council|oversight|accountability", msg):
             try:
-                committees = conn.execute("SELECT COUNT(*) FROM water_user_committees").fetchone()[0]
+                committees = conn.execute("SELECT COUNT(*) as count FROM water_user_committees").fetchone()['count']
                 return (
                     f"**Governance Overview**\n\n"
                     f"\u2022 **Registered Water User Committees (WUCs)**: {committees}\n\n"
@@ -589,7 +584,7 @@ def rule_based_response(message: str, role: str, district: Optional[str], user_l
     except Exception as e:
         return f"I encountered an issue accessing the database: {e}. Please try again."
     finally:
-        conn.close()
+        put_db(conn)
 
 async def _translate_to(reply: str, target_lang: str) -> str:
     """Translate a reply to the target language."""

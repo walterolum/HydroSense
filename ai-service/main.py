@@ -129,7 +129,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(periodic_report_task())
 
     logger.info(f"  Gemini API: {'CONFIGURED' if os.getenv('GEMINI_API_KEY') else 'Not configured (rule-based fallback)'}")
-    logger.info(f"  Database: {os.getenv('DB_PATH', '../server/watermonitor.db')}")
+    logger.info(f"  Database: PostgreSQL ({os.getenv('PG_HOST', 'localhost')}:{os.getenv('PG_PORT', '5432')}/{os.getenv('PG_DATABASE', 'hydrosense')})")
     logger.info(f"  Max concurrent: {MAX_CONCURRENT_REQUESTS}")
     logger.info(f"  Request timeout: {REQUEST_TIMEOUT_SECONDS}s")
     logger.info("  Hydro AI Engine v4.0 is ONLINE")
@@ -155,14 +155,13 @@ async def validate_startup() -> Dict[str, Any]:
         "detail": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
     }
 
-    # Database connectivity
+    # Database connectivity (PostgreSQL)
     try:
-        import sqlite3
-        db_path = os.getenv("DB_PATH", "../server/watermonitor.db")
-        conn = sqlite3.connect(db_path)
+        from pg_db import get_db, put_db
+        conn = get_db()
         conn.execute("SELECT 1").fetchone()
-        conn.close()
-        checks["database"] = {"status": "passed", "detail": db_path}
+        put_db(conn)
+        checks["database"] = {"status": "passed", "detail": f"PostgreSQL {os.getenv('PG_HOST', 'localhost')}:{os.getenv('PG_PORT', '5432')}/{os.getenv('PG_DATABASE', 'hydrosense')}"}
     except Exception as e:
         checks["database"] = {"status": "failed", "detail": str(e)}
 
@@ -182,14 +181,15 @@ async def validate_startup() -> Dict[str, Any]:
         "detail": module_results,
     }
 
-    # Performance critical: verify sqlite3 works with WAL
+    # Performance critical: verify PostgreSQL connection pooling works
     try:
-        conn = sqlite3.connect(":memory:")
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.close()
-        checks["sqlite_wal"] = {"status": "passed", "detail": "WAL mode supported"}
+        from pg_db import get_db, put_db
+        conn = get_db()
+        conn.execute("SELECT 1")
+        put_db(conn)
+        checks["pg_connectivity"] = {"status": "passed", "detail": "PostgreSQL connection pool operational"}
     except Exception as e:
-        checks["sqlite_wal"] = {"status": "failed", "detail": str(e)}
+        checks["pg_connectivity"] = {"status": "failed", "detail": str(e)}
 
     checks["all_checks_passed"] = all(
         v.get("status") == "passed"
@@ -683,13 +683,11 @@ async def generate_report(req: ReportRequest):
 
 @app.get("/ai/incident-analysis/summary")
 def incident_analysis_summary():
-    import sqlite3
-    db_path = os.getenv("DB_PATH", "../server/watermonitor.db")
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        from pg_db import get_db, put_db
+        conn = get_db()
         data = get_ai_incident_summary(conn)
-        conn.close()
+        put_db(conn)
         return {"status": "ok", **data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -697,13 +695,11 @@ def incident_analysis_summary():
 
 @app.get("/ai/incident-analysis/analyze/{report_id}")
 def analyze_single_report(report_id: int):
-    import sqlite3
-    db_path = os.getenv("DB_PATH", "../server/watermonitor.db")
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        from pg_db import get_db, put_db
+        conn = get_db()
         result = analyze_report(report_id, conn)
-        conn.close()
+        put_db(conn)
         return {"status": "ok", "analysis": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -711,13 +707,11 @@ def analyze_single_report(report_id: int):
 
 @app.post("/ai/incident-analysis/analyze-all")
 async def analyze_all_reports():
-    import sqlite3
-    db_path = os.getenv("DB_PATH", "../server/watermonitor.db")
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        from pg_db import get_db, put_db
+        conn = get_db()
         results = analyze_all_pending(conn)
-        conn.close()
+        put_db(conn)
         return {"status": "ok", "analyzed": len(results), "results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

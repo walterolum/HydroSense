@@ -3,20 +3,10 @@ AI Decision Support Engine
 Intelligent incident prioritization, response recommendations, task assignment, and escalation.
 """
 
-import sqlite3
-import os
+from pg_db import get_db, put_db
 import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
-
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
-
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 
 def prioritize_incidents(limit: int = 20) -> List[Dict]:
     conn = get_db()
@@ -41,7 +31,7 @@ def prioritize_incidents(limit: int = 20) -> List[Dict]:
         LIMIT ?""",
         (limit,),
     ).fetchall()
-    conn.close()
+    put_db(conn)
     return [dict(r) for r in rows]
 
 
@@ -223,7 +213,7 @@ def auto_assign_task(
         ).fetchall()
         available_technicians = [dict(a) for a in available]
 
-    conn.close()
+    put_db(conn)
 
     severity_levels = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     priority_map = {0: "critical", 1: "high", 2: "medium", 3: "low"}
@@ -318,7 +308,7 @@ def generate_operational_insights(district: str = None) -> Dict[str, Any]:
         "SELECT COUNT(*) as c FROM health_incidents WHERE reported_date > datetime('now', '-30 days')"
     ).fetchone()
 
-    conn.close()
+    put_db(conn)
 
     return {
         "total_water_points": total_wp[0] if total_wp else 0,
@@ -355,7 +345,7 @@ def generate_risk_heatmap_data(district: str = None) -> List[Dict]:
                (SELECT COUNT(*) FROM community_reports WHERE district = wp.district AND created_at > datetime('now', '-30 days')) as recent_reports
                FROM water_points wp GROUP BY wp.district"""
         ).fetchall()
-    conn.close()
+    put_db(conn)
     results = []
     for r in rows:
         d = dict(r)
@@ -392,5 +382,5 @@ def get_multi_agency_coordination(incident_id: int = None) -> List[Dict]:
                JOIN env_incidents ei ON aa.incident_id = ei.id
                WHERE aa.status = 'active'"""
         ).fetchall()
-    conn.close()
+    put_db(conn)
     return [dict(r) for r in rows]

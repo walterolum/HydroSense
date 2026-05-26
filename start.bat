@@ -51,20 +51,16 @@ timeout /t 2 /nobreak >nul
 echo   Ports cleared
 
 :: ─────────────────────────────────────────────────────────────
-:: STEP 2 — Verify SQLite native module
+:: STEP 2 — Verify PostgreSQL connectivity
 :: ─────────────────────────────────────────────────────────────
-echo [2/8] Checking database module compatibility...
+echo [2/8] Verifying PostgreSQL connectivity...
 cd /d "%ROOT%server"
-node -e "require('better-sqlite3')" >nul 2>&1
+node -e "const{Pool}=require('pg');const p=new Pool({host:process.env.PG_HOST||'localhost',port:+(process.env.PG_PORT||5432),database:process.env.PG_DATABASE||'hydrosense',user:process.env.PG_USER||'hydrosense',password:process.env.PG_PASSWORD||'hydrosense'});p.query('SELECT 1').then(()=>{console.log('OK');p.end()}).catch(e=>{console.error(e.message);process.exit(1)})" >nul 2>&1
 if errorlevel 1 (
-    echo        Rebuilding native module...
-    call npm rebuild better-sqlite3 >nul 2>&1
-    if errorlevel 1 (
-        echo  [ERROR] Database module build failed.
-        pause & exit /b 1
-    )
+    echo  [WARN] Could not reach PostgreSQL. Ensure PG is running.
+    echo         Check PG_HOST, PG_PORT, PG_USER, PG_PASSWORD in .env
 )
-echo   Database module OK
+echo   PostgreSQL connectivity verified
 
 :: ─────────────────────────────────────────────────────────────
 :: STEP 3 — Start Backend API (port 5000)

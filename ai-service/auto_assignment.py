@@ -6,8 +6,7 @@ Intelligently routes citizen reports to the correct personnel based on:
 - Personnel availability, Workload balancing
 """
 
-import sqlite3
-import os
+from pg_db import get_db, put_db
 import json
 import logging
 from datetime import datetime
@@ -15,7 +14,6 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger("hydrosense.assignment")
 
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
 
 DEPARTMENT_MAP = {
     "water_contamination": "Water Quality",
@@ -43,13 +41,6 @@ ROLE_MAP = {
 
 PRIORITY_MAP = {"emergency": "emergency", "critical": "high", "high": "high", "medium": "medium", "low": "low"}
 
-
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
 
 
 def find_best_officer(
@@ -123,7 +114,7 @@ def find_best_officer(
         logger.error(f"Error finding officer: {e}")
         return None
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def auto_assign_report(report_id: int) -> Dict[str, Any]:
@@ -171,6 +162,7 @@ def auto_assign_report(report_id: int) -> Dict[str, Any]:
                  status, department, district, description, location,
                  sub_county, village)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
         """, (
             report_id,
             officer["id"],
@@ -184,7 +176,7 @@ def auto_assign_report(report_id: int) -> Dict[str, Any]:
             f"{report.get('detected_village', '') or report['village'] or ''}, {sub_county or ''}, {district}".strip(", "),
             sub_county or "",
             report.get("detected_village", "") or report["village"] or "",
-        )).lastrowid
+        )).fetchone()['id']
 
         conn.execute(
             "UPDATE citizen_reports SET status = 'assigned', updated_at = datetime('now') WHERE id = ?",
@@ -238,7 +230,7 @@ def auto_assign_report(report_id: int) -> Dict[str, Any]:
         logger.error(f"Auto-assign failed: {e}")
         return {"success": False, "error": str(e)}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _create_notification(
@@ -265,6 +257,7 @@ def _create_notification(
                 (recipient_type, recipient_id, recipient_contact, channel,
                  subject, message, status, reference_type, reference_id)
             VALUES (?, ?, ?, ?, ?, ?, 'sent', 'task_assignment', ?)
+            RETURNING id
         """, (
             "user",
             officer["id"],
@@ -273,7 +266,7 @@ def _create_notification(
             f"New {category.replace('_', ' ')} Incident - {district}",
             message,
             report["id"] if report else None,
-        )).lastrowid
+        )).fetchone()['id']
         notifications.append({"id": result, "channel": ch})
 
     return {"channels": notifications, "message": message}
@@ -305,7 +298,7 @@ def get_available_officers(district: str, incident_type: str) -> List[Dict[str, 
         logger.error(f"Error getting officers: {e}")
         return []
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def get_officer_stats(district: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -331,4 +324,4 @@ def get_officer_stats(district: Optional[str] = None) -> List[Dict[str, Any]]:
 
         return [dict(o) for o in officers]
     finally:
-        conn.close()
+        put_db(conn)

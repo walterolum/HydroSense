@@ -6,7 +6,7 @@ environmental terminology, voice accents, and community reporting patterns.
 
 import os
 import json
-import sqlite3
+from pg_db import get_db, put_db
 import logging
 import re
 from datetime import datetime
@@ -14,8 +14,6 @@ from typing import Optional, List, Dict, Any, Set
 from collections import defaultdict
 
 logger = logging.getLogger("hydrosense.learning")
-
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
 
 LANGUAGE_CORPUS: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
 DIALECT_PATTERNS: Dict[str, Dict[str, str]] = defaultdict(dict)
@@ -40,10 +38,8 @@ ENVIRONMENTAL_TERMS = [
 ]
 
 
-def _get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+def _get_db():
+    conn = get_db()
     return conn
 
 
@@ -105,7 +101,7 @@ def init_tables():
     except Exception as e:
         logger.warning(f"Language learning table init: {e}")
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def learn_from_report(
@@ -175,7 +171,7 @@ def learn_from_report(
         logger.error(f"Language learning error: {e}")
         return {"learned": 0, "error": str(e)}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def _extract_context(text: str, word: str) -> str:
@@ -243,7 +239,7 @@ def record_translation_feedback(
         conn.commit()
         return {"success": True}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def get_language_stats() -> Dict[str, Any]:
@@ -274,7 +270,7 @@ def get_language_stats() -> Dict[str, Any]:
             "top_terms": [dict(r) for r in top_terms],
         }
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def suggest_translation(text: str, source_language: str) -> Optional[str]:
@@ -290,7 +286,7 @@ def suggest_translation(text: str, source_language: str) -> Optional[str]:
             return result["english_equivalent"]
         return None
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def get_region_dialects(district: str) -> List[Dict[str, Any]]:
@@ -304,7 +300,7 @@ def get_region_dialects(district: str) -> List[Dict[str, Any]]:
         """, (district,)).fetchall()
         return [dict(p) for p in patterns]
     finally:
-        conn.close()
+        put_db(conn)
 
 
 init_tables()

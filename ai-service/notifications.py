@@ -7,15 +7,13 @@ translation for citizen-facing notifications.
 import os
 import json
 import logging
-import sqlite3
+from pg_db import get_db, put_db
 import asyncio
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from translation_engine import translate_report_notification, LANGUAGE_CODES
 
 logger = logging.getLogger("hydrosense.notifications")
-
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
 
 SMS_GATEWAY_URL = os.getenv("SMS_GATEWAY_URL", "")
 SMS_API_KEY = os.getenv("SMS_API_KEY", "")
@@ -119,10 +117,8 @@ STATUS_LABELS = {
 }
 
 
-def _get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+def _get_db():
+    conn = get_db()
     return conn
 
 
@@ -192,7 +188,7 @@ async def send_notification(
         logger.error(f"Failed to send notification: {e}")
         return {"success": False, "error": str(e)}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 async def send_report_submitted_notification(
@@ -295,8 +291,8 @@ async def send_emergency_alert(
                     description=description[:300] if description else "",
                 )
                 results.append(result)
-    finally:
-        conn.close()
+            finally:
+                put_db(conn)
     return results
 
 
@@ -331,24 +327,24 @@ async def broadcast_to_district(
 
         return {"success": True, "sent": sent_count, "total": len(users)}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def get_delivery_stats(days: int = 7) -> Dict[str, Any]:
     """Get notification delivery statistics."""
     conn = _get_db()
     try:
-        total = conn.execute("SELECT COUNT(*) as c FROM notification_log WHERE sent_at > datetime('now', ?)", (f'-{days} days',)).fetchone()["c"]
+        total = conn.execute("SELECT COUNT(*) as c FROM notification_log WHERE sent_at > NOW() - INTERVAL '%s'::interval", (f'{days} days',)).fetchone()["c"]
         by_channel = conn.execute("""
             SELECT channel, COUNT(*) as c FROM notification_log
-            WHERE sent_at > datetime('now', ?)
+            WHERE sent_at > NOW() - INTERVAL '%s'::interval
             GROUP BY channel
-        """, (f'-{days} days',)).fetchall()
+        """, (f'{days} days',)).fetchall()
         recent = conn.execute("""
             SELECT * FROM notification_log
-            WHERE sent_at > datetime('now', ?)
+            WHERE sent_at > NOW() - INTERVAL '%s'::interval
             ORDER BY sent_at DESC LIMIT 20
-        """, (f'-{days} days',)).fetchall()
+        """, (f'{days} days',)).fetchall()
 
         return {
             "total_sent": total,
@@ -356,4 +352,4 @@ def get_delivery_stats(days: int = 7) -> Dict[str, Any]:
             "recent": [dict(r) for r in recent],
         }
     finally:
-        conn.close()
+        put_db(conn)

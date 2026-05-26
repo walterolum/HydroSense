@@ -44,19 +44,6 @@ if errorlevel 1 (
     pause & exit /b 1
 )
 
-:: Verify/rebuild the native SQLite module for this Node.js version
-echo        Verifying database module...
-node -e "require('better-sqlite3')" >nul 2>&1
-if errorlevel 1 (
-    echo        Rebuilding native database module for Node.js !NODE_VER!...
-    call npm rebuild better-sqlite3
-    if errorlevel 1 (
-        echo  [ERROR] Could not build the database module.
-        echo          Install Visual Studio Build Tools from:
-        echo          https://visualstudio.microsoft.com/visual-cpp-build-tools/
-        pause & exit /b 1
-    )
-)
 echo  [OK] Server packages ready.
 
 :: ─────────────────────────────────────────────────────────────────
@@ -183,17 +170,13 @@ echo.
 echo [5/5] Seeding database with Uganda water system data...
 cd /d "%~dp0server"
 
-if exist "watermonitor.db" (
-    echo        Database already exists — skipping seed.
-    echo        (Delete server\watermonitor.db and re-run setup to reset data.)
-) else (
-    call node seed.js
-    if errorlevel 1 (
-        echo  [ERROR] Database seed failed.
-        pause & exit /b 1
-    )
-    echo  [OK] Database seeded.
+echo        (Runs pg-init.sql schema and seeds reference data.)
+call node seed.js
+if errorlevel 1 (
+    echo  [ERROR] Database seed failed.
+    pause & exit /b 1
 )
+echo  [OK] Database seeded.
 
 :: ─────────────────────────────────────────────────────────────────
 :: DONE
@@ -206,7 +189,7 @@ echo   Now run  START.BAT  to launch the system.
 echo  ============================================================
 echo.
 echo   NOTE: Run this setup on every new computer you use.
-echo         Your data stays in server\watermonitor.db
+echo         Your data stays in the PostgreSQL database.
 echo.
 pause
 endlocal

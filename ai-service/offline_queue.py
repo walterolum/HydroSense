@@ -6,7 +6,7 @@ and sync capabilities for low-bandwidth rural environments.
 
 import os
 import json
-import sqlite3
+from pg_db import get_db, put_db
 import logging
 import asyncio
 from datetime import datetime
@@ -14,8 +14,6 @@ from typing import Optional, List, Dict, Any, Callable
 from dataclasses import dataclass
 
 logger = logging.getLogger("hydrosense.offline_queue")
-
-DB_PATH = os.getenv("DB_PATH", "../server/watermonitor.db")
 
 # In-memory queue for when DB is not available
 _memory_queue: List[Dict[str, Any]] = []
@@ -39,19 +37,17 @@ class QueuedMessage:
     synced_at: Optional[str] = None
 
 
-def _get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+def _get_db():
+    conn = get_db()
     return conn
 
 
 def init_queue_table():
     conn = _get_db()
     try:
-        conn.executescript("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS offline_queue (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 message_type TEXT NOT NULL,
                 payload TEXT NOT NULL,
                 channel TEXT DEFAULT 'app',
@@ -65,16 +61,15 @@ def init_queue_table():
                 error_message TEXT,
                 created_at TEXT DEFAULT (datetime('now')),
                 synced_at TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_offline_queue_status ON offline_queue(status);
-            CREATE INDEX IF NOT EXISTS idx_offline_queue_priority ON offline_queue(priority);
+            )
         """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_status ON offline_queue(status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_priority ON offline_queue(priority)")
         conn.commit()
     except Exception as e:
         logger.warning(f"Queue table init: {e}")
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def enqueue_message(
@@ -96,10 +91,11 @@ def enqueue_message(
                 (message_type, payload, channel, recipient_id, recipient_contact,
                  language, priority, max_retries)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
         """, (
             message_type, payload_str, channel, recipient_id,
             recipient_contact or None, language, priority, max_retries,
-        )).lastrowid
+        )).fetchone()['id']
         conn.commit()
 
         _memory_queue.append({
@@ -131,7 +127,7 @@ def enqueue_message(
         logger.warning(f"Queue to DB failed, using memory: {e}")
         return {"success": True, "queue_id": 0, "mode": "memory"}
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def dequeue_pending(limit: int = 20) -> List[QueuedMessage]:
@@ -146,7 +142,7 @@ def dequeue_pending(limit: int = 20) -> List[QueuedMessage]:
         """, (limit,)).fetchall()
         return [QueuedMessage(**dict(r)) for r in rows]
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def mark_completed(queue_id: int):
@@ -159,7 +155,7 @@ def mark_completed(queue_id: int):
         )
         conn.commit()
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def mark_failed(queue_id: int, error: str = ""):
@@ -174,7 +170,7 @@ def mark_failed(queue_id: int, error: str = ""):
         """, (error[:500], queue_id))
         conn.commit()
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def mark_retrying(queue_id: int):
@@ -188,7 +184,7 @@ def mark_retrying(queue_id: int):
         """, (queue_id,))
         conn.commit()
     finally:
-        conn.close()
+        put_db(conn)
 
 
 def get_queue_stats() -> Dict[str, Any]:
@@ -217,7 +213,7 @@ def get_queue_stats() -> Dict[str, Any]:
             "failed": failed,
         }
     finally:
-        conn.close()
+        put_db(conn)
 
 
 async def process_queue(processor: Callable[[QueuedMessage], None], batch_size: int = 10):
