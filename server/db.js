@@ -4,19 +4,22 @@ const fs = require('fs');
 const path = require('path');
 
 // ── PostgreSQL Connection Configuration ──────────────────────────────────
+// ALL database credentials MUST come from environment variables for security.
+// Copy .env.example to .env and fill in your values — never commit secrets.
+if (!process.env.PG_PASSWORD) {
+  console.error('[PG] FATAL: PG_PASSWORD environment variable is not set. Database connection will fail.');
+}
 const PG_CONFIG = {
-  host: process.env.PG_HOST || 'ep-lucky-grass-aqiciugk-pooler.c-8.us-east-1.aws.neon.tech',
+  host: process.env.PG_HOST || 'localhost',
   port: parseInt(process.env.PG_PORT, 10) || 5432,
-  database: process.env.PG_DATABASE || 'neondb',
-  user: process.env.PG_USER || 'neondb_owner',
-  password: process.env.PG_PASSWORD || 'npg_M21iepYOmkfd',
+  database: process.env.PG_DATABASE || 'hydrosense',
+  user: process.env.PG_USER || 'hydrosense',
+  password: process.env.PG_PASSWORD || '',
   max: parseInt(process.env.PG_POOL_MAX, 10) || 20,
   idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT, 10) || 30000,
   connectionTimeoutMillis: parseInt(process.env.PG_CONNECTION_TIMEOUT, 10) || 5000,
   application_name: 'hydrosense-server',
-  ssl: {
-    rejectUnauthorized: false //Enforces SSL connectionto neon
-  }
+  ssl: process.env.PG_SSL === '1' ? { rejectUnauthorized: false } : false
 };
 
 let pool;
@@ -328,7 +331,11 @@ async function runMigrations() {
   if (!adminCount || adminCount.c === 0) {
     const bcrypt = require('bcryptjs');
     const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn('[BOOTSTRAP] Skipping admin creation — ADMIN_PASSWORD env var not set. Login will not be possible until an admin is created manually.');
+      return;
+    }
+    const adminPassword = process.env.ADMIN_PASSWORD;
     const adminName = process.env.ADMIN_NAME || 'Walter Olum';
     const hash = bcrypt.hashSync(adminPassword, 10);
     await db.prepare(`INSERT INTO users (name, email, password_hash, role, district, organization, active) VALUES ($1, $2, $3, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1) ON CONFLICT (email) DO NOTHING`)

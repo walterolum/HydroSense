@@ -1,10 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-const DEFAULT_SECRET = 'uma_water_monitor_secret_2025';
-const SECRET = process.env.JWT_SECRET || DEFAULT_SECRET;
 if (!process.env.JWT_SECRET) {
-  console.warn('[SECURITY] JWT_SECRET env var is not set — using insecure default. Set JWT_SECRET in production!');
+  console.error('[SECURITY] FATAL: JWT_SECRET env var is not set. Set a strong random secret in production!');
+  process.exit(1);
 }
+const SECRET = process.env.JWT_SECRET;
 
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;

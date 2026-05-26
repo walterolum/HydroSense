@@ -81,7 +81,11 @@ if (process.env.RESET_DB === '1') {
     `);
     // Create one system administrator so the system can be accessed after reset
     const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'walter123';
+    if (!process.env.ADMIN_PASSWORD) {
+      console.error('[RESET] FATAL: ADMIN_PASSWORD env var not set. Cannot create admin.');
+      return;
+    }
+    const adminPassword = process.env.ADMIN_PASSWORD;
     const adminName = process.env.ADMIN_NAME || 'Walter Olum';
     const hash = bcrypt.hashSync(adminPassword, 10);
     await db.prepare(
