@@ -694,20 +694,33 @@ export default function Login() {
 
             {/* Google Sign-In */}
             <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
+          </form>
 
-            {/* Sign Up with Email */}
+          {/* Sign Up with Email — outside form, as secondary CTA */}
+          <div className="mt-5">
             <button
               type="button"
               onClick={() => setShowSignup(true)}
-              className="w-full py-3 rounded-xl font-semibold text-sm border-2 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              className="w-full py-3.5 rounded-2xl font-semibold text-sm border-2 border-blue-200 text-blue-700 bg-white hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] shadow-sm"
             >
-              <Mail size={16} />
+              <Mail size={17} />
               Sign Up with Email
             </button>
-          </form>
+          </div>
+
+          {/* Create Account link — tertiary text link */}
+          <div className="text-center mt-4">
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <UserPlus size={15} />
+              Create a Community Member Account
+            </Link>
+          </div>
 
           {/* Security indicators */}
-          <div className="flex items-center justify-center gap-4 mt-5">
+          <div className="flex items-center justify-center gap-4 mt-6">
             <div className="flex items-center gap-1.5 text-xs text-gray-400">
               <Shield size={11} />
               <span>JWT Secured</span>
@@ -724,15 +737,7 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Create Account Section */}
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <Link to="/register" className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-all">
-              <UserPlus size={16} />
-              Create a Community Member Account
-            </Link>
-          </div>
-
-          <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="mt-4 pt-4 border-t border-gray-100">
             <p className="text-[11px] text-gray-400 text-center">
               © {new Date().getFullYear()} HydroSense. All rights reserved.<br />
               Climate-Resilient Water Management · Uganda

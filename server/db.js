@@ -435,6 +435,25 @@ async function runMigrations() {
     await markApplied('rotate_exposed_credentials_v1');
     console.log('[MIGRATION] rotate_exposed_credentials_v1 complete.');
   }
+
+  // Migration: email_verification_columns_v1
+  // Adds columns for link-based email verification (replaces OTP-only verification)
+  if (!(await isApplied('email_verification_columns_v1'))) {
+    const columns = [
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified INTEGER DEFAULT 0',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT',
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ',
+    ];
+    for (const colSql of columns) {
+      try {
+        await db.exec(colSql);
+      } catch (e) {
+        console.warn(`[MIGRATION] Could not add column: ${e.message}`);
+      }
+    }
+    await markApplied('email_verification_columns_v1');
+    console.log('[MIGRATION] email_verification_columns_v1: email_verified, verification_token, verification_expires_at columns added.');
+  }
 }
 
 // ── Health check ─────────────────────────────────────────────────────────

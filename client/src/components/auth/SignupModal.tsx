@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { registerCitizen } from '../../api/client';
 import {
-  X, User, Mail, Phone, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Loader2, Shield,
+  X, User, Mail, Phone, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Loader2, Shield, MailCheck,
 } from 'lucide-react';
 
 interface SignupModalProps {
@@ -28,7 +27,6 @@ function getPasswordStrength(pw: string): { score: number; label: string; color:
 }
 
 export default function SignupModal({ open, onClose }: SignupModalProps) {
-  const { login } = useAuth();
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const [name, setName] = useState('');
@@ -45,6 +43,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
 
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [error, setError] = useState('');
   const [fadeIn, setFadeIn] = useState(false);
 
@@ -73,7 +72,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
     setName(''); setEmail(''); setPhone(''); setPassword('');
     setConfirmPassword(''); setShowPassword(false); setShowConfirm(false);
     setErrors({}); setTouched({}); setLoading(false); setSuccess(false);
-    setError(''); setAgreeTerms(false);
+    setVerificationSent(false); setError(''); setAgreeTerms(false);
   }
 
   function validate(): FieldErrors {
@@ -112,26 +111,15 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
     setLoading(true);
     setError('');
     try {
-      const res = await registerCitizen({
+      await registerCitizen({
         name: name.trim(),
         email: email.trim(),
         password,
         phone: phone.trim() || undefined,
       });
 
-      const { token, user: newUser } = res.data;
-      if (token && newUser) {
-        const expiry = String(Date.now() + 365 * 24 * 60 * 60 * 1000);
-        localStorage.setItem('hs_token', token);
-        localStorage.setItem('hs_user', JSON.stringify(newUser));
-        localStorage.setItem('hs_expiry', expiry);
-      }
-
       setSuccess(true);
-      setTimeout(() => {
-        onClose();
-        window.location.href = '/dashboard';
-      }, 1500);
+      setVerificationSent(true);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -177,212 +165,251 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
               <div className="text-blue-200/80 text-[10px]">Ministry of Water &amp; Environment · Uganda</div>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mt-4">Create Your Account</h2>
-          <p className="text-blue-100/80 text-sm mt-1">Join the HydroSense community and help protect Uganda's water resources.</p>
+          <h2 className="text-2xl font-bold text-white mt-4">
+            {verificationSent ? 'Check Your Email' : 'Create Your Account'}
+          </h2>
+          <p className="text-blue-100/80 text-sm mt-1">
+            {verificationSent
+              ? 'We sent a verification link to your email address.'
+              : 'Join the HydroSense community and help protect Uganda\'s water resources.'}
+          </p>
         </div>
 
-        {/* Error / Success */}
+        {/* Error */}
         {error && (
           <div className="mx-8 mt-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-sm text-red-700 animate-fade-in">
             <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
             <span>{error}</span>
           </div>
         )}
-        {success && (
-          <div className="mx-8 mt-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-sm text-green-700 animate-fade-in">
-            <CheckCircle size={16} className="flex-shrink-0 text-green-500" />
-            <span>Account created! Redirecting to your dashboard...</span>
-          </div>
-        )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4 max-h-[60vh] overflow-y-auto">
-          {/* Full Name */}
-          <div>
-            <label htmlFor="signup-name" className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-            <div className="relative">
-              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                id="signup-name"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                onBlur={() => handleBlur('name')}
-                placeholder="John Doe"
-                className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                  fieldError('name') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
-                }`}
-                autoComplete="name"
-              />
+        {/* Success → Verification sent screen */}
+        {verificationSent ? (
+          <div className="px-8 py-10 text-center">
+            <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
+              <MailCheck size={40} className="text-blue-600" />
             </div>
-            {fieldError('name') && <p className="text-red-500 text-xs mt-1">{fieldError('name')}</p>}
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Verify your email</h3>
+            <p className="text-gray-500 text-sm leading-relaxed mb-2">
+              We sent a verification email to{' '}
+              <strong className="text-gray-700">{email}</strong>
+            </p>
+            <p className="text-gray-400 text-xs leading-relaxed mb-6">
+              Click the link in the email to activate your account. The link expires in 24 hours.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 inline-flex items-center gap-2 text-xs text-amber-700 mb-6">
+              <Mail size={14} />
+              <span>Didn't receive it? Check your spam folder.</span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-3 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+            >
+              Done
+            </button>
           </div>
+        ) : (
+          /* Form */
+          <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4 max-h-[60vh] overflow-y-auto">
 
-          {/* Email */}
-          <div>
-            <label htmlFor="signup-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-            <div className="relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                id="signup-email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onBlur={() => handleBlur('email')}
-                placeholder="you@example.com"
-                className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                  fieldError('email') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
-                }`}
-                autoComplete="email"
-              />
-            </div>
-            {fieldError('email') && <p className="text-red-500 text-xs mt-1">{fieldError('email')}</p>}
-          </div>
-
-          {/* Phone (optional) */}
-          <div>
-            <label htmlFor="signup-phone" className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Phone Number <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <div className="relative">
-              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                id="signup-phone"
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                onBlur={() => handleBlur('phone')}
-                placeholder="+256 700 000 000"
-                className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                  fieldError('phone') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
-                }`}
-                autoComplete="tel"
-              />
-            </div>
-            {fieldError('phone') && <p className="text-red-500 text-xs mt-1">{fieldError('phone')}</p>}
-          </div>
-
-          {/* Password */}
-          <div>
-            <label htmlFor="signup-password" className="block text-sm font-semibold text-gray-700 mb-1.5">Password *</label>
-            <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                id="signup-password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onBlur={() => handleBlur('password')}
-                placeholder="Create a strong password"
-                className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                  fieldError('password') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
-                }`}
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                tabIndex={-1}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {/* Password strength bar */}
-            {password && (
-              <div className="mt-2">
-                <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-300" style={{ width: strength.width, background: strength.color }} />
-                </div>
-                <p className="text-xs mt-1" style={{ color: strength.color }}>{strength.label}</p>
+            {/* Full Name */}
+            <div>
+              <label htmlFor="signup-name" className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
+              <div className="relative">
+                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="signup-name"
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onBlur={() => handleBlur('name')}
+                  placeholder="John Doe"
+                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
+                    fieldError('name') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  }`}
+                  autoComplete="name"
+                />
               </div>
-            )}
-            {fieldError('password') && <p className="text-red-500 text-xs mt-1">{fieldError('password')}</p>}
-          </div>
-
-          {/* Confirm Password */}
-          <div>
-            <label htmlFor="signup-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm Password *</label>
-            <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                id="signup-confirm"
-                type={showConfirm ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                onBlur={() => handleBlur('confirmPassword')}
-                placeholder="Re-enter your password"
-                className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                  fieldError('confirmPassword') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
-                }`}
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                tabIndex={-1}
-                aria-label={showConfirm ? 'Hide password' : 'Show password'}
-              >
-                {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              {fieldError('name') && <p className="text-red-500 text-xs mt-1">{fieldError('name')}</p>}
             </div>
-            {fieldError('confirmPassword') && <p className="text-red-500 text-xs mt-1">{fieldError('confirmPassword')}</p>}
-          </div>
 
-          {/* Terms */}
-          <div className="flex items-start gap-3">
-            <input
-              id="signup-terms"
-              type="checkbox"
-              checked={agreeTerms}
-              onChange={e => setAgreeTerms(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
-            />
-            <label htmlFor="signup-terms" className="text-xs text-gray-500 cursor-pointer select-none leading-relaxed">
-              I agree to the HydroSense{' '}
-              <a href="#" className="text-blue-600 underline hover:text-blue-700">Terms of Service</a>{' '}
-              and{' '}
-              <a href="#" className="text-blue-600 underline hover:text-blue-700">Privacy Policy</a>.
-              My data will be used for environmental reporting and community water management.
-            </label>
-          </div>
-          {touched.terms && errors.terms && <p className="text-red-500 text-xs -mt-2">{errors.terms}</p>}
+            {/* Email */}
+            <div>
+              <label htmlFor="signup-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
+              <div className="relative">
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onBlur={() => handleBlur('email')}
+                  placeholder="you@example.com"
+                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
+                    fieldError('email') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  }`}
+                  autoComplete="email"
+                />
+              </div>
+              {fieldError('email') && <p className="text-red-500 text-xs mt-1">{fieldError('email')}</p>}
+            </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading || success}
-            className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-          >
-            {loading ? (
-              <><Loader2 size={16} className="animate-spin" /> Creating Account…</>
-            ) : success ? (
-              <><CheckCircle size={16} /> Account Created!</>
-            ) : (
-              'Create Account'
-            )}
-          </button>
+            {/* Phone (optional) */}
+            <div>
+              <label htmlFor="signup-phone" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Phone Number <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="relative">
+                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="signup-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  onBlur={() => handleBlur('phone')}
+                  placeholder="+256 700 000 000"
+                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
+                    fieldError('phone') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  }`}
+                  autoComplete="tel"
+                />
+              </div>
+              {fieldError('phone') && <p className="text-red-500 text-xs mt-1">{fieldError('phone')}</p>}
+            </div>
 
-          {/* Security note */}
-          <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
-            <Shield size={11} />
-            <span>256-bit encrypted · JWT secured · Your data is private</span>
-          </div>
-        </form>
+            {/* Password */}
+            <div>
+              <label htmlFor="signup-password" className="block text-sm font-semibold text-gray-700 mb-1.5">Password *</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="signup-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onBlur={() => handleBlur('password')}
+                  placeholder="Create a strong password"
+                  className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
+                    fieldError('password') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  }`}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {password && (
+                <div className="mt-2">
+                  <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-300" style={{ width: strength.width, background: strength.color }} />
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: strength.color }}>{strength.label}</p>
+                </div>
+              )}
+              {fieldError('password') && <p className="text-red-500 text-xs mt-1">{fieldError('password')}</p>}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label htmlFor="signup-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm Password *</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  id="signup-confirm"
+                  type={showConfirm ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  onBlur={() => handleBlur('confirmPassword')}
+                  placeholder="Re-enter your password"
+                  className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
+                    fieldError('confirmPassword') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  }`}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  tabIndex={-1}
+                  aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {fieldError('confirmPassword') && <p className="text-red-500 text-xs mt-1">{fieldError('confirmPassword')}</p>}
+            </div>
+
+            {/* Terms */}
+            <div className="flex items-start gap-3">
+              <input
+                id="signup-terms"
+                type="checkbox"
+                checked={agreeTerms}
+                onChange={e => setAgreeTerms(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+              />
+              <label htmlFor="signup-terms" className="text-xs text-gray-500 cursor-pointer select-none leading-relaxed">
+                I agree to the HydroSense{' '}
+                <a href="#" className="text-blue-600 underline hover:text-blue-700">Terms of Service</a>{' '}
+                and{' '}
+                <a href="#" className="text-blue-600 underline hover:text-blue-700">Privacy Policy</a>.
+                My data will be used for environmental reporting and community water management.
+              </label>
+            </div>
+            {touched.terms && errors.terms && <p className="text-red-500 text-xs -mt-2">{errors.terms}</p>}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            >
+              {loading ? (
+                <><Loader2 size={16} className="animate-spin" /> Creating Account…</>
+              ) : (
+                'Create Account'
+              )}
+            </button>
+
+            {/* Security note */}
+            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
+              <Shield size={11} />
+              <span>256-bit encrypted · JWT secured · Your data is private</span>
+            </div>
+          </form>
+        )}
 
         {/* Footer */}
         <div className="px-8 py-4 border-t border-gray-100 bg-gray-50/50">
           <p className="text-center text-sm text-gray-500">
-            Already have an account?{' '}
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-blue-600 font-semibold hover:text-blue-700 hover:underline transition-all"
-            >
-              Sign In
-            </button>
+            {verificationSent ? (
+              <>Already verified?{' '}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-blue-600 font-semibold hover:text-blue-700 hover:underline transition-all"
+                >
+                  Sign In
+                </button>
+              </>
+            ) : (
+              <>Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="text-blue-600 font-semibold hover:text-blue-700 hover:underline transition-all"
+                >
+                  Sign In
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>

@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import CitizenRegistration from './pages/CitizenRegistration';
 import ForgotPassword from './pages/ForgotPassword';
 import OTPVerification from './pages/OTPVerification';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import WaterInfrastructure from './pages/WaterInfrastructure';
 import WaterPointDetail from './pages/WaterInfrastructure/Detail';
@@ -202,6 +203,7 @@ export default function App() {
           <Route path="/register" element={<PublicRoute><CitizenRegistration /></PublicRoute>} />
           <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
           <Route path="/otp-verification" element={<PublicRoute><OTPVerification /></PublicRoute>} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Unauthorized */}
           <Route path="/unauthorized" element={<ProtectedRoute><UnauthorizedPage /></ProtectedRoute>} />

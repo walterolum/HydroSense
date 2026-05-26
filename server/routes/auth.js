@@ -3,8 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db');
 const { authMiddleware, requireRole, SECRET } = require('../middleware/auth');
-const { sendOTP: sendRealEmail } = require('../utils/email');
-const { sendWelcomeEmail } = require('../utils/email');
+const { sendOTP: sendRealEmail, sendWelcomeEmail, sendVerificationEmail } = require('../utils/email');
 const { sendSMS } = require('../utils/sms');
 
 const router = express.Router();
@@ -74,10 +73,11 @@ router.get('/users/:id/public', async (req, res) => {
   res.json({ success: true, user });
 });
 
-/* ── Citizen Registration ── */
+/* ── Citizen Registration (Email Verification Flow) ── */
 router.post('/register', async (req, res) => {
   try {
     const db = await getDb();
+    const crypto = require('crypto');
     const { name, email, password, phone, national_id, community_id, district, sub_county, location, language } = req.body;
 
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Name is required' });
@@ -92,47 +92,34 @@ router.post('/register', async (req, res) => {
     if (existing) return res.status(409).json({ success: false, error: 'An account with this email already exists' });
 
     const hash = bcrypt.hashSync(password, 10);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     const result = await db.prepare(`
-      INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
+      INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified, email_verified, verification_token, verification_expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
     `).run(
       name.trim(), emailKey, hash, 'citizen', phone,
       national_id || null, community_id || null, district || null,
-      sub_county || null, location || null, language || 'en'
+      sub_county || null, location || null, language || 'en',
+      verificationToken, verificationExpires
     );
 
-    const user = await db.prepare(
-      'SELECT id, name, email, role, district, phone, language, otp_verified, active FROM users WHERE id = ?'
-    ).get(result.lastInsertRowid);
-
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district },
-      SECRET,
-      { expiresIn: '365d' }
-    );
-
-    // Send welcome notification in the background — never blocks the response
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    // Send verification email in the background
     setImmediate(async () => {
       try {
-        const raw = await generateAndStoreOTP(db, emailKey, 'registration', ip);
-        const [emailResult, smsResult] = await Promise.allSettled([
-          sendRealEmail(emailKey, raw, 'registration').catch(() => null),
-          phone ? sendSMS(phone, raw).catch(() => null) : Promise.resolve(null),
-        ]);
-        console.log(`[REGISTER] Welcome notification → email:${emailResult?.value?.provider} sms:${smsResult?.value?.provider}`);
+        await sendVerificationEmail(emailKey, name.trim(), verificationToken);
+        console.log(`[REGISTER] Verification email sent to ${emailKey}`);
       } catch (e) {
-        console.warn('[REGISTER] Welcome notification skipped:', e.message);
+        console.warn('[REGISTER] Verification email failed:', e.message);
       }
     });
 
-    console.log(`[REGISTER] New citizen: ${emailKey}`);
+    console.log(`[REGISTER] New citizen (pending verification): ${emailKey}`);
     res.status(201).json({
       success: true,
-      message: 'Account created successfully! Welcome to HydroSense.',
-      otp_required: false,
-      token,
-      user,
+      message: 'Account created! Please check your email to verify your account. The verification link expires in 24 hours.',
+      verification_required: true,
     });
   } catch (err) {
     console.error('[REGISTER] Error:', err.message);
@@ -683,6 +670,57 @@ router.post('/google', async (req, res) => {
   } catch (err) {
     console.error('[GOOGLE AUTH] Error:', err.message);
     res.status(500).json({ success: false, error: 'Google authentication failed' });
+  }
+});
+
+/* ── Email Verification (link-based, no OTP required) ── */
+router.post('/verify-email', async (req, res) => {
+  try {
+    const db = await getDb();
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ success: false, error: 'Verification token is required' });
+
+    const user = await db.prepare(`
+      SELECT id, name, email, role, district, sub_county, phone, organization, avatar, language, active, email_verified
+      FROM users WHERE verification_token = ? AND verification_expires_at > NOW() AND email_verified = 0
+    `).get(token);
+
+    if (!user) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired verification token. Please register again.' });
+    }
+
+    // Activate account and clear token
+    await db.prepare(`
+      UPDATE users SET email_verified = 1, active = 1, verification_token = NULL, verification_expires_at = NULL, last_login = NOW()
+      WHERE id = ?
+    `).run(user.id);
+
+    const updated = await db.prepare(
+      'SELECT id, name, email, role, district, sub_county, phone, organization, avatar, active, email_verified, language FROM users WHERE id = ?'
+    ).get(user.id);
+
+    const tokenJWT = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
+      SECRET,
+      { expiresIn: '365d' }
+    );
+
+    // Send welcome email in the background
+    setImmediate(() => {
+      sendWelcomeEmail(user.email, user.name).catch(() => {});
+    });
+
+    console.log(`[VERIFY EMAIL] ${user.email} verified and activated`);
+    res.json({
+      success: true,
+      message: 'Email verified! Your account is now active.',
+      token: tokenJWT,
+      user: updated,
+      expires_in: '365d',
+    });
+  } catch (err) {
+    console.error('[VERIFY EMAIL] Error:', err.message);
+    res.status(500).json({ success: false, error: 'Verification failed. Please try again.' });
   }
 });
 

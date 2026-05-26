@@ -130,6 +130,9 @@ export const sendOTP = (email: string) => api.post('/auth/send-otp', { email });
 export const verifyOTP = (email: string, otp: string) => api.post('/auth/verify-otp', { email, otp });
 export const resendOTP = (email: string) => api.post('/auth/resend-otp', { email });
 
+// Email verification
+export const verifyEmail = (token: string) => api.post('/auth/verify-email', { token });
+
 // Citizen Reports (multi-channel)
 export const submitCitizenReport = (data: object) => api.post('/citizen-reports', data);
 export const getCitizenReports = (params?: object) => api.get('/citizen-reports', { params });
