@@ -85,7 +85,6 @@ router.post('/register', async (req, res) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ success: false, error: 'Invalid email format' });
     if (!password || password.length < 6) return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
     if (password.length > 128) return res.status(400).json({ success: false, error: 'Password too long (max 128 characters)' });
-    if (!phone) return res.status(400).json({ success: false, error: 'Phone number is required' });
     if (name.trim().length > 100) return res.status(400).json({ success: false, error: 'Name too long (max 100 characters)' });
 
     const emailKey = email.toLowerCase().trim();

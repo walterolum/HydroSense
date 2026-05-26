@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus, Mail } from 'lucide-react';
+import SignupModal from '../components/auth/SignupModal';
 
 declare global {
   interface Window {
@@ -170,6 +171,7 @@ export default function Login() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [activeFeature, setActiveFeature] = useState<number | null>(null);
+  const [showSignup, setShowSignup] = useState(false);
 
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -692,6 +694,16 @@ export default function Login() {
 
             {/* Google Sign-In */}
             <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
+
+            {/* Sign Up with Email */}
+            <button
+              type="button"
+              onClick={() => setShowSignup(true)}
+              className="w-full py-3 rounded-xl font-semibold text-sm border-2 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+            >
+              <Mail size={16} />
+              Sign Up with Email
+            </button>
           </form>
 
           {/* Security indicators */}
@@ -729,6 +741,8 @@ export default function Login() {
 
         </div>
       </div>
+
+      <SignupModal open={showSignup} onClose={() => setShowSignup(false)} />
     </div>
   );
 }
