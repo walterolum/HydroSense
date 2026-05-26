@@ -296,11 +296,16 @@ async function runMigrations() {
     console.log('[MIGRATION] ensure_walter_v2: Walter Olum credentials verified/reset.');
   }
 
-  // Migration: remove_demo_users_v1
+  // Migration: remove_demo_users_v1 — SAFEGUARDED: only deletes if no non-admin users exist yet
   if (!(await isApplied('remove_demo_users_v1'))) {
-    await db.prepare("DELETE FROM users WHERE role != 'national_admin'").run();
+    const nonAdminCount = await db.prepare("SELECT COUNT(*) as c FROM users WHERE role != 'national_admin'").get();
+    if (nonAdminCount && nonAdminCount.c > 0) {
+      console.log(`[MIGRATION] Skipping remove_demo_users_v1: ${nonAdminCount.c} non-admin users already exist.`);
+    } else {
+      await db.prepare("DELETE FROM users WHERE role != 'national_admin'").run();
+      console.log('[MIGRATION] remove_demo_users_v1: all non-admin demo accounts deleted.');
+    }
     await markApplied('remove_demo_users_v1');
-    console.log('[MIGRATION] remove_demo_users_v1: all non-admin demo accounts deleted.');
   }
 
   // Migration: remove_demo_users_v2

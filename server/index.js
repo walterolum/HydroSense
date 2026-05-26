@@ -14,11 +14,21 @@ const { errorHandler } = require('./middleware/error-handler');
 const { authMiddleware } = require('./middleware/auth');
 const requestLogger = require('./middleware/request-logger');
 
-// ── One-time database reset (set RESET_DB=1 in env, deploy once, then remove) ──
+// ── One-time database reset (set RESET_DB=1 in env AND RESET_CONFIRM=<email> to guard against accidental wipe) ──
 if (process.env.RESET_DB === '1') {
   (async () => {
-    const bcrypt = require('bcryptjs');
     const db = await getDb();
+    // Safety check: skip if real users exist and RESET_CONFIRM does not match admin email
+    const userCount = await db.prepare("SELECT COUNT(*) as c FROM users").get();
+    if (userCount && userCount.c > 1) {
+      const confirmEmail = process.env.RESET_CONFIRM || '';
+      const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
+      if (confirmEmail !== adminEmail) {
+        console.log('[RESET] SAFEGUARD: Skipping reset — users exist. Set RESET_CONFIRM=<admin-email> to override.');
+        return;
+      }
+    }
+    const bcrypt = require('bcryptjs');
     console.log('[RESET] Clearing all data from database...');
     await db.exec(`
       DELETE FROM citizen_report_tracking;
@@ -85,10 +95,16 @@ if (process.env.RESET_DB === '1') {
   })();
 }
 
-// ── Remove demo accounts, keep national_admin (set CLEAR_DEMO=1, deploy once, remove) ──
+// ── Remove demo accounts, keep national_admin (set CLEAR_DEMO=1 and CLEAR_CONFIRM=yes to guard) ──
 if (process.env.CLEAR_DEMO === '1') {
   (async () => {
     const db = await getDb();
+    // Safety check: skip if non-admin users exist and CLEAR_CONFIRM is not set
+    const nonAdminCount = await db.prepare("SELECT COUNT(*) as c FROM users WHERE role != 'national_admin'").get();
+    if (nonAdminCount && nonAdminCount.c > 0 && process.env.CLEAR_CONFIRM !== 'yes') {
+      console.log(`[CLEAR_DEMO] SAFEGUARD: Skipping — ${nonAdminCount.c} non-admin users exist. Set CLEAR_CONFIRM=yes to override.`);
+      return;
+    }
     console.log('[CLEAR_DEMO] Saving admin accounts and wiping all demo data...');
 
     // Save all national_admin accounts before clearing

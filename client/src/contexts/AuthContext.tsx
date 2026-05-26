@@ -2,8 +2,8 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { User } from '../types';
 import { login as apiLogin, getMe } from '../api/client';
 
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000;     // 30-min inactivity for non-remembered sessions
-const WARNING_BEFORE_MS  =  2 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000; // 14 days inactivity for non-remembered sessions
+const WARNING_BEFORE_MS  =  1 * 24 * 60 * 60 * 1000; // 1 day warning before expiry
 const REMEMBER_MS        = 365 * 24 * 60 * 60 * 1000; // 365 days (matches server JWT expiry)
 
 // Storage keys
@@ -17,17 +17,13 @@ function saveSession(token: string, user: User, remember: boolean) {
     localStorage.setItem(K_TOKEN,  token);
     localStorage.setItem(K_USER,   JSON.stringify(user));
     localStorage.setItem(K_EXPIRY, String(expiry));
-    // Clear any stale sessionStorage entry so the two don't conflict
-    sessionStorage.removeItem(K_TOKEN);
-    sessionStorage.removeItem(K_USER);
   } else {
-    sessionStorage.setItem(K_TOKEN, token);
-    sessionStorage.setItem(K_USER,  JSON.stringify(user));
-    // Clear any stale localStorage entry
-    localStorage.removeItem(K_TOKEN);
-    localStorage.removeItem(K_USER);
+    localStorage.setItem(K_TOKEN, token);
+    localStorage.setItem(K_USER,  JSON.stringify(user));
     localStorage.removeItem(K_EXPIRY);
   }
+  sessionStorage.removeItem(K_TOKEN);
+  sessionStorage.removeItem(K_USER);
 }
 
 function clearSession() {
@@ -40,7 +36,7 @@ function clearSession() {
 
 // Returns { token, user, remembered } or null
 function readStoredSession(): { token: string; user: User; remembered: boolean } | null {
-  // Try localStorage first (remembered login)
+  // Try localStorage with expiry (remembered login)
   const lsToken  = localStorage.getItem(K_TOKEN);
   const lsUser   = localStorage.getItem(K_USER);
   const lsExpiry = localStorage.getItem(K_EXPIRY);
@@ -50,7 +46,14 @@ function readStoredSession(): { token: string; user: User; remembered: boolean }
     } catch {}
   }
 
-  // Fall back to sessionStorage (tab-only session)
+  // Try localStorage without expiry (non-remembered, but persisted across tabs)
+  if (lsToken && lsUser && !lsExpiry) {
+    try {
+      return { token: lsToken, user: JSON.parse(lsUser), remembered: false };
+    } catch {}
+  }
+
+  // Fall back to sessionStorage (legacy tab-only session)
   const ssToken = sessionStorage.getItem(K_TOKEN);
   const ssUser  = sessionStorage.getItem(K_USER);
   if (ssToken && ssUser) {
@@ -156,11 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       getMe()
         .then(r => {
           setUser(r.data.user);
-          if (stored.remembered) {
-            localStorage.setItem(K_USER, JSON.stringify(r.data.user));
-          } else {
-            sessionStorage.setItem(K_USER, JSON.stringify(r.data.user));
-          }
+          localStorage.setItem(K_USER, JSON.stringify(r.data.user));
         })
         .catch(() => logout())
         .finally(() => setLoading(false));
@@ -192,22 +191,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     const r = await getMe();
     setUser(r.data.user);
-    if (remembered) {
-      localStorage.setItem(K_USER, JSON.stringify(r.data.user));
-    } else {
-      sessionStorage.setItem(K_USER, JSON.stringify(r.data.user));
-    }
+    localStorage.setItem(K_USER, JSON.stringify(r.data.user));
   };
 
   const patchUser = (partial: Partial<User>) => {
     setUser(prev => {
       if (!prev) return prev;
       const updated = { ...prev, ...partial };
-      if (remembered) {
-        localStorage.setItem(K_USER, JSON.stringify(updated));
-      } else {
-        sessionStorage.setItem(K_USER, JSON.stringify(updated));
-      }
+      localStorage.setItem(K_USER, JSON.stringify(updated));
       return updated;
     });
   };

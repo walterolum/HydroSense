@@ -326,8 +326,8 @@ router.post('/login', async (req, res) => {
 
   await db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
 
-  // Long-lived token when user ticks "Remember Me", otherwise 7 days
-  const expiry = rememberMe ? '365d' : '7d';
+  // Long-lived token when user ticks "Remember Me", otherwise 14 days
+  const expiry = rememberMe ? '365d' : '14d';
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
     SECRET,
@@ -345,7 +345,7 @@ router.post('/refresh', authMiddleware, async (req, res) => {
   if (!user) return res.status(401).json({ success: false, error: 'User account not found or deactivated' });
 
   const { rememberMe } = req.body;
-  const expiry = rememberMe ? '365d' : '7d';
+  const expiry = rememberMe ? '365d' : '14d';
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, district: user.district, organization: user.organization },
     SECRET,
