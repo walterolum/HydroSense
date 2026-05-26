@@ -684,16 +684,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium">or continue with</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          {/* Google Sign-In */}
-          <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
-
           {/* Security indicators */}
           <div className="flex items-center justify-center gap-4 mt-5">
             <div className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -712,7 +702,17 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Citizen Registration Link */}
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-medium">or continue with</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          {/* Google Sign-In */}
+          <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
+
+          {/* Create Account Section */}
           <div className="mt-5 pt-5 border-t border-gray-100">
             <Link to="/register" className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-all">
               <UserPlus size={16} />
