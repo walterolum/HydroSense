@@ -91,9 +91,9 @@ router.post('/register', async (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const result = await db.prepare(`
       INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
     `).run(
-      name.trim(), emailKey, hash, phone,
+      name.trim(), emailKey, hash, 'citizen', phone,
       national_id || null, community_id || null, district || null,
       sub_county || null, location || null, language || 'en'
     );
