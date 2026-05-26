@@ -716,7 +716,7 @@ export default function Login() {
           <div className="mt-5 pt-5 border-t border-gray-100">
             <Link to="/register" className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-all">
               <UserPlus size={16} />
-              New to HydroSense? Register as a Community Member
+              Create a Community Member Account
             </Link>
           </div>
 
