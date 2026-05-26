@@ -95,7 +95,7 @@ Get-Content "ai-service\.env"
 
 # Test Gemini API directly
 $key = (Get-Content "ai-service\.env" | Select-String "GEMINI_API_KEY=(.*)").Matches.Groups[1].Value
-Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=$key" `
+Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key=$key" `
   -Method Post -Body '{"contents":[{"parts":[{"text":"Say hello"}]}]}' -ContentType "application/json"
 ```
 
@@ -298,7 +298,7 @@ Invoke-RestMethod http://localhost:3000 -TimeoutSec 5
 # Test Gemini API (if key configured)
 $env:GEMINI_API_KEY = "your-key-here"
 $body = @{contents=@(@{parts=@(@{text="Say hello"})})} | ConvertTo-Json
-Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=$env:GEMINI_API_KEY" `
+Invoke-RestMethod -Uri "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key=$env:GEMINI_API_KEY" `
   -Method Post -Body $body -ContentType "application/json"
 
 # Check if OneDrive is interfering
@@ -906,7 +906,7 @@ Invoke-RestMethod http://localhost:8000/ai/health -TimeoutSec 10 | ConvertTo-Jso
 
 # 2. Check if Gemini key is valid
 $key = (Select-String -Path ai-service/.env -Pattern "GEMINI_API_KEY=(.*)").Matches.Groups[1].Value
-Invoke-RestMethod "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=$key" -Method Post -Body '{"contents":[{"parts":[{"text":"hi"}]}]}' -ContentType "application/json"
+Invoke-RestMethod "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key=$key" -Method Post -Body '{"contents":[{"parts":[{"text":"hi"}]}]}' -ContentType "application/json"
 
 # 3. Check circuit breaker state
 (Invoke-RestMethod http://localhost:8000/ai/health).circuit_breaker

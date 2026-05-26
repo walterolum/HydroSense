@@ -13,7 +13,8 @@ from contextlib import asynccontextmanager
 from pg_db import get_db, put_db, transform_sql, execute as pg_execute
 
 logger = logging.getLogger("hydrosense.chatbot")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:streamGenerateContent?alt=sse"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-preview-05-20")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:streamGenerateContent?alt=sse"
 
 # ── Multilingual support ──
 LANGUAGE_CODES = {
@@ -234,9 +235,9 @@ async def call_gemini_stream(
 
     has_image = bool(image_data and image_mime)
     generation_config = {
-        "temperature": 0.5 if has_image else 0.6,
-        "maxOutputTokens": 8192,
-        "topP": 0.92,
+        "temperature": 0.5 if has_image else 0.7,
+        "maxOutputTokens": 16384,
+        "topP": 0.95,
     }
 
     payload = {
@@ -644,7 +645,7 @@ async def chat(
     if conversation_context:
         context = f"{context}\n\nConversation Memory:\n{conversation_context}"
     has_image = bool(image_data and image_mime)
-    model_label = "gemini-2.5-flash"
+    model_label = GEMINI_MODEL
     start_time = time.time()
 
     async with request_context(request_id):

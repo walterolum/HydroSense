@@ -91,7 +91,7 @@ async def translate_text(
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
             }
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key={api_key}"
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -143,7 +143,7 @@ async def transcribe_audio(
                 }],
                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": 4096},
             }
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key={api_key}"
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -183,7 +183,7 @@ async def detect_language(text: str) -> Tuple[str, str]:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 payload = {"contents": [{"parts": [{"text": prompt}]}]}
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key={api_key}"
                 resp = await client.post(url, json=payload)
                 resp.raise_for_status()
                 raw = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")

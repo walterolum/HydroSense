@@ -468,7 +468,7 @@ Please respond with a JSON object (no markdown, raw JSON only) in this exact for
 }`;
 
     let response = null;
-    for (const model of ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']) {
+    for (const model of ['gemini-2.5-pro-preview-05-20', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b']) {
       response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
@@ -545,7 +545,7 @@ Respond ONLY with raw JSON (no markdown, no explanation outside JSON):
 }`;
 
     let response = null;
-    for (const model of ['gemini-2.5-flash', 'gemini-1.5-flash']) {
+    for (const model of ['gemini-2.5-pro-preview-05-20', 'gemini-2.5-flash', 'gemini-1.5-flash']) {
       response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
@@ -692,7 +692,7 @@ async function handleNativeNodeChat(req, res, targetPath) {
   // ── Try Gemini (cascade through models) ──
   let geminiText = null;
   if (apiKey) {
-    const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+    const GEMINI_MODELS = ['gemini-2.5-pro-preview-05-20', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
     const action = isStream ? 'streamGenerateContent?alt=sse' : 'generateContent';
     let response = null;
     for (const model of GEMINI_MODELS) {
@@ -1142,7 +1142,7 @@ app.post('/api/ai/reports/generate', authMiddleware, async (req, res) => {
         `${stats.pendingMaint} pending maintenance, ${stats.unsafeTests} unsafe water quality records. ` +
         `Be professional, specific to water infrastructure, and action-oriented.`;
 
-      const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+      const GEMINI_MODELS = ['gemini-2.5-pro-preview-05-20', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
       let gRes = null;
       for (const model of GEMINI_MODELS) {
         gRes = await fetch(

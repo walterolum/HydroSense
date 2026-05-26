@@ -110,7 +110,7 @@ Report text: {text[:3000]}
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.1, "maxOutputTokens": 3072},
             }
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-20:generateContent?key={api_key}"
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
