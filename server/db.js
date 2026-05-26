@@ -326,7 +326,7 @@ async function runMigrations() {
     console.log('[MIGRATION] remove_demo_users_v2: all hardcoded demo accounts deleted.');
   }
 
-  // Bootstrap admin
+  // Bootstrap admin (only if no admin exists)
   const adminCount = await db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'national_admin' AND active = 1").get();
   if (!adminCount || adminCount.c === 0) {
     const bcrypt = require('bcryptjs');
@@ -341,6 +341,76 @@ async function runMigrations() {
     await db.prepare(`INSERT INTO users (name, email, password_hash, role, district, organization, active) VALUES ($1, $2, $3, 'national_admin', 'Kampala', 'Ministry of Water & Environment', 1) ON CONFLICT (email) DO NOTHING`)
       .run(adminName, adminEmail, hash);
     console.log(`[BOOTSTRAP] Admin created: ${adminEmail}`);
+  }
+
+  // Migration: rotate_exposed_credentials_v1
+  // Rotates all credentials that were previously hardcoded in source code
+  if (!(await isApplied('rotate_exposed_credentials_v1'))) {
+    const crypto = require('crypto');
+    const bcrypt = require('bcryptjs');
+    const fs = require('fs');
+    const path = require('path');
+
+    // 1. Rotate JWT_SECRET
+    const newJwtSecret = crypto.randomBytes(48).toString('base64');
+    process.env.JWT_SECRET = newJwtSecret;
+    console.log('[MIGRATION] JWT_SECRET rotated.');
+
+    // 2. Rotate admin password in DB and env
+    const newAdminPassBytes = crypto.randomBytes(20);
+    const adminChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^*()-_=+';
+    const newAdminPass = Array.from(newAdminPassBytes).map(b => adminChars[b % adminChars.length]).join('');
+    const adminHash = bcrypt.hashSync(newAdminPass, 10);
+    const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
+    const adminResult = await db.prepare("UPDATE users SET password_hash=$1, active=1 WHERE email=$2 AND role='national_admin'").run(adminHash, adminEmail);
+    if (adminResult.changes > 0) {
+      process.env.ADMIN_PASSWORD = newAdminPass;
+      console.log('[MIGRATION] Admin password rotated.');
+    } else {
+      console.warn('[MIGRATION] Admin user not found, password not updated.');
+    }
+
+    // 3. Rotate database password
+    const newPgPassBytes = crypto.randomBytes(24);
+    const pgChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const newPgPass = Array.from(newPgPassBytes).map(b => pgChars[b % pgChars.length]).join('');
+    try {
+      await db.pool.query(`ALTER USER ${PG_CONFIG.user} WITH PASSWORD '${newPgPass.replace(/'/g, "''")}'`);
+      process.env.PG_PASSWORD = newPgPass;
+      console.log('[MIGRATION] Database password rotated.');
+    } catch (err) {
+      console.warn('[MIGRATION] Could not rotate DB password (may lack permissions):', err.message);
+    }
+
+    // 4. Persist new env vars to .env file
+    try {
+      const envPath = path.join(__dirname, '.env');
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      const updates = {
+        JWT_SECRET: newJwtSecret,
+        ADMIN_PASSWORD: newAdminPass,
+        PG_PASSWORD: newPgPass,
+      };
+      for (const [key, val] of Object.entries(updates)) {
+        const re = new RegExp(`^${key}=.*$`, 'm');
+        if (re.test(envContent)) {
+          envContent = envContent.replace(re, `${key}=${val}`);
+        } else {
+          envContent += `\n${key}=${val}`;
+        }
+      }
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      console.log('[MIGRATION] Environment file updated with new credentials.');
+    } catch (err) {
+      console.warn('[MIGRATION] Could not update .env file:', err.message);
+      console.warn('[MIGRATION] Please manually update .env with these values:');
+      console.warn(`  JWT_SECRET=${newJwtSecret}`);
+      console.warn(`  ADMIN_PASSWORD=${newAdminPass}`);
+      console.warn(`  PG_PASSWORD=${newPgPass}`);
+    }
+
+    await markApplied('rotate_exposed_credentials_v1');
+    console.log('[MIGRATION] rotate_exposed_credentials_v1 complete.');
   }
 }
 
