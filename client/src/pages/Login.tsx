@@ -682,6 +682,16 @@ export default function Login() {
                 'Sign In'
               )}
             </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-gray-400 font-medium">or continue with</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            {/* Google Sign-In */}
+            <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
           </form>
 
           {/* Security indicators */}
@@ -701,16 +711,6 @@ export default function Login() {
               <span>Live</span>
             </div>
           </div>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400 font-medium">or continue with</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
-
-          {/* Google Sign-In */}
-          <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
 
           {/* Create Account Section */}
           <div className="mt-5 pt-5 border-t border-gray-100">
