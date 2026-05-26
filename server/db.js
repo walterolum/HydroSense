@@ -1,7 +1,14 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs   = require('fs');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'watermonitor.db');
+
+// Ensure the directory that will hold the DB file exists (important for
+// the /data mount path on first deploy before the disk has any files).
+const DB_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
 let db;
 const add = sql => { try { db.exec(sql); } catch {} };
 

@@ -2,13 +2,19 @@ services:
   - type: web
     name: hydrosense-server
     env: node
-    plan: free
+    plan: starter          # persistent disk requires at least Starter plan
     buildCommand: cd server && npm install
     startCommand: cd server && npm start
+    disk:
+      name: hydrosense-db
+      mountPath: /data
+      sizeGB: 1            # 1 GB is the minimum — costs ~$0.25/month
     envVars:
       - key: NODE_VERSION
         value: 18
       - key: PORT
         value: 5000
+      - key: DB_PATH
+        value: /data/watermonitor.db   # database lives on the persistent disk
       - key: GEMINI_API_KEY
         sync: false
