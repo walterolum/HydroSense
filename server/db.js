@@ -345,21 +345,38 @@ async function runMigrations() {
 
   // Migration: rotate_exposed_credentials_v1
   // Rotates all credentials that were previously hardcoded in source code
+  // Uses credentials from .env if they were pre-generated, otherwise creates new ones
   if (!(await isApplied('rotate_exposed_credentials_v1'))) {
     const crypto = require('crypto');
     const bcrypt = require('bcryptjs');
     const fs = require('fs');
     const path = require('path');
+    const envPath = path.join(__dirname, '.env');
 
-    // 1. Rotate JWT_SECRET
-    const newJwtSecret = crypto.randomBytes(48).toString('base64');
+    // Helper: read current value from .env file
+    function readEnvVar(key) {
+      try {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const match = content.match(new RegExp(`^${key}=(.+)$`, 'm'));
+        return match ? match[1].trim() : null;
+      } catch { return null; }
+    }
+
+    // 1. Rotate JWT_SECRET — use pre-set value from .env or generate new
+    let newJwtSecret = readEnvVar('JWT_SECRET');
+    if (!newJwtSecret) {
+      newJwtSecret = crypto.randomBytes(48).toString('base64');
+    }
     process.env.JWT_SECRET = newJwtSecret;
     console.log('[MIGRATION] JWT_SECRET rotated.');
 
     // 2. Rotate admin password in DB and env
-    const newAdminPassBytes = crypto.randomBytes(20);
-    const adminChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^*()-_=+';
-    const newAdminPass = Array.from(newAdminPassBytes).map(b => adminChars[b % adminChars.length]).join('');
+    let newAdminPass = readEnvVar('ADMIN_PASSWORD');
+    if (!newAdminPass) {
+      const adminBytes = crypto.randomBytes(20);
+      const adminChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^*()-_=+';
+      newAdminPass = Array.from(adminBytes).map(b => adminChars[b % adminChars.length]).join('');
+    }
     const adminHash = bcrypt.hashSync(newAdminPass, 10);
     const adminEmail = (process.env.ADMIN_EMAIL || 'walter.olum@hydrosense.ug').toLowerCase();
     const adminResult = await db.prepare("UPDATE users SET password_hash=$1, active=1 WHERE email=$2 AND role='national_admin'").run(adminHash, adminEmail);
@@ -371,26 +388,31 @@ async function runMigrations() {
     }
 
     // 3. Rotate database password
-    const newPgPassBytes = crypto.randomBytes(24);
-    const pgChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const newPgPass = Array.from(newPgPassBytes).map(b => pgChars[b % pgChars.length]).join('');
+    let newPgPass = readEnvVar('PG_PASSWORD_NEW');
+    if (!newPgPass) {
+      const pgBytes = crypto.randomBytes(24);
+      const pgChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      newPgPass = Array.from(pgBytes).map(b => pgChars[b % pgChars.length]).join('');
+    }
     try {
       await db.pool.query(`ALTER USER ${PG_CONFIG.user} WITH PASSWORD '${newPgPass.replace(/'/g, "''")}'`);
       process.env.PG_PASSWORD = newPgPass;
       console.log('[MIGRATION] Database password rotated.');
     } catch (err) {
       console.warn('[MIGRATION] Could not rotate DB password (may lack permissions):', err.message);
+      console.warn('[MIGRATION] You may need to rotate it manually on Neon console.');
     }
 
     // 4. Persist new env vars to .env file
     try {
-      const envPath = path.join(__dirname, '.env');
       let envContent = fs.readFileSync(envPath, 'utf8');
       const updates = {
         JWT_SECRET: newJwtSecret,
         ADMIN_PASSWORD: newAdminPass,
         PG_PASSWORD: newPgPass,
       };
+      // Remove PG_PASSWORD_NEW if present
+      envContent = envContent.replace(/^PG_PASSWORD_NEW=.*$/m, '');
       for (const [key, val] of Object.entries(updates)) {
         const re = new RegExp(`^${key}=.*$`, 'm');
         if (re.test(envContent)) {
@@ -403,7 +425,7 @@ async function runMigrations() {
       console.log('[MIGRATION] Environment file updated with new credentials.');
     } catch (err) {
       console.warn('[MIGRATION] Could not update .env file:', err.message);
-      console.warn('[MIGRATION] Please manually update .env with these values:');
+      console.warn('[MIGRATION] Manually update .env with:');
       console.warn(`  JWT_SECRET=${newJwtSecret}`);
       console.warn(`  ADMIN_PASSWORD=${newAdminPass}`);
       console.warn(`  PG_PASSWORD=${newPgPass}`);
