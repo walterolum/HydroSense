@@ -53,6 +53,8 @@ from multi_modal import (
 from connection_manager import get_connection_manager, ConnectionState
 from ai_diagnostics import get_metrics_collector, DiagnosticsReporter, HealthMonitor
 from retry_decorator import retry, CircuitBreaker
+from reasoning_engine import orchestrator
+from background_worker import consolidator
 
 # ─────────────────────────────────────────────
 # LOGGING CONFIGURATION
@@ -133,6 +135,8 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(health_monitor.start_monitoring())
     asyncio.create_task(conn_manager.start_cleanup_loop(interval=120.0))
     asyncio.create_task(periodic_report_task())
+    asyncio.create_task(consolidator.start())
+    asyncio.create_task(consolidator.hydrate_rag_knowledge())
 
     logger.info(f"  Gemini API: {'CONFIGURED' if os.getenv('GEMINI_API_KEY') else 'Not configured (rule-based fallback)'}")
     logger.info(f"  Database: PostgreSQL ({os.getenv('PG_HOST', 'localhost')}:{os.getenv('PG_PORT', '5432')}/{os.getenv('PG_DATABASE', 'hydrosense')})")
@@ -351,6 +355,22 @@ async def force_gc():
 @app.get("/ai/system/ping")
 async def ping():
     return {"status": "ok", "timestamp": time.time(), "uptime": int(time.time() - _AI_START_TIME)}
+
+@app.get("/ai/reasoning/status")
+async def reasoning_status():
+    return {
+        "status": "ok",
+        "orchestrator_active": True,
+        "deep_reasoning_enabled": True,
+        "chain_of_thought": True,
+        "prompt_orchestration": True,
+    }
+
+
+@app.get("/ai/worker/status")
+async def worker_status():
+    status = await consolidator.get_status()
+    return {"status": "ok", "worker": status}
 
 # ═══════════════════════════════════════════════
 # CHAT ENDPOINTS

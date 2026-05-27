@@ -6,3 +6,4 @@ Pillow>=10.0.0
 sse-starlette>=1.8.0
 python-multipart>=0.0.9
 psycopg2-binary>=2.9.9
+chromadb>=0.4.0

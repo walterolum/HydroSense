@@ -16,6 +16,8 @@ from ai_router import ai_router, Provider
 from session_manager import session_manager
 from user_profile import profile_engine
 from rag_knowledge import rag_kb
+from reasoning_engine import orchestrator, ReasoningTrace
+from ai_security import detect_injection, sanitize_input
 
 logger = logging.getLogger("hydrosense.chatbot")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-preview-05-20")
@@ -642,25 +644,43 @@ async def chat(
     cancel_stale_requests(REQUEST_TIMEOUT_SECONDS)
     request_id = str(uuid.uuid4())[:8]
 
+    # ── Enterprise Security: Prompt Injection Detection ──
+    try:
+        blocked, reason = detect_injection(message)
+        if blocked:
+            logger.warning(f"[{request_id}] Security: {reason}")
+            return {
+                "reply": "I can't process that request. Please ask a question related to water management, system data, or general knowledge.",
+                "source": "security_filter",
+                "model": "Hydro AI v5.0",
+                "request_id": request_id,
+                "security_blocked": True,
+                "security_reason": reason,
+            }
+    except Exception:
+        pass
+
     # Auto-detect language if not specified
     if user_language == "auto" or user_language == "en":
         detected = await detect_user_language(message)
         if detected != "en":
             user_language = detected
 
-    context = build_context(message, role, district)
+    system_context = build_context(message, role, district)
 
-    # ── Enterprise AI Memory & Personalization Pipeline ──
+    # ── AI Memory & Personalization Pipeline ──
+    mem_context = ""
+    profile_context = ""
+    session_context = ""
+
     if user_id:
         try:
             user_memory.extract_facts_from_message(user_id, message)
             profile_engine.update_from_message(user_id, message)
             mem_context = user_memory.build_memory_context(user_id)
-            if mem_context:
-                context = f"{mem_context}\n{context}"
-            profile_context = profile_engine.add_system_prompt_context(user_id, "")
-            if profile_context.strip():
-                context = f"{profile_context}\n{context}"
+            profile_raw = profile_engine.add_system_prompt_context(user_id, "")
+            if profile_raw.strip():
+                profile_context = profile_raw
         except Exception as e:
             logger.warning(f"Memory/profile pipeline error: {e}")
 
@@ -670,40 +690,120 @@ async def chat(
             )
             session_manager.add_turn(user_id, session_id, "user", message)
             session_context = session_manager.get_context(user_id, session_id, history)
-            if session_context:
-                context = f"{session_context}\n{context}"
         except Exception as e:
             logger.warning(f"Session pipeline error: {e}")
 
     # ── RAG Knowledge Retrieval ──
+    rag_kb_context = ""
     try:
         rag_results = await rag_kb.search(message, n_results=3)
         if rag_results:
-            rag_context = "\n".join(
+            rag_kb_context = "\n".join(
                 f"[Reference: {r['metadata'].get('category', 'knowledge')}] {r['text'][:500]}"
                 for r in rag_results
             )
-            context = f"{context}\n\nRelevant Knowledge:\n{rag_context}"
     except Exception as e:
         logger.warning(f"RAG pipeline error: {e}")
 
     if conversation_context:
-        context = f"{context}\n\nConversation Memory:\n{conversation_context}"
+        if rag_kb_context:
+            rag_kb_context += f"\n\nConversation Memory:\n{conversation_context}"
+        else:
+            rag_kb_context = f"Conversation Memory:\n{conversation_context}"
+
+    # ── Prompt Orchestration via Reasoning Engine ──
+    enriched_prompt, trace = orchestrator.build_deep_prompt(
+        message=message,
+        role=role,
+        district=district,
+        system_context=system_context,
+        memory_context=mem_context,
+        rag_context=rag_kb_context,
+        session_context=session_context,
+        profile_context=profile_context,
+        user_language=user_language,
+    )
+
     has_image = bool(image_data and image_mime)
     model_label = GEMINI_MODEL
     start_time = time.time()
 
     async with request_context(request_id):
         async with _semaphore:
-            logger.info(f"[{request_id}] Processing chat request (role={role}, lang={user_language}, has_image={has_image})")
+            logger.info(f"[{request_id}] Processing chat (role={role}, lang={user_language}, reasoning={trace.iteration_count})")
 
             if time.time() - start_time > REQUEST_TIMEOUT_SECONDS:
                 return {
                     "reply": "The AI service is temporarily busy. Please try again.",
                     "source": "timeout",
-                    "model": "Hydro AI v4.0",
+                    "model": "Hydro AI v5.0",
                     "request_id": request_id,
                 }
+
+            if os.getenv("GEMINI_API_KEY", "").strip():
+                try:
+                    full_text = ""
+                    async for chunk_json in call_gemini_stream(message, history, enriched_prompt, image_data, image_mime):
+                        try:
+                            chunk = json.loads(chunk_json)
+                            if chunk.get("type") == "chunk":
+                                full_text += chunk.get("text", "")
+                            elif chunk.get("type") == "done":
+                                full_text = chunk.get("full_text", full_text)
+                            elif chunk.get("type") == "quota_exceeded":
+                                reply = rule_based_response(message, role, district, user_language)
+                                if user_language != "en":
+                                    reply = await _translate_to(reply, user_language)
+                                return {
+                                    "reply": reply,
+                                    "source": "rule_based",
+                                    "model": "Hydro AI v5.0",
+                                    "gemini_status": "quota_exceeded",
+                                    "request_id": request_id,
+                                    "language": user_language,
+                                }
+                            elif chunk.get("type") == "error":
+                                raise Exception(chunk.get("message", "Unknown error"))
+                        except json.JSONDecodeError:
+                            continue
+
+                    if full_text:
+                        duration = time.time() - start_time
+                        if user_id:
+                            try:
+                                session_manager.add_turn(user_id, session_id, "assistant", full_text)
+                                profile_engine.update_from_message(user_id, full_text)
+                            except Exception:
+                                pass
+                        logger.info(f"[{request_id}] Gemini response in {duration:.1f}s | trace: {len(trace.stages)} stages")
+                        return {
+                            "reply": full_text,
+                            "source": "gemini",
+                            "model": model_label,
+                            "analyzed_image": has_image,
+                            "request_id": request_id,
+                            "duration_ms": int(duration * 1000),
+                            "language": user_language,
+                        }
+
+                except Exception as exc:
+                    logger.error(f"[{request_id}] Gemini call failed: {str(exc)[:200]}")
+
+            reply = rule_based_response(message, role, district, user_language)
+            if user_language != "en":
+                reply = await _translate_to(reply, user_language)
+            if user_id:
+                try:
+                    session_manager.add_turn(user_id, session_id, "assistant", reply)
+                except Exception:
+                    pass
+            return {
+                "reply": reply,
+                "source": "rule_based" if not os.getenv("GEMINI_API_KEY") else "error_fallback",
+                "model": "Hydro AI v5.0",
+                "request_id": request_id,
+                "language": user_language,
+            }
 
             if os.getenv("GEMINI_API_KEY", "").strip():
                 try:
@@ -785,23 +885,33 @@ async def chat_stream(
     cancel_stale_requests(REQUEST_TIMEOUT_SECONDS)
     request_id = str(uuid.uuid4())[:8]
 
+    # ── Security Check ──
+    try:
+        blocked, reason = detect_injection(message)
+        if blocked:
+            yield json.dumps({"type": "error", "message": "Security: request blocked"})
+            return
+    except Exception:
+        pass
+
     if user_language == "auto" or user_language == "en":
         detected = await detect_user_language(message)
         if detected != "en":
             user_language = detected
 
-    context = build_context(message, role, district)
+    system_context = build_context(message, role, district)
+    mem_context = ""
+    profile_context = ""
+    session_context = ""
 
     if user_id:
         try:
             user_memory.extract_facts_from_message(user_id, message)
             profile_engine.update_from_message(user_id, message)
             mem_context = user_memory.build_memory_context(user_id)
-            if mem_context:
-                context = f"{mem_context}\n{context}"
-            profile_context = profile_engine.add_system_prompt_context(user_id, "")
-            if profile_context.strip():
-                context = f"{profile_context}\n{context}"
+            profile_raw = profile_engine.add_system_prompt_context(user_id, "")
+            if profile_raw.strip():
+                profile_context = profile_raw
         except Exception as e:
             logger.warning(f"Stream memory pipeline error: {e}")
 
@@ -811,24 +921,38 @@ async def chat_stream(
             )
             session_manager.add_turn(user_id, session_id, "user", message)
             session_context = session_manager.get_context(user_id, session_id, history)
-            if session_context:
-                context = f"{session_context}\n{context}"
         except Exception as e:
             logger.warning(f"Stream session pipeline error: {e}")
 
+    rag_kb_context = ""
     try:
         rag_results = await rag_kb.search(message, n_results=3)
         if rag_results:
-            rag_context = "\n".join(
+            rag_kb_context = "\n".join(
                 f"[Reference: {r['metadata'].get('category', 'knowledge')}] {r['text'][:500]}"
                 for r in rag_results
             )
-            context = f"{context}\n\nRelevant Knowledge:\n{rag_context}"
     except Exception as e:
         logger.warning(f"Stream RAG pipeline error: {e}")
 
     if conversation_context:
-        context = f"{context}\n\nConversation Memory:\n{conversation_context}"
+        if rag_kb_context:
+            rag_kb_context += f"\n\nConversation Memory:\n{conversation_context}"
+        else:
+            rag_kb_context = f"Conversation Memory:\n{conversation_context}"
+
+    enriched_prompt, trace = orchestrator.build_deep_prompt(
+        message=message,
+        role=role,
+        district=district,
+        system_context=system_context,
+        memory_context=mem_context,
+        rag_context=rag_kb_context,
+        session_context=session_context,
+        profile_context=profile_context,
+        user_language=user_language,
+    )
+
     has_image = bool(image_data and image_mime)
 
     yield json.dumps({"type": "meta", "request_id": request_id, "has_image": has_image, "language": user_language})
@@ -837,7 +961,7 @@ async def chat_stream(
         async with _semaphore:
             if os.getenv("GEMINI_API_KEY", "").strip():
                 try:
-                    async for chunk_json in call_gemini_stream(message, history, context, image_data, image_mime):
+                    async for chunk_json in call_gemini_stream(message, history, enriched_prompt, image_data, image_mime):
                         yield chunk_json
                     return
                 except Exception as exc:

@@ -655,6 +655,15 @@ export async function getWaterSecurityScore(district?: string) {
 }
 
 export const getLiveRiskSummary = () => ai.get('/ai/risk/live-summary');
+
+export const getUserAISuggestions = (userId: number) =>
+  ai.get(`/ai/profile/${userId}`).then(r => ({
+    suggestions: r.data?.engagement?.frequent_topics?.slice(0, 4).map((t: string) =>
+      t.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    ) || [],
+    expertise: r.data?.engagement?.expertise_level || 'intermediate',
+    language: r.data?.engagement?.preferred_language || 'en',
+  }));
 export const getDistrictRiskSummaries = () => ai.get('/ai/risk/district-summaries');
 export const analyzeImage = (data: string, context: string, text: string) => ai.post('/ai/analyze/image', { data, context, text });
 export const analyzeDocument = (text: string, context?: string) => ai.post('/ai/analyze/document', { text, context });
