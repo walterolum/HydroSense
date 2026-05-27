@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AIServiceProvider } from './contexts/AIServiceContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { SocketProvider } from './contexts/SocketContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import AppLayout from './components/Layout/AppLayout';
 import Login from './pages/Login';
 import CitizenRegistration from './pages/CitizenRegistration';
@@ -195,6 +196,7 @@ export default function App() {
     <AIServiceProvider>
     <LanguageProvider>
     <SocketProvider>
+    <NotificationProvider>
       <BrowserRouter>
         <Routes>
           {/* Public — QR credential verification (no auth needed) */}
@@ -245,6 +247,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
+    </NotificationProvider>
     </SocketProvider>
     </LanguageProvider>
     </AIServiceProvider>

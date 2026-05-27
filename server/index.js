@@ -269,6 +269,7 @@ app.use('/api/citizen-reports', require('./routes/citizen-reports'));
 app.use('/api/citizen-tracking', require('./routes/citizen-tracking'));
 app.use('/api/task-assignment', require('./routes/task-assignment'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/notifications/push', require('./routes/push'));
 app.use('/api/incident-analysis', require('./routes/incident-analysis'));
 app.use('/api/emergency-response', require('./routes/emergency-response'));
 app.use('/api/ai-conversations', require('./routes/ai-conversations'));
@@ -1430,10 +1431,38 @@ setTimeout(() => initialAIDetection(), 2000);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
-  socket.on('subscribe_district', (district) => socket.join(`district_${district}`));
-  socket.on('unsubscribe_district', (district) => socket.leave(`district_${district}`));
-  socket.on('disconnect', (reason) => console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`));
+
+  // Authenticate and join personal/district/role rooms
+  socket.on('authenticate', (data) => {
+    if (data && data.id) {
+      socket.join(`user_${data.id}`);
+      if (data.role) socket.join(`role_${data.role}`);
+      if (data.district) socket.join(`district_${data.district}`);
+      socket.emit('authenticated', { ok: true });
+    }
+  });
+
+  socket.on('subscribe_district', (district) => {
+    if (district) socket.join(`district_${district}`);
+  });
+  socket.on('unsubscribe_district', (district) => {
+    if (district) socket.leave(`district_${district}`);
+  });
+
+  // Notification preferences live update
+  socket.on('notification:prefs_update', (prefs) => {
+    socket.data.prefs = prefs;
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`);
+  });
 });
+
+// Wire notification engine
+const notifEngine = require('./utils/notificationEngine');
+notifEngine.setIO(io);
+notifEngine.setupNotificationCrons();
 
 // ═══════════════════════════════════════════════════════════════
 // SENSOR SIMULATION CRON

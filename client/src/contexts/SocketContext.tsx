@@ -25,7 +25,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     const s = io({ transports: ['websocket', 'polling'] });
     socketRef.current = s;
 
-    s.on('connect', () => { setConnected(true); s.emit('authenticate', { id: user.id, name: user.name, role: user.role }); });
+    s.on('connect', () => { setConnected(true); s.emit('authenticate', { id: user.id, name: user.name, role: user.role, district: user.district }); });
     s.on('disconnect', () => setConnected(false));
     s.on('authenticated', () => {});
 

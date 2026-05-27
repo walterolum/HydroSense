@@ -454,6 +454,52 @@ async function runMigrations() {
     await markApplied('email_verification_columns_v1');
     console.log('[MIGRATION] email_verification_columns_v1: email_verified, verification_token, verification_expires_at columns added.');
   }
+
+  // Migration: push_subscriptions_table_v1
+  if (!(await isApplied('push_subscriptions_table_v1'))) {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT UNIQUE NOT NULL,
+        auth TEXT,
+        p256dh TEXT,
+        platform TEXT DEFAULT 'web',
+        device_name TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await markApplied('push_subscriptions_table_v1');
+    console.log('[MIGRATION] push_subscriptions_table_v1: push_subscriptions table created.');
+  }
+
+  // Migration: notification_preferences_table_v1
+  if (!(await isApplied('notification_preferences_table_v1'))) {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        push_enabled INTEGER DEFAULT 1,
+        email_enabled INTEGER DEFAULT 0,
+        sms_enabled INTEGER DEFAULT 0,
+        sound_enabled INTEGER DEFAULT 1,
+        sound_volume INTEGER DEFAULT 70,
+        event_reminders INTEGER DEFAULT 1,
+        event_start_alarm INTEGER DEFAULT 1,
+        event_posted INTEGER DEFAULT 1,
+        discussion_replies INTEGER DEFAULT 1,
+        mentions INTEGER DEFAULT 1,
+        system_alerts INTEGER DEFAULT 1,
+        quiet_hours_start TIME,
+        quiet_hours_end TIME,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await markApplied('notification_preferences_table_v1');
+    console.log('[MIGRATION] notification_preferences_table_v1: notification_preferences table created.');
+  }
 }
 
 // ── Health check ─────────────────────────────────────────────────────────

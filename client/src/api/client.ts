@@ -172,6 +172,15 @@ export const getNotificationStats = () => api.get('/notifications/stats');
 export const getNotificationUnreadCount = () => api.get('/notifications/unread-count');
 export const markNotificationRead = (id: number) => api.patch(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => api.patch('/notifications/read-all');
+
+// Push notification subscriptions
+export const subscribePush = (data: object) => api.post('/notifications/push/subscribe', data);
+export const unsubscribePush = (endpoint: string) => api.post('/notifications/push/unsubscribe', { endpoint });
+export const getPushSubscriptions = () => api.get('/notifications/push/subscriptions');
+
+// Notification preferences
+export const getNotifPreferences = () => api.get('/notifications/push/preferences');
+export const updateNotifPreferences = (data: object) => api.put('/notifications/push/preferences', data);
 export const voiceTranslate = (data: { text: string; sourceLang: string; languageName: string }) =>
   api.post('/ai/voice-translate', data);
 

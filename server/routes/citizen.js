@@ -171,6 +171,26 @@ router.post('/events', authMiddleware, async (req, res) => {
     'volunteer_event', eid
   );
 
+  // Fire real-time notification to all registered participants via Socket.IO
+  try {
+    const notifEngine = require('../utils/notificationEngine');
+    const { io } = require('../index');
+    notifEngine.setIO(io);
+    notifEngine.notifyEventCreated({
+      id: eid,
+      title,
+      description,
+      event_date,
+      event_time,
+      location,
+      district,
+      event_type,
+      meeting_link,
+      venue,
+      organizer_name: req.user.name,
+    }, req.user.id);
+  } catch {} // Non-blocking — notification engine may not be available
+
   res.status(201).json({ success: true, id: eid });
 });
 
