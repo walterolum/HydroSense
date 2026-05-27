@@ -9,6 +9,7 @@ interface AmbientContextType extends AmbientAudioApi {
   stopNarration: () => void;
   startNarration: () => void;
   voiceName: string;
+  voicesReady: boolean;
 }
 
 const AmbientContext = createContext<AmbientContextType | null>(null);
@@ -33,8 +34,7 @@ const GUIDE = [
   "You are now ready to use HydroSense. Start by exploring your dashboard, check your water points, review AI recommendations, and respond to any active alerts. For help, use the AI chatbot at the bottom right corner or contact your system administrator. Thank you for listening, and welcome to HydroSense.",
 ];
 
-function pickVoice(): SpeechSynthesisVoice | undefined {
-  const voices = window.speechSynthesis.getVoices();
+function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   const priority = [
     'Microsoft Jenny Natural',
     'Google UK Female',
@@ -57,20 +57,30 @@ function pickVoice(): SpeechSynthesisVoice | undefined {
 export function AmbientAudioProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const audio = useAmbientAudio();
+
   const prevUserId = useRef<number | undefined>(undefined);
   const stopRef = useRef(false);
+  const preVolumeRef = useRef(audio.prefs.volume);
+
   const [isNarrating, setIsNarrating] = useState(false);
   const [voiceName, setVoiceName] = useState('');
+  const [voicesReady, setVoicesReady] = useState(false);
   const voiceRef = useRef<SpeechSynthesisVoice | undefined>(undefined);
 
   useEffect(() => {
+    preVolumeRef.current = audio.prefs.volume;
+  }, [audio.prefs.volume]);
+
+  useEffect(() => {
     const init = () => {
-      const v = pickVoice();
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length > 0) setVoicesReady(true);
+      const v = pickVoice(voices);
       if (v) {
         voiceRef.current = v;
         setVoiceName(v.name);
-      } else if (window.speechSynthesis.getVoices().length > 0) {
-        voiceRef.current = window.speechSynthesis.getVoices()[0];
+      } else if (voices.length > 0) {
+        voiceRef.current = voices[0];
         setVoiceName(voiceRef.current.name);
       }
     };
@@ -79,10 +89,20 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
     return () => window.speechSynthesis.removeEventListener('voiceschanged', init);
   }, []);
 
-  const preNarrateVolRef = useRef(audio.prefs.volume);
+  useEffect(() => {
+    const unlock = () => {
+      window.speechSynthesis.cancel();
+    };
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('touchstart', unlock, { once: true });
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
 
   const restoreVolume = useCallback(() => {
-    audio.setAudioVolume(preNarrateVolRef.current);
+    audio.setAudioVolume(preVolumeRef.current);
   }, [audio]);
 
   const stopNarration = useCallback(() => {
@@ -93,7 +113,10 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
   }, [restoreVolume]);
 
   const speakSingle = useCallback((text: string, onDone?: () => void) => {
-    if (stopRef.current) return;
+    if (!voiceRef.current) {
+      const v = pickVoice(window.speechSynthesis.getVoices());
+      if (v) voiceRef.current = v;
+    }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.78;
     utterance.pitch = 1.0;
@@ -106,9 +129,10 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
 
   const startNarration = useCallback(() => {
     stopRef.current = false;
-    preNarrateVolRef.current = audio.prefs.volume;
+    preVolumeRef.current = audio.prefs.volume;
     audio.setAudioVolume(0.03);
     setIsNarrating(true);
+    window.speechSynthesis.cancel();
     let index = 0;
     const next = () => {
       if (stopRef.current) return;
@@ -133,17 +157,18 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
         const t = setTimeout(() => {
           startNarration();
           sessionStorage.setItem(`${WELCOME_KEY}_${user.id}`, 'true');
-        }, 2000);
+        }, 3000);
         return () => clearTimeout(t);
       }
     } else if (!user) {
       audio.stop();
       stopNarration();
+      prevUserId.current = undefined;
     }
   }, [user?.id]);
 
   return (
-    <AmbientContext.Provider value={{ ...audio, isNarrating, stopNarration, startNarration, voiceName }}>
+    <AmbientContext.Provider value={{ ...audio, isNarrating, stopNarration, startNarration, voiceName, voicesReady }}>
       {children}
     </AmbientContext.Provider>
   );

@@ -6,7 +6,7 @@ import {
   ChevronRight, CheckCircle, XCircle, Wrench, Sun, Moon,
   Volume2, VolumeX, Radio, ArrowRight, Brain, Sparkles,
   Thermometer, Wind, Eye, Navigation, Github, Calendar,
-  Headphones,
+  Headphones, Play,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -364,13 +364,21 @@ export default function SmartDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
-              {isNarrating && (
+              {isNarrating ? (
                 <button
                   onClick={stopNarration}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 text-xs transition-all animate-pulse"
                 >
                   <Headphones size={12} />
                   AI Voice
+                </button>
+              ) : (
+                <button
+                  onClick={startNarration}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-300 text-xs transition-all"
+                >
+                  <Play size={12} />
+                  AI Guide
                 </button>
               )}
               <button
