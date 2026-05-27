@@ -43,8 +43,8 @@ export default function AppLayout() {
         </main>
       </div>
 
-      {/* Hydro AI chatbot — hidden on AI Hub (has its own ConversationWorkspace) */}
-      {basePath !== '/ai-hub' && <ChatBot />}
+      {/* Hydro AI chatbot — appears on every page */}
+      <ChatBot />
 
       {/* Session timeout warning */}
       <SessionTimeoutWarning />
