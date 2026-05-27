@@ -28,6 +28,7 @@ function getPasswordStrength(pw: string): { score: number; label: string; color:
 
 export default function SignupModal({ open, onClose }: SignupModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -52,6 +53,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
       setFadeIn(false);
       requestAnimationFrame(() => setFadeIn(true));
       resetForm();
+      setTimeout(() => nameInputRef.current?.focus(), 350);
     }
   }, [open]);
 
@@ -138,37 +140,41 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
       role="dialog"
       aria-modal="true"
       aria-label="Create your HydroSense account"
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
-        fadeIn ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-500 ease-out ${
+        fadeIn ? 'bg-black/60 backdrop-blur-md' : 'bg-transparent backdrop-blur-none'
       }`}
       onMouseDown={e => { if (e.target === overlayRef.current) onClose(); }}
     >
       <div
-        className={`w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden transition-all duration-300 ${
-          fadeIn ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'
+        className={`w-full max-w-lg bg-white rounded-3xl shadow-[0_24px_80px_-12px_rgba(0,0,0,0.3)] ring-1 ring-black/5 overflow-hidden transition-all duration-500 ease-out ${
+          fadeIn ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-[0.96]'
         }`}
       >
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6">
+        <div className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 px-8 py-7 overflow-hidden">
+          {/* Animated glow orbs */}
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-cyan-400/10 blur-xl" />
+
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-white/80 hover:bg-white/25 hover:text-white transition-all"
+            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/70 hover:bg-white/20 hover:text-white transition-all backdrop-blur-sm"
             aria-label="Close"
           >
             <X size={16} />
           </button>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-xl border border-white/20">💧</div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-xl border border-white/20 shadow-lg backdrop-blur-sm">💧</div>
             <div>
-              <div className="font-bold text-white text-sm tracking-widest">HYDROSENSE</div>
-              <div className="text-blue-200/80 text-[10px]">Ministry of Water &amp; Environment · Uganda</div>
+              <div className="font-bold text-white text-sm tracking-[0.15em]">HYDROSENSE</div>
+              <div className="text-blue-200/70 text-[10px] tracking-wide">Ministry of Water &amp; Environment · Uganda</div>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white mt-4">
+          <h2 className="text-2xl font-bold text-white mt-4 tracking-tight">
             {verificationSent ? 'Check Your Email' : 'Create Your Account'}
           </h2>
-          <p className="text-blue-100/80 text-sm mt-1">
+          <p className="text-blue-100/80 text-sm mt-1 leading-relaxed max-w-sm">
             {verificationSent
               ? 'We sent a verification link to your email address.'
               : 'Join the HydroSense community and help protect Uganda\'s water resources.'}
@@ -177,7 +183,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
 
         {/* Error */}
         {error && (
-          <div className="mx-8 mt-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-sm text-red-700 animate-fade-in">
+          <div className="mx-8 mt-6 px-4 py-3.5 bg-red-50/80 border border-red-200 rounded-xl flex items-start gap-3 text-sm text-red-700 animate-fade-in shadow-sm">
             <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" />
             <span>{error}</span>
           </div>
@@ -185,60 +191,62 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
 
         {/* Success → Verification sent screen */}
         {verificationSent ? (
-          <div className="px-8 py-10 text-center">
-            <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
+          <div className="px-8 py-10 text-center transition-all duration-500 animate-fade-in">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center mx-auto mb-6 shadow-inner">
               <MailCheck size={40} className="text-blue-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Verify your email</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Verify your email</h3>
             <p className="text-gray-500 text-sm leading-relaxed mb-2">
               We sent a verification email to{' '}
-              <strong className="text-gray-700">{email}</strong>
+              <strong className="text-gray-700 font-semibold">{email}</strong>
             </p>
             <p className="text-gray-400 text-xs leading-relaxed mb-6">
               Click the link in the email to activate your account. The link expires in 24 hours.
             </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 inline-flex items-center gap-2 text-xs text-amber-700 mb-6">
-              <Mail size={14} />
+            <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-3 inline-flex items-center gap-2.5 text-xs text-amber-700 mb-6">
+              <Mail size={14} className="flex-shrink-0" />
               <span>Didn't receive it? Check your spam folder.</span>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-3 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200/50 transition-all active:scale-[0.98] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)]"
             >
               Done
             </button>
           </div>
         ) : (
           /* Form */
-          <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4 max-h-[60vh] overflow-y-auto">
-
+          <form onSubmit={handleSubmit} className="px-8 py-6 space-y-4 max-h-[60vh] overflow-y-auto scrollbar-thin">
             {/* Full Name */}
             <div>
-              <label htmlFor="signup-name" className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <label htmlFor="signup-name" className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name <span className="text-red-400">*</span></label>
+              <div className="relative group">
+                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors duration-200" />
                 <input
+                  ref={nameInputRef}
                   id="signup-name"
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   onBlur={() => handleBlur('name')}
                   placeholder="John Doe"
-                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                    fieldError('name') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all duration-200 ${
+                    fieldError('name')
+                      ? 'border-red-300 focus:ring-red-500/30 focus:border-red-500'
+                      : 'border-gray-200 focus:ring-blue-500/30 focus:border-blue-500'
                   }`}
                   autoComplete="name"
                 />
               </div>
-              {fieldError('name') && <p className="text-red-500 text-xs mt-1">{fieldError('name')}</p>}
+              {fieldError('name') && <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={11} />{fieldError('name')}</p>}
             </div>
 
             {/* Email */}
             <div>
-              <label htmlFor="signup-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <label htmlFor="signup-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address <span className="text-red-400">*</span></label>
+              <div className="relative group">
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors duration-200" />
                 <input
                   id="signup-email"
                   type="email"
@@ -246,13 +254,15 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
                   onChange={e => setEmail(e.target.value)}
                   onBlur={() => handleBlur('email')}
                   placeholder="you@example.com"
-                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                    fieldError('email') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all duration-200 ${
+                    fieldError('email')
+                      ? 'border-red-300 focus:ring-red-500/30 focus:border-red-500'
+                      : 'border-gray-200 focus:ring-blue-500/30 focus:border-blue-500'
                   }`}
                   autoComplete="email"
                 />
               </div>
-              {fieldError('email') && <p className="text-red-500 text-xs mt-1">{fieldError('email')}</p>}
+              {fieldError('email') && <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={11} />{fieldError('email')}</p>}
             </div>
 
             {/* Phone (optional) */}
@@ -260,8 +270,8 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
               <label htmlFor="signup-phone" className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Phone Number <span className="text-gray-400 font-normal">(optional)</span>
               </label>
-              <div className="relative">
-                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <div className="relative group">
+                <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors duration-200" />
                 <input
                   id="signup-phone"
                   type="tel"
@@ -269,20 +279,22 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
                   onChange={e => setPhone(e.target.value)}
                   onBlur={() => handleBlur('phone')}
                   placeholder="+256 700 000 000"
-                  className={`w-full pl-9 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                    fieldError('phone') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all duration-200 ${
+                    fieldError('phone')
+                      ? 'border-red-300 focus:ring-red-500/30 focus:border-red-500'
+                      : 'border-gray-200 focus:ring-blue-500/30 focus:border-blue-500'
                   }`}
                   autoComplete="tel"
                 />
               </div>
-              {fieldError('phone') && <p className="text-red-500 text-xs mt-1">{fieldError('phone')}</p>}
+              {fieldError('phone') && <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={11} />{fieldError('phone')}</p>}
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="signup-password" className="block text-sm font-semibold text-gray-700 mb-1.5">Password *</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <label htmlFor="signup-password" className="block text-sm font-semibold text-gray-700 mb-1.5">Password <span className="text-red-400">*</span></label>
+              <div className="relative group">
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors duration-200" />
                 <input
                   id="signup-password"
                   type={showPassword ? 'text' : 'password'}
@@ -290,15 +302,17 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
                   onChange={e => setPassword(e.target.value)}
                   onBlur={() => handleBlur('password')}
                   placeholder="Create a strong password"
-                  className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                    fieldError('password') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all duration-200 ${
+                    fieldError('password')
+                      ? 'border-red-300 focus:ring-red-500/30 focus:border-red-500'
+                      : 'border-gray-200 focus:ring-blue-500/30 focus:border-blue-500'
                   }`}
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -306,21 +320,24 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
                 </button>
               </div>
               {password && (
-                <div className="mt-2">
-                  <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-300" style={{ width: strength.width, background: strength.color }} />
+                <div className="mt-2.5">
+                  <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden ring-1 ring-inset ring-black/5">
+                    <div
+                      className="h-full rounded-full transition-all duration-500 ease-out"
+                      style={{ width: strength.width, background: strength.color }}
+                    />
                   </div>
-                  <p className="text-xs mt-1" style={{ color: strength.color }}>{strength.label}</p>
+                  <p className="text-xs mt-1 font-medium" style={{ color: strength.color }}>{strength.label}</p>
                 </div>
               )}
-              {fieldError('password') && <p className="text-red-500 text-xs mt-1">{fieldError('password')}</p>}
+              {fieldError('password') && <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={11} />{fieldError('password')}</p>}
             </div>
 
             {/* Confirm Password */}
             <div>
-              <label htmlFor="signup-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm Password *</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <label htmlFor="signup-confirm" className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm Password <span className="text-red-400">*</span></label>
+              <div className="relative group">
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors duration-200" />
                 <input
                   id="signup-confirm"
                   type={showConfirm ? 'text' : 'password'}
@@ -328,26 +345,28 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
                   onChange={e => setConfirmPassword(e.target.value)}
                   onBlur={() => handleBlur('confirmPassword')}
                   placeholder="Re-enter your password"
-                  className={`w-full pl-9 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all ${
-                    fieldError('confirmPassword') ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-blue-500'
+                  className={`w-full pl-10 pr-10 py-3 border rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:bg-white text-gray-900 transition-all duration-200 ${
+                    fieldError('confirmPassword')
+                      ? 'border-red-300 focus:ring-red-500/30 focus:border-red-500'
+                      : 'border-gray-200 focus:ring-blue-500/30 focus:border-blue-500'
                   }`}
                   autoComplete="new-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   tabIndex={-1}
                   aria-label={showConfirm ? 'Hide password' : 'Show password'}
                 >
                   {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {fieldError('confirmPassword') && <p className="text-red-500 text-xs mt-1">{fieldError('confirmPassword')}</p>}
+              {fieldError('confirmPassword') && <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1"><AlertCircle size={11} />{fieldError('confirmPassword')}</p>}
             </div>
 
             {/* Terms */}
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 pt-1">
               <input
                 id="signup-terms"
                 type="checkbox"
@@ -357,19 +376,19 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
               />
               <label htmlFor="signup-terms" className="text-xs text-gray-500 cursor-pointer select-none leading-relaxed">
                 I agree to the HydroSense{' '}
-                <a href="#" className="text-blue-600 underline hover:text-blue-700">Terms of Service</a>{' '}
+                <a href="#" className="text-blue-600 font-medium underline hover:text-blue-700 transition-colors">Terms of Service</a>{' '}
                 and{' '}
-                <a href="#" className="text-blue-600 underline hover:text-blue-700">Privacy Policy</a>.
+                <a href="#" className="text-blue-600 font-medium underline hover:text-blue-700 transition-colors">Privacy Policy</a>.
                 My data will be used for environmental reporting and community water management.
               </label>
             </div>
-            {touched.terms && errors.terms && <p className="text-red-500 text-xs -mt-2">{errors.terms}</p>}
+            {touched.terms && errors.terms && <p className="text-red-500 text-xs -mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.terms}</p>}
 
             {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+              className="w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-[0_4px_16px_rgba(37,99,235,0.3)] hover:shadow-[0_8px_24px_rgba(37,99,235,0.4)] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 active:scale-[0.98]"
             >
               {loading ? (
                 <><Loader2 size={16} className="animate-spin" /> Creating Account…</>
@@ -379,7 +398,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
             </button>
 
             {/* Security note */}
-            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 pt-1">
               <Shield size={11} />
               <span>256-bit encrypted · JWT secured · Your data is private</span>
             </div>
@@ -387,7 +406,7 @@ export default function SignupModal({ open, onClose }: SignupModalProps) {
         )}
 
         {/* Footer */}
-        <div className="px-8 py-4 border-t border-gray-100 bg-gray-50/50">
+        <div className="px-8 py-4 border-t border-gray-100 bg-gray-50/60">
           <p className="text-center text-sm text-gray-500">
             {verificationSent ? (
               <>Already verified?{' '}

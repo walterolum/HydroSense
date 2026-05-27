@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus, Mail } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus, Mail, Users } from 'lucide-react';
 import SignupModal from '../components/auth/SignupModal';
 
 declare global {
@@ -684,6 +684,18 @@ export default function Login() {
                 'Sign In'
               )}
             </button>
+
+            {/* ── Join the Community ── */}
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => setShowSignup(true)}
+                className="group w-full py-3.5 rounded-2xl font-bold text-sm border-2 border-blue-500/40 text-blue-600 bg-white hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700 hover:shadow-lg hover:shadow-blue-100/50 transition-all duration-200 flex items-center justify-center gap-2.5 active:scale-[0.98]"
+              >
+                <Users size={18} className="group-hover:scale-110 transition-transform duration-200" />
+                Join the Community
+              </button>
+            </div>
 
             {/* Divider */}
             <div className="flex items-center gap-3 my-5">
