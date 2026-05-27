@@ -99,7 +99,7 @@ router.post('/register', async (req, res) => {
       INSERT INTO users (name, email, password_hash, role, phone, national_id, community_id, district, sub_county, location, language, active, otp_verified, email_verified, verification_token, verification_expires_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?)
     `).run(
-      name.trim(), emailKey, hash, 'citizen', phone,
+      name.trim(), emailKey, hash, 'community_user', phone,
       national_id || null, community_id || null, district || null,
       sub_county || null, location || null, language || 'en',
       verificationToken, verificationExpires
@@ -642,7 +642,7 @@ router.post('/google', async (req, res) => {
       const googlePicture = payload.picture || null;
       const result = await db.prepare(`
         INSERT INTO users (name, email, password_hash, role, district, organization, active, otp_verified, avatar)
-        VALUES (?, ?, '', 'citizen', 'Other', 'Community User', 1, 1, ?)
+        VALUES (?, ?, '', 'community_user', 'Other', 'Community User', 1, 1, ?)
       `).run(googleName, emailKey, googlePicture);
 
       user = await db.prepare(

@@ -50,10 +50,10 @@ import VerifyProfile from './pages/VerifyProfile';
 ───────────────────────────────────────────────────────────── */
 const ROUTE_ROLES: Record<string, string[]> = {
   // All authenticated users
-  '/dashboard':           ['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','citizen'],
+  '/dashboard':           ['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','community_user','citizen'],
 
   // Water Infrastructure — read: all; write guarded at component + API level
-  '/water-infrastructure':['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','citizen'],
+  '/water-infrastructure':['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','community_user','citizen'],
 
   // IoT Sensors — Admins, IoT Engineers (technician), Water Quality Analysts (health_officer),
   //               Environmental Monitoring Officers (climate_scientist), District Officers
@@ -65,7 +65,7 @@ const ROUTE_ROLES: Record<string, string[]> = {
   // Maintenance — Field Technicians, Operations Managers
   '/maintenance':         ['national_admin','district_officer','technician'],
 
-  '/community':           ['national_admin','district_officer','community_committee','ngo_officer','citizen'],
+  '/community':           ['national_admin','district_officer','community_committee','ngo_officer','community_user','citizen'],
   '/health':              ['national_admin','district_officer','health_officer','ngo_officer'],
 
   // Emergency Response — Emergency/Disaster teams, Environmental Protection, Government Officials
@@ -81,18 +81,18 @@ const ROUTE_ROLES: Record<string, string[]> = {
   '/users':               ['national_admin'],
 
   // My Tasks — ALL authenticated users
-  '/technician-portal':   ['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','citizen'],
+  '/technician-portal':   ['national_admin','district_officer','technician','health_officer','climate_scientist','ngo_officer','community_committee','community_user','citizen'],
 
   // GWN — Citizens, Community Leaders, NGOs, Researchers, Environmental Officers + admin oversight
-  '/gwn':                 ['citizen','community_committee','ngo_officer','climate_scientist','health_officer','national_admin','district_officer'],
+  '/gwn':                 ['community_user','citizen','community_committee','ngo_officer','climate_scientist','health_officer','national_admin','district_officer'],
 
   // Citizen Hub — all authenticated users
-  '/citizen-hub':         ['citizen','community_committee','ngo_officer','national_admin','district_officer','technician','health_officer','climate_scientist'],
+  '/citizen-hub':         ['community_user','citizen','community_committee','ngo_officer','national_admin','district_officer','technician','health_officer','climate_scientist'],
 
-  '/citizen-report':      ['citizen','community_committee','ngo_officer','national_admin','district_officer'],
-  '/multilingual-report': ['citizen','community_committee','ngo_officer','national_admin','district_officer'],
-  '/report-status':       ['citizen','community_committee','ngo_officer','district_officer','health_officer','national_admin'],
-  '/track-reports':       ['citizen','community_committee','ngo_officer','national_admin','district_officer'],
+  '/citizen-report':      ['community_user','citizen','community_committee','ngo_officer','national_admin','district_officer'],
+  '/multilingual-report': ['community_user','citizen','community_committee','ngo_officer','national_admin','district_officer'],
+  '/report-status':       ['community_user','citizen','community_committee','ngo_officer','district_officer','health_officer','national_admin'],
+  '/track-reports':       ['community_user','citizen','community_committee','ngo_officer','national_admin','district_officer'],
   '/incident-analysis':   ['national_admin','district_officer','health_officer','climate_scientist'],
   '/task-assignment':     ['national_admin','district_officer','technician','health_officer'],
 

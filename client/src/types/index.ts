@@ -1,4 +1,4 @@
-export type UserRole = 'national_admin' | 'district_officer' | 'community_committee' | 'citizen' | 'ngo_officer' | 'technician' | 'health_officer' | 'climate_scientist';
+export type UserRole = 'national_admin' | 'district_officer' | 'community_committee' | 'community_user' | 'citizen' | 'ngo_officer' | 'technician' | 'health_officer' | 'climate_scientist';
 
 export interface AIConversation {
   id: number;

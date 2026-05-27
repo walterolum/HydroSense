@@ -28,59 +28,65 @@ function buildEmailHTML(otp, purpose) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 16px;">
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:40px 16px;">
     <tr><td align="center">
-      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.03);">
 
         <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#1d4ed8,#0891b2);padding:28px 32px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:8px;">${icon}</div>
-          <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:-0.5px;">HYDROSENSE</h1>
-          <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;">Ministry of Water &amp; Environment · Uganda</p>
+        <tr><td style="background:linear-gradient(135deg,#1e40af,#0e7490);padding:36px 32px 28px;text-align:center;position:relative;">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.08;background:radial-gradient(circle at 20% 50%,#60a5fa 0%,transparent 50%),radial-gradient(circle at 80% 50%,#22d3ee 0%,transparent 50%);"></div>
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.12);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;border:1px solid rgba(255,255,255,0.15);">
+            <span style="font-size:28px;">${icon}</span>
+          </div>
+          <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;letter-spacing:-0.3px;">HYDROSENSE</h1>
+          <p style="color:rgba(255,255,255,0.7);margin:3px 0 0;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.8px;">Ministry of Water &amp; Environment · Uganda</p>
         </td></tr>
 
         <!-- Body -->
-        <tr><td style="padding:32px;">
-          <h2 style="color:#111827;margin:0 0 12px;font-size:20px;">${title}</h2>
-          <p style="color:#6b7280;margin:0 0 24px;line-height:1.7;font-size:14px;">
+        <tr><td style="padding:36px 32px 24px;">
+          <h2 style="color:#0f172a;margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:-0.3px;">${title}</h2>
+          <p style="color:#475569;margin:0 0 28px;line-height:1.7;font-size:14px;">
             Hello,<br><br>
             You requested to ${action} on the HydroSense water management platform.
             Use the verification code below to continue. This code expires in <strong>5 minutes</strong>.
           </p>
 
           <!-- OTP Box -->
-          <table width="100%" style="margin-bottom:24px;">
-            <tr><td align="center" style="background:#f0f9ff;border:2px dashed #93c5fd;border-radius:12px;padding:20px;">
-              <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:2px;">Your Verification Code</p>
-              <span style="font-size:40px;font-weight:800;letter-spacing:12px;color:${btnColor};font-family:monospace;">${otp}</span>
-              <p style="margin:10px 0 0;color:#9ca3af;font-size:11px;">Valid for 5 minutes · Single use only</p>
+          <table width="100%" style="margin-bottom:28px;">
+            <tr><td align="center" style="background:#f0f9ff;border:1px solid #b3d5f8;border-radius:14px;padding:24px;">
+              <p style="margin:0 0 10px;color:#64748b;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:2px;">Your Verification Code</p>
+              <span style="font-size:42px;font-weight:800;letter-spacing:14px;color:${btnColor};font-family:'SF Mono','Consolas',monospace;">${otp}</span>
+              <p style="margin:10px 0 0;color:#94a3b8;font-size:11px;">Valid for 5 minutes · Single use only</p>
             </td></tr>
           </table>
 
           <!-- Security note -->
-          <table width="100%" style="background:#fefce8;border-left:4px solid #fbbf24;border-radius:0 8px 8px 0;margin-bottom:24px;">
-            <tr><td style="padding:12px 16px;">
+          <table width="100%" style="background:#fffbeb;border-radius:12px;margin-bottom:24px;">
+            <tr><td style="padding:14px 16px;">
               <p style="margin:0;color:#92400e;font-size:12px;line-height:1.6;">
-                🔒 <strong>Security Notice:</strong> HydroSense will never ask you to share this code.
+                🔒 <strong>Security notice:</strong> HydroSense will never ask you to share this code.
                 If you did not request this, please ignore this email.
               </p>
             </td></tr>
           </table>
 
-          <!-- What to do next -->
-          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0;">
+          <p style="color:#475569;font-size:13px;line-height:1.7;margin:0;">
             Enter this code in the HydroSense verification screen to ${action}.
             If you're having trouble, contact your community water officer or system administrator.
           </p>
         </td></tr>
 
         <!-- Footer -->
-        <tr><td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-            &copy; ${YEAR} HydroSense Platform · Climate-Resilient Water Management · Uganda<br>
-            <span style="color:#d1d5db;">256-bit Encrypted · JWT Secured · ISO 27001</span>
+        <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
+          <p style="color:#94a3b8;font-size:11px;margin:0 0 8px;line-height:1.5;">
+            &copy; ${YEAR} HydroSense Platform &mdash; Climate-Resilient Water Management &mdash; Uganda
           </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding:0;">
+              <span style="color:#cbd5e1;font-size:10px;">256-bit Encrypted &nbsp;·&nbsp; JWT Secured &nbsp;·&nbsp; ISO 27001</span>
+            </td></tr>
+          </table>
         </td></tr>
 
       </table>
@@ -204,40 +210,49 @@ function buildWelcomeHTML(name) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 16px;">
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:40px 16px;">
     <tr><td align="center">
-      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <tr><td style="background:linear-gradient(135deg,#1d4ed8,#0891b2);padding:28px 32px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:8px;">💧</div>
-          <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:-0.5px;">HYDROSENSE</h1>
-          <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;">Ministry of Water &amp; Environment · Uganda</p>
+      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.03);">
+        <tr><td style="background:linear-gradient(135deg,#1e40af,#0e7490);padding:36px 32px 28px;text-align:center;position:relative;">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.08;background:radial-gradient(circle at 20% 50%,#60a5fa 0%,transparent 50%),radial-gradient(circle at 80% 50%,#22d3ee 0%,transparent 50%);"></div>
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.12);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;border:1px solid rgba(255,255,255,0.15);">
+            <span style="font-size:28px;">💧</span>
+          </div>
+          <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;letter-spacing:-0.3px;">HYDROSENSE</h1>
+          <p style="color:rgba(255,255,255,0.7);margin:3px 0 0;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.8px;">Ministry of Water &amp; Environment · Uganda</p>
         </td></tr>
-        <tr><td style="padding:32px;">
-          <h2 style="color:#111827;margin:0 0 12px;font-size:20px;">Welcome to HydroSense, ${name}!</h2>
-          <p style="color:#6b7280;margin:0 0 24px;line-height:1.7;font-size:14px;">
-            You have successfully signed in with your Google account. Your HydroSense community account is now active.
+        <tr><td style="padding:36px 32px 24px;">
+          <h2 style="color:#0f172a;margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Welcome, ${name}! 🎉</h2>
+          <p style="color:#475569;margin:0 0 24px;line-height:1.7;font-size:14px;">
+            You've successfully signed in with your Google account. Your HydroSense community account is <strong style="color:#16a34a;">now active</strong>.
           </p>
           <table width="100%" style="margin-bottom:24px;">
-            <tr><td align="center" style="background:#f0fdf4;border:2px dashed #86efac;border-radius:12px;padding:20px;">
-              <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:2px;">Your Account Details</p>
-              <p style="margin:0;font-size:14px;color:#374151;"><strong>Role:</strong> Community Member</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#374151;"><strong>Email:</strong> Already verified via Google</p>
+            <tr><td align="center" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:20px;">
+              <p style="margin:0 0 10px;color:#6b7280;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:2px;">Your Account Details</p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="padding:3px 0;color:#374151;font-size:13px;"><strong>Role:</strong> Community Member</td></tr>
+                <tr><td style="padding:3px 0;color:#374151;font-size:13px;"><strong>Email:</strong> Verified via Google ✓</td></tr>
+              </table>
             </td></tr>
           </table>
-          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0 0 16px;">
-            You can now report water issues, participate in community discussions, track maintenance requests,
+          <p style="color:#334155;font-size:13px;line-height:1.7;margin:0 0 12px;">
+            You can now report environmental incidents, participate in community discussions, track maintenance requests,
             and receive real-time alerts about water quality and climate events in your area.
           </p>
-          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0;">
-            If you have any questions, contact your community water officer or local district office.
+          <p style="color:#64748b;font-size:13px;line-height:1.7;margin:0;">
+            Questions? Contact your community water officer or local district office.
           </p>
         </td></tr>
-        <tr><td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-            &copy; ${YEAR} HydroSense Platform · Climate-Resilient Water Management · Uganda<br>
-            <span style="color:#d1d5db;">256-bit Encrypted · JWT Secured · ISO 27001</span>
+        <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
+          <p style="color:#94a3b8;font-size:11px;margin:0 0 8px;line-height:1.5;">
+            &copy; ${YEAR} HydroSense Platform &mdash; Climate-Resilient Water Management &mdash; Uganda
           </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding:0;">
+              <span style="color:#cbd5e1;font-size:10px;">256-bit Encrypted &nbsp;·&nbsp; JWT Secured &nbsp;·&nbsp; ISO 27001</span>
+            </td></tr>
+          </table>
         </td></tr>
       </table>
     </td></tr>
@@ -340,58 +355,82 @@ function buildVerificationHTML(name, verifyLink) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:40px 16px;">
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:40px 16px;">
     <tr><td align="center">
-      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <tr><td style="background:linear-gradient(135deg,#1d4ed8,#0891b2);padding:28px 32px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:8px;">💧</div>
-          <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:-0.5px;">HYDROSENSE</h1>
-          <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:1.5px;">Ministry of Water &amp; Environment · Uganda</p>
+      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.06),0 2px 8px rgba(0,0,0,0.03);">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#1e40af,#0e7490);padding:36px 32px 28px;text-align:center;position:relative;">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;opacity:0.08;background:radial-gradient(circle at 20% 50%,#60a5fa 0%,transparent 50%),radial-gradient(circle at 80% 50%,#22d3ee 0%,transparent 50%);"></div>
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.12);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;border:1px solid rgba(255,255,255,0.15);">
+            <span style="font-size:28px;">💧</span>
+          </div>
+          <h1 style="color:#ffffff;margin:0;font-size:20px;font-weight:700;letter-spacing:-0.3px;">HYDROSENSE</h1>
+          <p style="color:rgba(255,255,255,0.7);margin:3px 0 0;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:1.8px;">Ministry of Water &amp; Environment · Uganda</p>
         </td></tr>
-        <tr><td style="padding:32px;">
-          <h2 style="color:#111827;margin:0 0 12px;font-size:20px;">Verify Your Email Address</h2>
-          <p style="color:#6b7280;margin:0 0 24px;line-height:1.7;font-size:14px;">
-            Hello <strong>${name}</strong>,<br><br>
-            Thank you for creating a HydroSense community account. Please verify your email address by clicking the button below to activate your account and access the platform.
+
+        <!-- Body -->
+        <tr><td style="padding:36px 32px 24px;">
+          <h2 style="color:#0f172a;margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:-0.3px;">Verify your email</h2>
+          <p style="color:#475569;margin:0 0 28px;line-height:1.7;font-size:14px;">
+            Hello <strong style="color:#0f172a;">${name}</strong>,<br><br>
+            Click the button below to activate your HydroSense community account and start contributing to water safety in Uganda.
           </p>
 
           <!-- CTA Button -->
-          <table width="100%" style="margin-bottom:24px;">
-            <tr><td align="center" style="padding:8px 0;">
+          <table width="100%" style="margin-bottom:28px;">
+            <tr><td align="center">
               <a href="${verifyLink}"
-                 style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:12px;box-shadow:0 6px 20px rgba(37,99,235,0.35);letter-spacing:0.3px;">
+                 style="display:inline-block;padding:15px 48px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:14px;box-shadow:0 4px 24px rgba(37,99,235,0.4);">
                 Verify Email Address
               </a>
             </td></tr>
           </table>
 
           <!-- Fallback link -->
-          <table width="100%" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:24px;">
+          <table width="100%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
             <tr><td style="padding:16px;">
-              <p style="margin:0 0 8px;color:#6b7280;font-size:12px;font-weight:600;">Button not working? Copy this link into your browser:</p>
-              <p style="margin:0;color:#2563eb;font-size:12px;word-break:break-all;font-family:monospace;">${verifyLink}</p>
+              <p style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:600;">Button not working? Copy this link into your browser:</p>
+              <p style="margin:0;color:#2563eb;font-size:11px;word-break:break-all;font-family:'SF Mono','Consolas',monospace;line-height:1.5;">${verifyLink}</p>
             </td></tr>
           </table>
 
-          <table width="100%" style="background:#fefce8;border-left:4px solid #fbbf24;border-radius:0 8px 8px 0;margin-bottom:24px;">
-            <tr><td style="padding:12px 16px;">
+          <!-- Security notice -->
+          <table width="100%" style="background:#fffbeb;border-radius:12px;margin-bottom:24px;">
+            <tr><td style="padding:14px 16px;">
               <p style="margin:0;color:#92400e;font-size:12px;line-height:1.6;">
-                🔒 <strong>Security Notice:</strong> This link expires in <strong>24 hours</strong>. If you did not create an account, please ignore this email.
+                🔒 <strong>Security notice:</strong> This link expires in <strong>24 hours</strong>. If you didn't create this account, please ignore this email.
               </p>
             </td></tr>
           </table>
 
-          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0;">
-            Once verified, you can report water issues, participate in community discussions, track maintenance requests, and receive real-time alerts.
-          </p>
+          <!-- What you can do once verified -->
+          <table width="100%" style="margin-bottom:4px;">
+            <tr><td style="padding:0;">
+              <p style="color:#334155;font-size:13px;line-height:1.7;margin:0 0 16px;font-weight:600;">Once verified, you'll be able to:</p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="padding:4px 0;color:#475569;font-size:13px;">✓ Report water quality &amp; environmental incidents</td></tr>
+                <tr><td style="padding:4px 0;color:#475569;font-size:13px;">✓ Track maintenance requests in your community</td></tr>
+                <tr><td style="padding:4px 0;color:#475569;font-size:13px;">✓ Receive real-time climate &amp; water alerts</td></tr>
+                <tr><td style="padding:4px 0;color:#475569;font-size:13px;">✓ Participate in community discussions</td></tr>
+              </table>
+            </td></tr>
+          </table>
         </td></tr>
-        <tr><td style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;line-height:1.6;">
-            &copy; ${YEAR} HydroSense Platform · Climate-Resilient Water Management · Uganda<br>
-            <span style="color:#d1d5db;">256-bit Encrypted · JWT Secured · ISO 27001</span>
+
+        <!-- Footer -->
+        <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 32px;text-align:center;">
+          <p style="color:#94a3b8;font-size:11px;margin:0 0 8px;line-height:1.5;">
+            &copy; ${YEAR} HydroSense Platform &mdash; Climate-Resilient Water Management &mdash; Uganda
           </p>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="padding:0;">
+              <span style="color:#cbd5e1;font-size:10px;">256-bit Encrypted &nbsp;·&nbsp; JWT Secured &nbsp;·&nbsp; ISO 27001</span>
+            </td></tr>
+          </table>
         </td></tr>
+
       </table>
     </td></tr>
   </table>

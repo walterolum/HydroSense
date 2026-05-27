@@ -5,8 +5,8 @@ import { registerCitizen } from '../api/client';
 import { SUPPORTED_LANGUAGES, LanguageCode } from '../types/language';
 import { ALL_DISTRICTS } from '../constants/districts';
 import {
-  AlertCircle, CheckCircle, Phone, Mail, User, MapPin, Lock, Shield,
-  Fingerprint, Loader2, Eye, EyeOff, Globe,
+  AlertCircle, Mail, Phone, User, MapPin, Lock, Shield,
+  Fingerprint, Loader2, Eye, EyeOff, Globe, MailCheck,
 } from 'lucide-react';
 
 
@@ -15,7 +15,8 @@ export default function CitizenRegistration() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
-  const [success, setSuccess] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const [form, setForm] = useState({
     name: '', email: '', password: '', confirmPassword: '',
@@ -31,32 +32,21 @@ export default function CitizenRegistration() {
 
   const districts = ALL_DISTRICTS;
 
-  /* ── Register — direct activation, no OTP ── */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
     setLoading(true);
     try {
-      const res = await registerCitizen({
+      await registerCitizen({
         name: form.name, email: form.email, password: form.password,
         phone: form.phone, national_id: form.national_id, community_id: form.community_id,
         district: form.district, sub_county: form.sub_county, location: form.location,
         language: form.language,
       });
 
-      const { token, user: newUser } = res.data;
-      if (token && newUser) {
-        const expiry = String(Date.now() + 365 * 24 * 60 * 60 * 1000);
-        localStorage.setItem('hs_token', token);
-        localStorage.setItem('hs_user', JSON.stringify(newUser));
-        localStorage.setItem('hs_expiry', expiry);
-        sessionStorage.removeItem('hs_token');
-        sessionStorage.removeItem('hs_user');
-      }
-      setSuccess(res.data.message || 'Account created successfully! Taking you to your dashboard…');
-      setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+      setRegisteredEmail(form.email);
+      setVerificationSent(true);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -64,8 +54,6 @@ export default function CitizenRegistration() {
     }
   };
 
-
-  /* ── Render ── */
   return (
     <div className="min-h-screen flex bg-gray-50">
 
@@ -79,14 +67,14 @@ export default function CitizenRegistration() {
               <div className="text-blue-200 text-xs">Ministry of Water &amp; Environment</div>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">Secure Community Registration</h1>
+          <h1 className="text-3xl font-bold text-white mb-3">Join the Community</h1>
           <p className="text-blue-100/80 text-sm leading-relaxed mb-8">
-            Join the HydroSense community to report environmental incidents and help protect Uganda's water resources.
+            Create your HydroSense community account to report environmental incidents and help protect Uganda's water resources.
           </p>
           <div className="space-y-3">
             {[
-              { icon: '✅', title: 'Instant Account Activation', desc: 'Register and get in immediately — no waiting' },
-              { icon: '📱', title: 'Smartphone & Button Phone', desc: 'Works on any device in any network area' },
+              { icon: '📧', title: 'Email Verification', desc: 'Verify your email to activate your account securely' },
+              { icon: '📱', title: 'Works on Any Device', desc: 'Smartphone, tablet, or basic phone — all supported' },
               { icon: '🌍', title: '10 Local Languages', desc: 'Interface in Luganda, Swahili, Luo & more' },
               { icon: '🔒', title: 'Secure by Default', desc: 'Passwords encrypted with bcrypt, JWT sessions' },
               { icon: '🛡️', title: 'Brute-Force Protected', desc: 'Rate limiting and attempt blocking enabled' },
@@ -118,26 +106,46 @@ export default function CitizenRegistration() {
             <div className="font-bold text-gray-900 text-sm">HYDROSENSE</div>
           </div>
 
-          {/* Error / Success banners */}
+          {/* Error banner */}
           {error && (
             <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-sm text-red-700">
               <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-500" /><span>{error}</span>
             </div>
           )}
-          {success && (
-            <div className="mb-4 px-4 py-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-sm text-green-700">
-              <CheckCircle size={16} className="flex-shrink-0 text-green-500" /><span>{success}</span>
-            </div>
-          )}
 
-          {/* ══════════════ REGISTER ══════════════ */}
-          <>
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">Create Your Account</h2>
-            <p className="text-gray-500 text-sm mb-5">Fill in your details to join the HydroSense community</p>
+          {/* ══════════ Verification Sent Screen ══════════ */}
+          {verificationSent ? (
+            <div className="text-center py-6 animate-fade-in">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-50 to-cyan-50 flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <MailCheck size={40} className="text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+              <p className="text-gray-500 text-sm leading-relaxed mb-2">
+                We sent a verification email to{' '}
+                <strong className="text-gray-700">{registeredEmail}</strong>
+              </p>
+              <p className="text-gray-400 text-xs leading-relaxed mb-6">
+                Click the link in the email to activate your account. The link expires in 24 hours.
+              </p>
+              <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-3 inline-flex items-center gap-2.5 text-xs text-amber-700 mb-6">
+                <Mail size={14} className="flex-shrink-0" />
+                <span>Didn't receive it? Check your spam folder.</span>
+              </div>
+              <Link
+                to="/login"
+                className="inline-block w-full py-3.5 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 shadow-lg shadow-blue-200/50 transition-all active:scale-[0.98]"
+              >
+                Go to Sign In
+              </Link>
+            </div>
+          ) : (
+            /* ══════════ REGISTER FORM ══════════ */
+            <>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">Create Your Account</h2>
+              <p className="text-gray-500 text-sm mb-5">Fill in your details to join the HydroSense community</p>
 
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Full Name *</label>
                     <div className="relative"><User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -145,7 +153,6 @@ export default function CitizenRegistration() {
                         className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Address *</label>
                     <div className="relative"><Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -153,7 +160,6 @@ export default function CitizenRegistration() {
                         className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number *</label>
                     <div className="relative"><Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -161,7 +167,6 @@ export default function CitizenRegistration() {
                         className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">National ID</label>
                     <div className="relative"><Fingerprint size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -169,7 +174,6 @@ export default function CitizenRegistration() {
                         className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">District *</label>
                     <div className="relative"><MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -180,19 +184,16 @@ export default function CitizenRegistration() {
                       </select>
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Sub-County</label>
                     <input type="text" value={form.sub_county} onChange={update('sub_county')} placeholder="Sub-county"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Location/Village</label>
                     <input type="text" value={form.location} onChange={update('location')} placeholder="Village or area"
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-900" />
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5"><Globe size={13} className="inline mr-1" />Preferred Language</label>
                     <div className="relative"><Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -202,7 +203,6 @@ export default function CitizenRegistration() {
                       </select>
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password *</label>
                     <div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -213,7 +213,6 @@ export default function CitizenRegistration() {
                       </button>
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Confirm Password *</label>
                     <div className="relative"><Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -240,8 +239,8 @@ export default function CitizenRegistration() {
                 Already have an account?{' '}
                 <Link to="/login" className="text-blue-600 font-semibold hover:underline">Sign In</Link>
               </p>
-          </>
-
+            </>
+          )}
 
           <div className="flex items-center justify-center gap-4 mt-6 text-xs text-gray-400">
             <div className="flex items-center gap-1"><Shield size={11} /> JWT Secured</div>
