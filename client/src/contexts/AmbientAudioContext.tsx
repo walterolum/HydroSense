@@ -14,8 +14,6 @@ interface AmbientContextType extends AmbientAudioApi {
 
 const AmbientContext = createContext<AmbientContextType | null>(null);
 
-const WELCOME_KEY = 'hs_welcome_spoken';
-
 const GUIDE = [
   "Welcome to HydroSense, Uganda's national smart water governance platform. I will now guide you through every feature so you can use the system effectively. Please listen carefully as I explain each section.",
   "Your dashboard is the main control centre. At the top, you see your connection status, AI service status, and the current time. On the left panel, you find your profile card showing your name, role, and district. Below are four key metrics: water points count, active alerts, system health percentage, and your risk index score. These give you an instant snapshot of your water system's health.",
@@ -114,8 +112,10 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
 
   const speakSingle = useCallback((text: string, onDone?: () => void) => {
     if (!voiceRef.current) {
-      const v = pickVoice(window.speechSynthesis.getVoices());
+      const voices = window.speechSynthesis.getVoices();
+      const v = pickVoice(voices);
       if (v) voiceRef.current = v;
+      else if (voices.length > 0) voiceRef.current = voices[0];
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.78;
@@ -123,16 +123,19 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
     utterance.volume = 0.9;
     if (voiceRef.current) utterance.voice = voiceRef.current;
     utterance.onend = onDone ?? null;
-    utterance.onerror = () => onDone?.();
+    utterance.onerror = () => {
+      setTimeout(onDone ?? (() => {}), 300);
+    };
     window.speechSynthesis.speak(utterance);
   }, []);
 
   const startNarration = useCallback(() => {
+    stopRef.current = true;
+    window.speechSynthesis.cancel();
     stopRef.current = false;
     preVolumeRef.current = audio.prefs.volume;
     audio.setAudioVolume(0.03);
     setIsNarrating(true);
-    window.speechSynthesis.cancel();
     let index = 0;
     const next = () => {
       if (stopRef.current) return;
@@ -144,7 +147,7 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
       speakSingle(GUIDE[index], next);
       index++;
     };
-    const pause = setTimeout(next, 400);
+    const pause = setTimeout(next, 300);
     return () => clearTimeout(pause);
   }, [speakSingle, restoreVolume, audio]);
 
@@ -152,14 +155,10 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
     if (user?.id && prevUserId.current !== user.id) {
       prevUserId.current = user.id;
       audio.play();
-      const already = sessionStorage.getItem(`${WELCOME_KEY}_${user.id}`);
-      if (!already) {
-        const t = setTimeout(() => {
-          startNarration();
-          sessionStorage.setItem(`${WELCOME_KEY}_${user.id}`, 'true');
-        }, 3000);
-        return () => clearTimeout(t);
-      }
+      const t = setTimeout(() => {
+        startNarration();
+      }, 500);
+      return () => clearTimeout(t);
     } else if (!user) {
       audio.stop();
       stopNarration();
