@@ -475,10 +475,11 @@ export async function sendChatMessage(
   imageBase64?: string,
   imageMime?: string,
   conversationId?: number,
+  sessionId?: string,
   signal?: AbortSignal,
 ) {
   const startTime = Date.now();
-  const payload = {
+  const payload: Record<string, any> = {
     message,
     history,
     role,
@@ -487,6 +488,7 @@ export async function sendChatMessage(
     image_mime: imageMime || null,
     conversation_id: conversationId || null,
   };
+  if (sessionId) payload.session_id = sessionId;
   const reqKey = cacheKey('POST', '/ai/chat', payload);
   const cached = getFromCache(reqKey);
   if (cached) return cached;
@@ -522,6 +524,7 @@ export async function sendChatMessageStream(
   imageBase64?: string,
   imageMime?: string,
   conversationId?: number,
+  sessionId?: string,
   onChunk?: (text: string) => void,
   onDone?: (fullText: string) => void,
   onError?: (error: any) => void,
@@ -530,7 +533,7 @@ export async function sendChatMessageStream(
   const controller = new AbortController();
   const combinedSignal = signal ? combineAbortSignals(signal, controller.signal) : controller.signal;
 
-  const payload = {
+  const payload: Record<string, any> = {
     message,
     history,
     role,
@@ -539,6 +542,7 @@ export async function sendChatMessageStream(
     image_mime: imageMime || null,
     conversation_id: conversationId || null,
   };
+  if (sessionId) payload.session_id = sessionId;
 
   const streamRequestId = `fe_stream_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 

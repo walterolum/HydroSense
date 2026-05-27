@@ -11,6 +11,11 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 
 from pg_db import get_db, put_db, transform_sql, execute as pg_execute
+from user_memory import user_memory
+from ai_router import ai_router, Provider
+from session_manager import session_manager
+from user_profile import profile_engine
+from rag_knowledge import rag_kb
 
 logger = logging.getLogger("hydrosense.chatbot")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro-preview-05-20")
@@ -631,6 +636,8 @@ async def chat(
     image_mime: Optional[str] = None,
     conversation_context: str = "",
     user_language: str = "en",
+    user_id: Optional[int] = None,
+    session_id: str = "default",
 ) -> Dict:
     cancel_stale_requests(REQUEST_TIMEOUT_SECONDS)
     request_id = str(uuid.uuid4())[:8]
@@ -642,6 +649,44 @@ async def chat(
             user_language = detected
 
     context = build_context(message, role, district)
+
+    # ── Enterprise AI Memory & Personalization Pipeline ──
+    if user_id:
+        try:
+            user_memory.extract_facts_from_message(user_id, message)
+            profile_engine.update_from_message(user_id, message)
+            mem_context = user_memory.build_memory_context(user_id)
+            if mem_context:
+                context = f"{mem_context}\n{context}"
+            profile_context = profile_engine.add_system_prompt_context(user_id, "")
+            if profile_context.strip():
+                context = f"{profile_context}\n{context}"
+        except Exception as e:
+            logger.warning(f"Memory/profile pipeline error: {e}")
+
+        try:
+            session_state = session_manager.get_or_create(
+                user_id, session_id, role, district, user_language
+            )
+            session_manager.add_turn(user_id, session_id, "user", message)
+            session_context = session_manager.get_context(user_id, session_id, history)
+            if session_context:
+                context = f"{session_context}\n{context}"
+        except Exception as e:
+            logger.warning(f"Session pipeline error: {e}")
+
+    # ── RAG Knowledge Retrieval ──
+    try:
+        rag_results = await rag_kb.search(message, n_results=3)
+        if rag_results:
+            rag_context = "\n".join(
+                f"[Reference: {r['metadata'].get('category', 'knowledge')}] {r['text'][:500]}"
+                for r in rag_results
+            )
+            context = f"{context}\n\nRelevant Knowledge:\n{rag_context}"
+    except Exception as e:
+        logger.warning(f"RAG pipeline error: {e}")
+
     if conversation_context:
         context = f"{context}\n\nConversation Memory:\n{conversation_context}"
     has_image = bool(image_data and image_mime)
@@ -689,6 +734,12 @@ async def chat(
 
                     if full_text:
                         duration = time.time() - start_time
+                        if user_id:
+                            try:
+                                session_manager.add_turn(user_id, session_id, "assistant", full_text)
+                                profile_engine.update_from_message(user_id, full_text)
+                            except Exception:
+                                pass
                         logger.info(f"[{request_id}] Gemini response received in {duration:.1f}s")
                         return {
                             "reply": full_text,
@@ -706,6 +757,11 @@ async def chat(
             reply = rule_based_response(message, role, district, user_language)
             if user_language != "en":
                 reply = await _translate_to(reply, user_language)
+            if user_id:
+                try:
+                    session_manager.add_turn(user_id, session_id, "assistant", reply)
+                except Exception:
+                    pass
             return {
                 "reply": reply,
                 "source": "rule_based" if not os.getenv("GEMINI_API_KEY") else "error_fallback",
@@ -723,6 +779,8 @@ async def chat_stream(
     image_mime: Optional[str] = None,
     conversation_context: str = "",
     user_language: str = "en",
+    user_id: Optional[int] = None,
+    session_id: str = "default",
 ) -> AsyncGenerator[str, None]:
     cancel_stale_requests(REQUEST_TIMEOUT_SECONDS)
     request_id = str(uuid.uuid4())[:8]
@@ -733,6 +791,42 @@ async def chat_stream(
             user_language = detected
 
     context = build_context(message, role, district)
+
+    if user_id:
+        try:
+            user_memory.extract_facts_from_message(user_id, message)
+            profile_engine.update_from_message(user_id, message)
+            mem_context = user_memory.build_memory_context(user_id)
+            if mem_context:
+                context = f"{mem_context}\n{context}"
+            profile_context = profile_engine.add_system_prompt_context(user_id, "")
+            if profile_context.strip():
+                context = f"{profile_context}\n{context}"
+        except Exception as e:
+            logger.warning(f"Stream memory pipeline error: {e}")
+
+        try:
+            session_state = session_manager.get_or_create(
+                user_id, session_id, role, district, user_language
+            )
+            session_manager.add_turn(user_id, session_id, "user", message)
+            session_context = session_manager.get_context(user_id, session_id, history)
+            if session_context:
+                context = f"{session_context}\n{context}"
+        except Exception as e:
+            logger.warning(f"Stream session pipeline error: {e}")
+
+    try:
+        rag_results = await rag_kb.search(message, n_results=3)
+        if rag_results:
+            rag_context = "\n".join(
+                f"[Reference: {r['metadata'].get('category', 'knowledge')}] {r['text'][:500]}"
+                for r in rag_results
+            )
+            context = f"{context}\n\nRelevant Knowledge:\n{rag_context}"
+    except Exception as e:
+        logger.warning(f"Stream RAG pipeline error: {e}")
+
     if conversation_context:
         context = f"{context}\n\nConversation Memory:\n{conversation_context}"
     has_image = bool(image_data and image_mime)

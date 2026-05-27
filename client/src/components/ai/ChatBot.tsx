@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   X, Send, Bot, User, Loader2, Sparkles, ChevronDown,
   ImagePlus, AlertCircle, Plus, MessageSquare, Trash2, History,
-  RefreshCw, Clock, Activity,
+  RefreshCw, Clock, Activity, Copy, CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAIService } from '../../contexts/AIServiceContext';
@@ -36,6 +36,10 @@ const ACCEPTED = 'image/jpeg,image/png,image/webp,image/gif';
 const STREAM_TIMEOUT_MS = 60000;
 const STALL_WARNING_MS = 15000;
 
+function generateSessionId(): string {
+  return `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 let messageCounter = 0;
 function generateMessageId(prefix = 'msg'): string {
   messageCounter++;
@@ -67,12 +71,14 @@ export default function ChatBot() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [conversations, setConversations] = useState<AIConversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
+  const [sessionId] = useState(() => generateSessionId());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([{
     id: '0',
     role: 'assistant',
     content: `Hello${user ? `, ${user.name.split(' ')[0]}` : ''}! I'm **Hydro AI**, your HYDROSENSE AI assistant.\n\nI can help with water points, alerts, predictions, climate data, and image analysis. How can I assist you today?`,
     timestamp: new Date(),
-    source: 'Hydro AI v4.0',
+    source: 'Hydro AI v5.0',
   }]);
 
   const [imageBase64, setImageBase64] = useState<string | null>(null);
@@ -152,7 +158,7 @@ export default function ChatBot() {
         role: user?.role || 'citizen', is_multi_user: 0, status: 'active',
       } as AIConversation, ...prev]);
       setActiveConvId(id);
-      setMessages([{ id: '0', role: 'assistant', content: 'New conversation started. How can Hydro AI help you today?', timestamp: new Date(), source: 'Hydro AI v4.0' }]);
+        setMessages([{ id: '0', role: 'assistant', content: 'New conversation started. How can Hydro AI help you today?', timestamp: new Date(), source: 'Hydro AI v5.0' }]);
       setShowSidebar(false);
     } catch {}
   };
@@ -172,11 +178,11 @@ export default function ChatBot() {
           timestamp: new Date(m.created_at),
         })));
       } else {
-        setMessages([{ id: '0', role: 'assistant', content: 'Continue your conversation. How can Hydro AI help?', timestamp: new Date(), source: 'Hydro AI v4.0' }]);
+        setMessages([{ id: '0', role: 'assistant', content: 'Continue your conversation. How can Hydro AI help?', timestamp: new Date(), source: 'Hydro AI v5.0' }]);
       }
     } catch {
       if (mountedRef.current) {
-        setMessages([{ id: '0', role: 'assistant', content: 'Continue your conversation. How can Hydro AI help?', timestamp: new Date(), source: 'Hydro AI v4.0' }]);
+        setMessages([{ id: '0', role: 'assistant', content: 'Continue your conversation. How can Hydro AI help?', timestamp: new Date(), source: 'Hydro AI v5.0' }]);
       }
     }
   };
@@ -189,7 +195,7 @@ export default function ChatBot() {
       setConversations(prev => prev.filter(c => c.id !== id));
       if (activeConvId === id) {
         setActiveConvId(null);
-        setMessages([{ id: '0', role: 'assistant', content: `Hello${user ? `, ${user.name.split(' ')[0]}` : ''}! I'm **Hydro AI**, your HYDROSENSE AI assistant.`, timestamp: new Date(), source: 'Hydro AI v4.0' }]);
+        setMessages([{ id: '0', role: 'assistant', content: `Hello${user ? `, ${user.name.split(' ')[0]}` : ''}! I'm **Hydro AI**, your HYDROSENSE AI assistant.`, timestamp: new Date(), source: 'Hydro AI v5.0' }]);
       }
     } catch {}
   };
@@ -251,6 +257,14 @@ export default function ChatBot() {
     } catch {}
   };
 
+  const copyToClipboard = async (text: string, msgId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(msgId);
+      setTimeout(() => { if (mountedRef.current) setCopiedId(null); }, 2000);
+    } catch {}
+  };
+
   const addErrorMessage = (content: string, type: string) => {
     setMessages(prev => {
       if (prev[prev.length - 1]?.isError && prev[prev.length - 1]?.content === content) return prev;
@@ -292,6 +306,7 @@ export default function ChatBot() {
         const res = await sendChatMessage(
           text, history, user?.role || 'citizen', user?.district,
           capturedBase64 || undefined, capturedMime || undefined, activeConvId || undefined,
+          sessionId,
         );
         clearTimeout(timeout);
         if (!mountedRef.current) return;
@@ -311,7 +326,7 @@ export default function ChatBot() {
       } else {
         const streamId = `stream_${Date.now()}`;
         setMessages(prev => [...prev, {
-          id: streamId, role: 'assistant', content: '', timestamp: new Date(), isStreaming: true, source: 'Hydro AI v4.0',
+          id: streamId, role: 'assistant', content: '', timestamp: new Date(), isStreaming: true, source: 'Hydro AI v5.0',
         }]);
 
         const stallTimer = setTimeout(() => {
@@ -324,6 +339,7 @@ export default function ChatBot() {
         await sendChatMessageStream(
           text, history, user?.role || 'citizen', user?.district,
           capturedBase64 || undefined, capturedMime || undefined, activeConvId || undefined,
+          sessionId,
           (chunk) => {
             clearTimeout(stallTimer);
             stallTimerRef.current = setTimeout(() => {
@@ -356,6 +372,7 @@ export default function ChatBot() {
               const res = await sendChatMessage(
                 text, history, user?.role || 'citizen', user?.district,
                 capturedBase64 || undefined, capturedMime || undefined, activeConvId || undefined,
+                sessionId,
               );
               clearTimeout(timeout);
               if (!mountedRef.current) return;
@@ -638,14 +655,33 @@ export default function ChatBot() {
                         renderContent(m.content)
                       )}
                     </div>
-                    <div className={`text-[10px] mt-1 flex items-center gap-1 ${
+                    <div className={`text-[10px] mt-1.5 flex items-center gap-2 ${
                       m.isError ? 'text-amber-600' : m.role === 'user' ? 'text-blue-200' : 'text-gray-400'
                     }`}>
-                      {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {m.source && m.role === 'assistant' && ` - ${m.source}`}
-                      {m.isError && <AlertCircle size={10} />}
-                      {m.isStreaming && <Clock size={10} className="animate-pulse" />}
+                      <span className="flex items-center gap-1">
+                        {m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {m.source && m.role === 'assistant' && !m.isStreaming && ` - ${m.source}`}
+                        {m.isError && <AlertCircle size={10} />}
+                        {m.isStreaming && <Clock size={10} className="animate-pulse" />}
+                      </span>
+                      {m.role === 'assistant' && !m.isStreaming && m.content && !m.isError && (
+                        <>
+                          <button
+                            onClick={() => copyToClipboard(m.content, m.id)}
+                            className="hover:text-emerald-600 transition-colors p-0.5"
+                            title="Copy response"
+                          >
+                            {copiedId === m.id ? <CheckCircle2 size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                          </button>
+                        </>
+                      )}
                     </div>
+                    {m.role === 'assistant' && !m.isStreaming && !m.isError && m.content && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Sparkles size={8} className="text-emerald-300" />
+                        <span className="text-[9px] text-emerald-400">AI remembers context</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

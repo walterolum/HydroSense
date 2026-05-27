@@ -38,8 +38,13 @@ from conversations import (
     get_conversation, get_conversation_messages, save_message,
     create_conversation, build_conversation_context, log_decision,
     summarize_conversation, ensure_tables_exist, cleanup_orphaned_conversations,
-    get_conversation_stats,
+    get_conversation_stats, search_conversations, auto_generate_title,
+    fork_conversation,
 )
+from user_memory import user_memory
+from user_profile import profile_engine
+from session_manager import session_manager
+from ai_router import ai_router
 from multi_modal import (
     analyze_image, analyze_document, transcribe_audio,
     analyze_sms_report, analyze_whatsapp_message, analyze_satellite_imagery,
@@ -110,7 +115,8 @@ rate_limiter = RateLimiter()
 async def lifespan(app: FastAPI):
     global _initialized, _startup_checks
     logger.info("=" * 60)
-    logger.info("  HYDROSENSE AI Microservice v4.0 — Enterprise Mode")
+    logger.info("  HYDROSENSE AI Microservice v5.0 — Enterprise AI Mode")
+    logger.info("  Memory: PostgreSQL persistent | Router: Multi-provider | RAG: ChromaDB")
     logger.info("  Performing startup validation...")
 
     _startup_checks = await validate_startup()
@@ -279,8 +285,8 @@ async def health(request: Request):
     all_ok = _initialized and readback_ok and cb_state["state"] not in ("open", "half_open")
     return {
         "status": "ok" if all_ok else "degraded",
-        "service": "HYDROSENSE AI Microservice v4.0",
-        "version": "4.0.0",
+        "service": "HYDROSENSE AI Microservice v5.0",
+        "version": "5.0.0",
         "uptime_seconds": int(time.time() - _AI_START_TIME),
         "database_connected": readback_ok,
         "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "")),
@@ -299,6 +305,10 @@ async def health(request: Request):
             "image_analysis", "document_analysis", "sms_whatsapp_analysis",
             "satellite_imagery_analysis", "multi_agency_coordination",
             "real_time_chat", "environmental_intelligence", "streaming_chat",
+            "persistent_user_memory", "multi_provider_ai_routing",
+            "adaptive_user_profiling", "session_context_management",
+            "semantic_conversation_search", "conversation_forking",
+            "auto_title_generation",
         ],
     }
 
@@ -355,6 +365,8 @@ class ChatRequest(BaseModel):
     image_mime: Optional[str] = None
     conversation_id: Optional[int] = None
     user_language: str = "en"
+    user_id: Optional[int] = None
+    session_id: str = "default"
 
 
 async def sse_stream(generator: AsyncGenerator[str, None]):
@@ -395,6 +407,8 @@ async def chatbot_stream(req: ChatRequest):
         image_mime=req.image_mime or "image/jpeg",
         conversation_context=conv_context,
         user_language=req.user_language,
+        user_id=req.user_id,
+        session_id=req.session_id,
     )
 
     return StreamingResponse(
@@ -445,6 +459,8 @@ async def chatbot_endpoint(req: ChatRequest):
         image_mime=req.image_mime or "image/jpeg",
         conversation_context=conv_context,
         user_language=req.user_language,
+        user_id=req.user_id,
+        session_id=req.session_id,
     )
 
     source = result.get("source", "")
@@ -1212,6 +1228,226 @@ def log_decision_endpoint(req: DecisionLogRequest):
 
 
 # ═══════════════════════════════════════════════
+# USER MEMORY ENDPOINTS
+# ═══════════════════════════════════════════════
+
+class MemorySetRequest(BaseModel):
+    user_id: int
+    fact_key: str
+    fact_value: str
+    category: str = "general"
+    confidence: float = 1.0
+
+class MemoryGetRequest(BaseModel):
+    user_id: int
+
+@app.post("/ai/memory/set")
+async def set_user_memory(req: MemorySetRequest):
+    try:
+        mem_id = user_memory.set_fact(req.user_id, req.fact_key, req.fact_value, req.category, req.confidence)
+        return {"status": "ok", "memory_id": mem_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/memory/get")
+async def get_user_memory(req: MemoryGetRequest):
+    try:
+        facts = user_memory.get_all_facts(req.user_id)
+        summary = user_memory.get_memory_summary(req.user_id)
+        context = user_memory.build_memory_context(req.user_id)
+        return {"status": "ok", "facts": facts, "summary": summary, "context": context}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/ai/memory/{user_id}")
+async def get_user_memory_by_id(user_id: int):
+    try:
+        facts = user_memory.get_all_facts(user_id)
+        summary = user_memory.get_memory_summary(user_id)
+        return {"status": "ok", "facts": facts, "summary": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/ai/memory/{user_id}/{fact_key}")
+async def delete_user_memory(user_id: int, fact_key: str):
+    try:
+        ok = user_memory.delete_fact(user_id, fact_key)
+        return {"status": "ok" if ok else "error"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# USER PROFILE ENDPOINTS
+# ═══════════════════════════════════════════════
+
+@app.get("/ai/profile/{user_id}")
+async def get_user_profile(user_id: int):
+    try:
+        profile = profile_engine.get_profile(user_id)
+        engagement = profile_engine.get_engagement_summary(user_id)
+        return {"status": "ok", "profile": profile, "engagement": engagement}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/profile/{user_id}/refresh")
+async def refresh_user_profile(user_id: int):
+    try:
+        profile_engine.invalidate_cache(user_id)
+        profile = profile_engine.get_profile(user_id)
+        return {"status": "ok", "profile": profile}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# AI ROUTER ENDPOINTS
+# ═══════════════════════════════════════════════
+
+@app.get("/ai/router/status")
+async def router_status():
+    try:
+        status = ai_router.get_status()
+        metrics = ai_router.get_metrics()
+        return {"status": "ok", "providers": status, "metrics": metrics}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/router/check")
+async def router_health_check():
+    try:
+        results = await ai_router.check_all_providers()
+        status = ai_router.get_status()
+        return {"status": "ok", "results": {p.value: ok for p, ok in results.items()}, "provider_status": status}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# SESSION MANAGEMENT ENDPOINTS
+# ═══════════════════════════════════════════════
+
+@app.post("/ai/session/save")
+async def save_session(user_id: int = Form(...), session_id: str = Form("default")):
+    try:
+        session_manager.save_state(user_id, session_id)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/ai/session/{user_id}/{session_id}")
+async def delete_session(user_id: int, session_id: str):
+    try:
+        session_manager.delete_session(user_id, session_id)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/session/cleanup")
+async def cleanup_sessions():
+    try:
+        count = session_manager.cleanup_expired()
+        return {"status": "ok", "cleaned": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# CONVERSATION ENHANCED ENDPOINTS
+# ═══════════════════════════════════════════════
+
+class SearchConversationsRequest(BaseModel):
+    user_id: int
+    query: str
+    limit: int = 10
+
+@app.post("/ai/conversations/search")
+async def search_conversations_endpoint(req: SearchConversationsRequest):
+    try:
+        results = search_conversations(req.user_id, req.query, req.limit)
+        return {"status": "ok", "count": len(results), "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ForkConversationRequest(BaseModel):
+    conversation_id: int
+    user_id: int
+    new_title: Optional[str] = None
+
+@app.post("/ai/conversations/fork")
+async def fork_conversation_endpoint(req: ForkConversationRequest):
+    try:
+        new_id = fork_conversation(req.conversation_id, req.user_id, req.new_title)
+        if new_id < 0:
+            raise HTTPException(status_code=400, detail="Fork failed")
+        return {"status": "ok", "new_conversation_id": new_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# RAG KNOWLEDGE BASE ENDPOINTS
+# ═══════════════════════════════════════════════
+
+@app.get("/ai/rag/stats")
+async def rag_stats():
+    try:
+        stats = await rag_kb.get_collection_stats()
+        return {"status": "ok", **stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/rag/search")
+async def rag_search(query: str = Form(...), n_results: int = Form(5), category: Optional[str] = Form(None)):
+    try:
+        results = await rag_kb.search(query, n_results, category_filter=category)
+        return {"status": "ok", "count": len(results), "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/rag/index")
+async def rag_index():
+    try:
+        await rag_kb.initialize()
+        await rag_kb.index_hydrosense_knowledge()
+        stats = await rag_kb.get_collection_stats()
+        return {"status": "ok", "message": "Knowledge base indexed", **stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════
+# ENHANCED CAPABILITIES IN HEALTH
+# ═══════════════════════════════════════════════
+
+@app.get("/ai/capabilities")
+async def ai_capabilities():
+    return {
+        "status": "ok",
+        "service": "HYDROSENSE AI v5.0",
+        "capabilities": [
+            "persistent_user_memory",
+            "multi_provider_ai_routing",
+            "adaptive_user_profiling",
+            "session_context_management",
+            "rag_knowledge_retrieval",
+            "semantic_conversation_search",
+            "conversation_forking",
+            "auto_title_generation",
+            "streaming_chat",
+            "image_analysis",
+            "multi_language_support",
+            "predictive_analytics",
+            "risk_scoring",
+            "decision_support",
+            "notification_system",
+            "offline_queue",
+        ],
+        "providers": {
+            "gemini": bool(os.getenv("GEMINI_API_KEY")),
+            "openai": bool(os.getenv("OPENAI_API_KEY")),
+            "claude": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "ollama": bool(os.getenv("OLLAMA_BASE_URL")),
+        },
+    }
+
+# ═══════════════════════════════════════════════
 # ENTRY POINT
 # ═══════════════════════════════════════════════
 
@@ -1222,11 +1458,12 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     gemini_status = "Configured" if os.getenv("GEMINI_API_KEY") else "Not configured (rule-based fallback active)"
     print("\n" + "=" * 60)
-    print("  HYDROSENSE AI Microservice v4.0")
-    print("  Enterprise Environmental Intelligence Engine")
+    print("  HYDROSENSE AI Microservice v5.0")
+    print("  Enterprise AI with Persistent Memory & Multi-Provider Routing")
     print(f"  Running at : http://localhost:{port}")
     print(f"  API Docs   : http://localhost:{port}/docs")
     print(f"  Health     : http://localhost:{port}/ai/health")
+    print(f"  Capabilities: {ai_router.get_available_providers()}")
     print(f"  Gemini     : {gemini_status}")
     print("=" * 60 + "\n")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False, loop="asyncio")

@@ -1,14 +1,18 @@
 """
 HydroSense AI Service — AI Conversation & Decision Logging (PostgreSQL)
-Replaces direct sqlite3 usage with psycopg2 via the pg_db module.
+Enterprise conversation management with auto-title, semantic search, and summarization.
 """
 
 import os
 import json
+import re
+import logging
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 
 from pg_db import get_db, put_db, transform_sql, rows_to_dicts, init_schema_if_needed
+
+logger = logging.getLogger("hydrosense.conversations")
 
 
 def ensure_tables_exist():
@@ -277,9 +281,111 @@ def get_conversation_stats(user_id: int = None) -> Dict:
                    WHERE c.user_id = %s""",
                 (user_id,)
             ).fetchone()[0]
+            by_category = conn.execute(transform_sql(
+                "SELECT category, COUNT(*) FROM ai_conversations WHERE user_id = %s GROUP BY category"
+            ), (user_id,)).fetchall()
         else:
             total = conn.execute("SELECT COUNT(*) FROM ai_conversations").fetchone()[0]
             total_msgs = conn.execute("SELECT COUNT(*) FROM ai_messages").fetchone()[0]
-        return {"total_conversations": total, "total_messages": total_msgs}
+            by_category = conn.execute(transform_sql(
+                "SELECT category, COUNT(*) FROM ai_conversations GROUP BY category"
+            )).fetchall()
+        return {
+            "total_conversations": total,
+            "total_messages": total_msgs,
+            "by_category": {r[0]: r[1] for r in by_category} if by_category else {},
+        }
+    finally:
+        put_db(conn)
+
+
+# ── Auto-Title Generation ──
+
+def auto_generate_title(messages: List[Dict]) -> str:
+    """Generate a concise title from the first user message(s)."""
+    user_msgs = [m for m in messages if m.get("role") == "user"]
+    if not user_msgs:
+        return "New Conversation"
+    first = user_msgs[0].get("content", "")
+    if len(first) <= 40:
+        return first.strip()
+
+    title_patterns = [
+        (r"(?:about|regarding|tell me about|explain|what is|how to|how do I)\s+(.+?)[?.!]?", 0),
+        (r"(?:show|find|get|list|check)\s+(.+?)[?.!]?", 0),
+        (r"(?:water|borehole|sensor|maintenance|quality|climate|health|budget|alert)\s+.+", 0),
+    ]
+    for pattern, _ in title_patterns:
+        match = re.search(pattern, first, re.IGNORECASE)
+        if match:
+            title = match.group(0).strip().capitalize()
+            if len(title) <= 50:
+                return title
+    return first[:45].strip().rstrip(".,;:") + "..."
+
+
+# ── Semantic Conversation Search ──
+
+def search_conversations(user_id: int, query: str, limit: int = 10) -> List[Dict]:
+    """Search conversations by title, content, or summary using PostgreSQL full-text search."""
+    conn = get_db()
+    try:
+        tsquery = " & ".join(re.findall(r'\w+', query.lower())[:10])
+        if not tsquery:
+            return []
+        rows = conn.execute(transform_sql("""
+            SELECT DISTINCT c.*,
+                (SELECT content FROM ai_messages WHERE conversation_id = c.id ORDER BY id ASC LIMIT 1) as preview,
+                (SELECT COUNT(*) FROM ai_messages WHERE conversation_id = c.id) as message_count
+            FROM ai_conversations c
+            LEFT JOIN ai_messages m ON c.id = m.conversation_id
+            WHERE c.user_id = %s
+            AND (
+                LOWER(c.title) LIKE %s
+                OR LOWER(c.summary) LIKE %s
+                OR LOWER(m.content) LIKE %s
+            )
+            ORDER BY c.updated_at DESC
+            LIMIT %s
+        """), (user_id, f"%{query.lower()}%", f"%{query.lower()}%", f"%{query.lower()}%", limit))
+        return [dict(r) for r in rows]
+    finally:
+        put_db(conn)
+
+
+# ── Conversation Forking / Branching ──
+
+def fork_conversation(conversation_id: int, user_id: int, new_title: str = None) -> int:
+    """Create a new conversation from an existing one, copying messages up to the latest."""
+    conn = get_db()
+    try:
+        original = get_conversation(conversation_id)
+        if not original:
+            return -1
+        title = new_title or f"Fork: {original['title']}"
+        cursor = conn.execute(transform_sql("""
+            INSERT INTO ai_conversations (title, user_id, role, district, category, metadata)
+            VALUES (%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """), (
+            title, user_id, original["role"], original["district"],
+            original["category"], json.dumps({"forked_from": conversation_id}),
+        ))
+        new_id = cursor.fetchone()["id"]
+        messages = get_conversation_messages(conversation_id, 10)
+        for m in messages:
+            conn.execute(transform_sql("""
+                INSERT INTO ai_messages
+                (conversation_id, role, content, content_type, metadata, tokens_used)
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """), (new_id, m["role"], m["content"], m.get("content_type", "text"),
+                   json.dumps({"forked": True}), m.get("tokens_used", 0)))
+        conn.commit()
+        logger.info(f"Forked conversation {conversation_id} -> {new_id}")
+        return new_id
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Fork failed: {e}")
+        return -1
     finally:
         put_db(conn)

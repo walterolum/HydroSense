@@ -37,7 +37,7 @@ class EmbeddingService:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     resp = await client.post(
                         f"{self.EMBEDDING_URL}?key={api_key}",
-                        json={"content": {"parts": [{"text": text[:3072}]}},
+                        json={"content": {"parts": [{"text": text[:3072]}]}},
                     )
                     if resp.status_code == 200:
                         data = resp.json()
@@ -72,6 +72,7 @@ class HydroKnowledgeBase:
         self.embedder = EmbeddingService()
         self._collection = None
         self._initialized = False
+        self.embedding_dim = 128
 
     async def initialize(self):
         if self._initialized:
@@ -125,27 +126,93 @@ class HydroKnowledgeBase:
         except Exception as e:
             logger.error(f"Failed to add documents: {e}")
 
-    async def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+    async def search(self, query: str, n_results: int = 5,
+                     category_filter: Optional[str] = None,
+                     min_score: float = 0.0) -> List[Dict[str, Any]]:
         if not HAS_CHROMA or self._collection is None:
             return []
         try:
             embedding = await self.embedder.embed(query[:3072])
+
+            where_filter = None
+            if category_filter:
+                where_filter = {"category": category_filter}
+
             results = self._collection.query(
                 query_embeddings=[embedding],
                 n_results=min(n_results, 20),
+                where=where_filter,
             )
             documents = []
             if results["documents"] and results["documents"][0]:
                 for i, doc in enumerate(results["documents"][0]):
+                    distance = results["distances"][0][i] if results["distances"] else 0
+                    score = 1.0 - distance
+                    if score < min_score:
+                        continue
                     documents.append({
                         "text": doc,
                         "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
-                        "distance": results["distances"][0][i] if results["distances"] else 0,
+                        "distance": distance,
+                        "score": score,
                     })
-            return documents
+            return sorted(documents, key=lambda d: d["score"], reverse=True)
         except Exception as e:
             logger.error(f"RAG search failed: {e}")
             return []
+
+    async def hybrid_search(self, query: str, n_results: int = 5,
+                            keyword_boost: bool = True) -> List[Dict[str, Any]]:
+        results = await self.search(query, n_results=n_results * 2)
+        if not results or not keyword_boost:
+            return results[:n_results]
+
+        query_terms = set(re.findall(r'\w+', query.lower()))
+        for doc in results:
+            doc_words = set(re.findall(r'\w+', doc["text"].lower()))
+            overlap = len(query_terms & doc_words)
+            if overlap > 0 and len(query_terms) > 0:
+                keyword_score = overlap / len(query_terms)
+                doc["score"] = doc.get("score", 0) * 0.7 + keyword_score * 0.3
+
+        return sorted(results, key=lambda d: d["score"], reverse=True)[:n_results]
+
+    async def chunk_and_index(self, doc_id: str, text: str, metadata: Optional[Dict] = None,
+                              chunk_size: int = 800, overlap: int = 100):
+        if not HAS_CHROMA or self._collection is None:
+            return
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = min(start + chunk_size, len(text))
+            if end < len(text):
+                last_period = text.rfind(".", start, end)
+                if last_period > start + chunk_size // 2:
+                    end = last_period + 1
+            chunk = text[start:end].strip()
+            if chunk:
+                chunk_id = f"{doc_id}_chunk_{len(chunks)}"
+                chunk_meta = dict(metadata or {})
+                chunk_meta["chunk_index"] = len(chunks)
+                chunk_meta["parent_id"] = doc_id
+                chunks.append({"id": chunk_id, "text": chunk, "metadata": chunk_meta})
+            start = end - overlap
+        if chunks:
+            await self.add_documents(chunks)
+            logger.info(f"Indexed {len(chunks)} chunks for {doc_id}")
+
+    async def get_collection_stats(self) -> Dict:
+        if not HAS_CHROMA or self._collection is None:
+            return {"available": False}
+        try:
+            count = self._collection.count()
+            return {
+                "available": True,
+                "document_count": count,
+                "embedding_dim": self.embedding_dim if hasattr(self, 'embedding_dim') else 128,
+            }
+        except Exception as e:
+            return {"available": False, "error": str(e)}
 
     async def index_hydrosense_knowledge(self):
         """Index built-in HydroSense knowledge into the vector store."""
