@@ -32,169 +32,229 @@ function savePrefs(prefs: AmbientPrefs) {
   } catch {}
 }
 
-/* ─── Chord-based music engine ─── */
-
 interface NoteDef {
   freq: number;
   gain: number;
   type: OscillatorType;
+  detune?: number;
 }
 
-interface ChordProgression {
+interface ProgressionStep {
+  notes: NoteDef[];
+  beats: number;
+}
+
+interface SongProfile {
   name: string;
-  chords: NoteDef[][];
   bpm: number;
+  steps: ProgressionStep[];
 }
 
-const PROGRESSIONS: Record<AmbientTheme, ChordProgression> = {
+const SONGS: Record<AmbientTheme, SongProfile> = {
   jarvis: {
     name: 'Jarvis Intelligence',
-    bpm: 65,
-    chords: [
-      // C major (I)
-      [
-        { freq: 261.63, gain: 0.045, type: 'sine' },
-        { freq: 329.63, gain: 0.035, type: 'sine' },
-        { freq: 392.00, gain: 0.025, type: 'triangle' },
-      ],
-      // G major (V)
-      [
-        { freq: 196.00, gain: 0.035, type: 'sine' },
-        { freq: 246.94, gain: 0.03, type: 'sine' },
-        { freq: 293.66, gain: 0.02, type: 'triangle' },
-      ],
-      // A minor (vi)
-      [
-        { freq: 220.00, gain: 0.04, type: 'sine' },
-        { freq: 261.63, gain: 0.03, type: 'sine' },
-        { freq: 329.63, gain: 0.025, type: 'triangle' },
-      ],
-      // F major (IV)
-      [
-        { freq: 174.61, gain: 0.035, type: 'sine' },
-        { freq: 220.00, gain: 0.03, type: 'sine' },
-        { freq: 261.63, gain: 0.02, type: 'triangle' },
-      ],
+    bpm: 72,
+    steps: [
+      { beats: 4, notes: [
+        { freq: 130.81, gain: 0.055, type: 'sine' },
+        { freq: 261.63, gain: 0.04, type: 'triangle' },
+        { freq: 329.63, gain: 0.035, type: 'triangle' },
+        { freq: 392.00, gain: 0.03, type: 'sine' },
+        { freq: 261.63, gain: 0.025, type: 'sawtooth', detune: 7 },
+        { freq: 523.25, gain: 0.018, type: 'sine' },
+      ]},
+      { beats: 4, notes: [
+        { freq: 98.00, gain: 0.055, type: 'sine' },
+        { freq: 246.94, gain: 0.04, type: 'triangle' },
+        { freq: 293.66, gain: 0.035, type: 'triangle' },
+        { freq: 392.00, gain: 0.03, type: 'sine' },
+        { freq: 196.00, gain: 0.025, type: 'sawtooth', detune: 7 },
+        { freq: 493.88, gain: 0.018, type: 'sine' },
+      ]},
+      { beats: 4, notes: [
+        { freq: 110.00, gain: 0.05, type: 'sine' },
+        { freq: 220.00, gain: 0.04, type: 'triangle' },
+        { freq: 261.63, gain: 0.03, type: 'triangle' },
+        { freq: 329.63, gain: 0.025, type: 'sine' },
+        { freq: 220.00, gain: 0.022, type: 'sawtooth', detune: -5 },
+        { freq: 440.00, gain: 0.015, type: 'sine' },
+      ]},
+      { beats: 4, notes: [
+        { freq: 87.31, gain: 0.05, type: 'sine' },
+        { freq: 174.61, gain: 0.04, type: 'triangle' },
+        { freq: 220.00, gain: 0.035, type: 'triangle' },
+        { freq: 261.63, gain: 0.025, type: 'sine' },
+        { freq: 174.61, gain: 0.022, type: 'sawtooth', detune: 7 },
+        { freq: 349.23, gain: 0.015, type: 'sine' },
+      ]},
+      { beats: 2, notes: [
+        { freq: 130.81, gain: 0.05, type: 'sine' },
+        { freq: 261.63, gain: 0.04, type: 'triangle' },
+        { freq: 329.63, gain: 0.035, type: 'triangle' },
+        { freq: 392.00, gain: 0.03, type: 'sine' },
+        { freq: 329.63, gain: 0.022, type: 'sawtooth', detune: -5 },
+        { freq: 523.25, gain: 0.015, type: 'sine' },
+      ]},
+      { beats: 2, notes: [
+        { freq: 87.31, gain: 0.05, type: 'sine' },
+        { freq: 174.61, gain: 0.04, type: 'triangle' },
+        { freq: 220.00, gain: 0.035, type: 'triangle' },
+        { freq: 261.63, gain: 0.025, type: 'sine' },
+        { freq: 174.61, gain: 0.022, type: 'sawtooth', detune: 7 },
+        { freq: 349.23, gain: 0.015, type: 'sine' },
+      ]},
+      { beats: 4, notes: [
+        { freq: 98.00, gain: 0.05, type: 'sine' },
+        { freq: 196.00, gain: 0.04, type: 'triangle' },
+        { freq: 246.94, gain: 0.035, type: 'triangle' },
+        { freq: 293.66, gain: 0.025, type: 'sine' },
+        { freq: 196.00, gain: 0.022, type: 'sawtooth', detune: -5 },
+        { freq: 392.00, gain: 0.015, type: 'sine' },
+      ]},
+      { beats: 4, notes: [
+        { freq: 130.81, gain: 0.06, type: 'sine' },
+        { freq: 261.63, gain: 0.045, type: 'triangle' },
+        { freq: 329.63, gain: 0.04, type: 'triangle' },
+        { freq: 392.00, gain: 0.035, type: 'sine' },
+        { freq: 261.63, gain: 0.025, type: 'sawtooth', detune: 7 },
+        { freq: 523.25, gain: 0.02, type: 'sine' },
+      ]},
     ],
   },
   nature: {
     name: 'Primal Flow',
-    bpm: 70,
-    chords: [
-      // D major (I)
-      [
-        { freq: 293.66, gain: 0.04, type: 'sine' },
-        { freq: 369.99, gain: 0.03, type: 'triangle' },
-        { freq: 440.00, gain: 0.02, type: 'sine' },
-      ],
-      // B minor (vi)
-      [
-        { freq: 246.94, gain: 0.035, type: 'sine' },
-        { freq: 293.66, gain: 0.025, type: 'sine' },
-        { freq: 369.99, gain: 0.02, type: 'triangle' },
-      ],
-      // G major (IV)
-      [
-        { freq: 196.00, gain: 0.035, type: 'sine' },
-        { freq: 246.94, gain: 0.025, type: 'triangle' },
-        { freq: 293.66, gain: 0.02, type: 'sine' },
-      ],
-      // A major (V)
-      [
-        { freq: 220.00, gain: 0.035, type: 'sine' },
-        { freq: 277.18, gain: 0.025, type: 'sine' },
-        { freq: 329.63, gain: 0.02, type: 'triangle' },
-      ],
+    bpm: 68,
+    steps: [
+      { beats: 4, notes: [
+        { freq: 146.83, gain: 0.05, type: 'sine' },
+        { freq: 293.66, gain: 0.04, type: 'triangle' },
+        { freq: 369.99, gain: 0.035, type: 'sine' },
+        { freq: 440.00, gain: 0.025, type: 'triangle' },
+        { freq: 293.66, gain: 0.02, type: 'sawtooth', detune: 6 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 110.00, gain: 0.05, type: 'sine' },
+        { freq: 220.00, gain: 0.04, type: 'triangle' },
+        { freq: 277.18, gain: 0.03, type: 'sine' },
+        { freq: 329.63, gain: 0.025, type: 'triangle' },
+        { freq: 220.00, gain: 0.02, type: 'sawtooth', detune: -6 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 98.00, gain: 0.05, type: 'sine' },
+        { freq: 196.00, gain: 0.04, type: 'triangle' },
+        { freq: 246.94, gain: 0.03, type: 'sine' },
+        { freq: 293.66, gain: 0.025, type: 'triangle' },
+        { freq: 196.00, gain: 0.02, type: 'sawtooth', detune: 6 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 130.81, gain: 0.05, type: 'sine' },
+        { freq: 261.63, gain: 0.04, type: 'triangle' },
+        { freq: 329.63, gain: 0.03, type: 'sine' },
+        { freq: 392.00, gain: 0.025, type: 'triangle' },
+        { freq: 261.63, gain: 0.02, type: 'sawtooth', detune: -6 },
+      ]},
     ],
   },
   crystal: {
     name: 'Crystal Resonance',
-    bpm: 60,
-    chords: [
-      // A minor (i)
-      [
-        { freq: 220.00, gain: 0.04, type: 'sine' },
-        { freq: 261.63, gain: 0.03, type: 'triangle' },
-        { freq: 329.63, gain: 0.02, type: 'sine' },
-      ],
-      // F major (VI)
-      [
+    bpm: 62,
+    steps: [
+      { beats: 4, notes: [
+        { freq: 110.00, gain: 0.045, type: 'sine' },
+        { freq: 220.00, gain: 0.035, type: 'triangle' },
+        { freq: 261.63, gain: 0.03, type: 'sine' },
+        { freq: 329.63, gain: 0.02, type: 'triangle' },
+        { freq: 220.00, gain: 0.018, type: 'sawtooth', detune: 5 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 87.31, gain: 0.045, type: 'sine' },
         { freq: 174.61, gain: 0.035, type: 'triangle' },
-        { freq: 220.00, gain: 0.025, type: 'sine' },
-        { freq: 261.63, gain: 0.02, type: 'sine' },
-      ],
-      // C major (III)
-      [
-        { freq: 261.63, gain: 0.04, type: 'sine' },
-        { freq: 329.63, gain: 0.03, type: 'triangle' },
-        { freq: 392.00, gain: 0.02, type: 'sine' },
-      ],
-      // G major (VII)
-      [
-        { freq: 196.00, gain: 0.035, type: 'sine' },
-        { freq: 246.94, gain: 0.025, type: 'sine' },
+        { freq: 220.00, gain: 0.03, type: 'sine' },
+        { freq: 261.63, gain: 0.02, type: 'triangle' },
+        { freq: 174.61, gain: 0.018, type: 'sawtooth', detune: -5 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 130.81, gain: 0.045, type: 'sine' },
+        { freq: 261.63, gain: 0.035, type: 'triangle' },
+        { freq: 329.63, gain: 0.03, type: 'sine' },
+        { freq: 392.00, gain: 0.02, type: 'triangle' },
+        { freq: 261.63, gain: 0.018, type: 'sawtooth', detune: 5 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 98.00, gain: 0.045, type: 'sine' },
+        { freq: 196.00, gain: 0.035, type: 'triangle' },
+        { freq: 246.94, gain: 0.03, type: 'sine' },
         { freq: 293.66, gain: 0.02, type: 'triangle' },
-      ],
+        { freq: 196.00, gain: 0.018, type: 'sawtooth', detune: -5 },
+      ]},
     ],
   },
   deepspace: {
     name: 'Deep Space',
-    bpm: 55,
-    chords: [
-      // C minor (i)
-      [
-        { freq: 261.63, gain: 0.04, type: 'sine' },
-        { freq: 311.13, gain: 0.03, type: 'triangle' },
-        { freq: 392.00, gain: 0.02, type: 'sine' },
-      ],
-      // A-flat major (VI)
-      [
+    bpm: 58,
+    steps: [
+      { beats: 4, notes: [
+        { freq: 130.81, gain: 0.05, type: 'sine' },
+        { freq: 261.63, gain: 0.035, type: 'triangle' },
+        { freq: 311.13, gain: 0.03, type: 'sine' },
+        { freq: 392.00, gain: 0.025, type: 'triangle' },
+        { freq: 261.63, gain: 0.02, type: 'sawtooth', detune: 4 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 103.83, gain: 0.045, type: 'sine' },
         { freq: 207.65, gain: 0.035, type: 'triangle' },
-        { freq: 261.63, gain: 0.025, type: 'sine' },
-        { freq: 311.13, gain: 0.02, type: 'sine' },
-      ],
-      // E-flat major (III)
-      [
-        { freq: 155.56, gain: 0.035, type: 'sine' },
-        { freq: 196.00, gain: 0.025, type: 'triangle' },
-        { freq: 233.08, gain: 0.02, type: 'sine' },
-      ],
-      // B-flat major (VII)
-      [
-        { freq: 233.08, gain: 0.035, type: 'sine' },
-        { freq: 293.66, gain: 0.025, type: 'triangle' },
-        { freq: 349.23, gain: 0.02, type: 'sine' },
-      ],
+        { freq: 261.63, gain: 0.03, type: 'sine' },
+        { freq: 311.13, gain: 0.025, type: 'triangle' },
+        { freq: 207.65, gain: 0.02, type: 'sawtooth', detune: -4 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 77.78, gain: 0.045, type: 'sine' },
+        { freq: 155.56, gain: 0.035, type: 'triangle' },
+        { freq: 196.00, gain: 0.03, type: 'sine' },
+        { freq: 233.08, gain: 0.025, type: 'triangle' },
+        { freq: 155.56, gain: 0.02, type: 'sawtooth', detune: 4 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 116.54, gain: 0.045, type: 'sine' },
+        { freq: 233.08, gain: 0.035, type: 'triangle' },
+        { freq: 293.66, gain: 0.03, type: 'sine' },
+        { freq: 349.23, gain: 0.025, type: 'triangle' },
+        { freq: 233.08, gain: 0.02, type: 'sawtooth', detune: -4 },
+      ]},
     ],
   },
   cyberpunk: {
     name: 'Cyber Pulse',
-    bpm: 75,
-    chords: [
-      // F minor (i)
-      [
+    bpm: 76,
+    steps: [
+      { beats: 4, notes: [
+        { freq: 87.31, gain: 0.035, type: 'sine' },
         { freq: 174.61, gain: 0.03, type: 'sawtooth' },
         { freq: 220.00, gain: 0.025, type: 'square' },
         { freq: 261.63, gain: 0.02, type: 'triangle' },
-      ],
-      // D-flat major (VI)
-      [
-        { freq: 138.59, gain: 0.025, type: 'sawtooth' },
-        { freq: 185.00, gain: 0.02, type: 'square' },
-        { freq: 220.00, gain: 0.015, type: 'triangle' },
-      ],
-      // A-flat major (III)
-      [
-        { freq: 103.83, gain: 0.025, type: 'sawtooth' },
-        { freq: 138.59, gain: 0.02, type: 'square' },
-        { freq: 185.00, gain: 0.015, type: 'triangle' },
-      ],
-      // E-flat major (VII)
-      [
-        { freq: 155.56, gain: 0.025, type: 'sawtooth' },
-        { freq: 196.00, gain: 0.02, type: 'square' },
-        { freq: 233.08, gain: 0.015, type: 'triangle' },
-      ],
+        { freq: 174.61, gain: 0.018, type: 'sawtooth', detune: 10 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 69.30, gain: 0.035, type: 'sine' },
+        { freq: 138.59, gain: 0.03, type: 'sawtooth' },
+        { freq: 185.00, gain: 0.025, type: 'square' },
+        { freq: 220.00, gain: 0.02, type: 'triangle' },
+        { freq: 138.59, gain: 0.018, type: 'sawtooth', detune: -10 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 51.91, gain: 0.035, type: 'sine' },
+        { freq: 103.83, gain: 0.03, type: 'sawtooth' },
+        { freq: 138.59, gain: 0.025, type: 'square' },
+        { freq: 185.00, gain: 0.02, type: 'triangle' },
+        { freq: 103.83, gain: 0.018, type: 'sawtooth', detune: 10 },
+      ]},
+      { beats: 4, notes: [
+        { freq: 77.78, gain: 0.035, type: 'sine' },
+        { freq: 155.56, gain: 0.03, type: 'sawtooth' },
+        { freq: 196.00, gain: 0.025, type: 'square' },
+        { freq: 233.08, gain: 0.02, type: 'triangle' },
+        { freq: 155.56, gain: 0.018, type: 'sawtooth', detune: -10 },
+      ]},
     ],
   },
 };
@@ -213,53 +273,59 @@ export function useAmbientAudio() {
   const prefsRef = useRef<AmbientPrefs>(loadPrefs());
   const isPlayingRef = useRef(false);
   const chordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const currentChordRef = useRef<{ oscs: OscillatorNode[]; gains: GainNode[] }[]>([]);
-  const chordIndexRef = useRef(0);
+  const currentChordRef = useRef<{ oscs: OscillatorNode[]; gains: GainNode[] }>({ oscs: [], gains: [] });
+  const stepIndexRef = useRef(0);
   const [prefs, setPrefsState] = useState<AmbientPrefs>(prefsRef.current);
 
   const stopChord = useCallback(() => {
-    for (const layer of currentChordRef.current) {
-      for (let i = 0; i < layer.oscs.length; i++) {
-        try { layer.gains[i]?.gain.linearRampToValueAtTime(0, actxRef.current!.currentTime + 0.15); } catch {}
-        try { layer.oscs[i]?.stop(actxRef.current!.currentTime + 0.2); } catch {}
+    const { oscs, gains } = currentChordRef.current;
+    if (oscs.length === 0) return;
+    const ctx = actxRef.current;
+    if (ctx) {
+      for (let i = 0; i < oscs.length; i++) {
+        try { gains[i]?.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15); } catch {}
       }
     }
     setTimeout(() => {
-      for (const layer of currentChordRef.current) {
-        for (let i = 0; i < layer.oscs.length; i++) {
-          try { layer.oscs[i]?.disconnect(); } catch {}
-          try { layer.gains[i]?.disconnect(); } catch {}
-        }
+      for (let i = 0; i < oscs.length; i++) {
+        try { oscs[i]?.stop(); } catch {}
+        try { oscs[i]?.disconnect(); } catch {}
+        try { gains[i]?.disconnect(); } catch {}
       }
-      currentChordRef.current = [];
-    }, 250);
+      currentChordRef.current = { oscs: [], gains: [] };
+    }, 200);
   }, []);
 
-  const playChord = useCallback((notes: NoteDef[], master: GainNode, ctx: AudioContext) => {
+  const playStep = useCallback((step: ProgressionStep, master: GainNode, ctx: AudioContext) => {
+    stopChord();
     const oscs: OscillatorNode[] = [];
     const gains: GainNode[] = [];
     const now = ctx.currentTime;
+    const durSec = ((60000 / SONGS.jarvis.bpm) * step.beats) / 1000;
 
-    for (const n of notes) {
+    for (const n of step.notes) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.type = n.type;
       osc.frequency.value = n.freq;
+      if (n.detune) osc.detune.value = n.detune;
       g.gain.value = 0;
-      g.gain.linearRampToValueAtTime(n.gain, now + 0.3);
+      g.gain.linearRampToValueAtTime(n.gain, now + 0.35);
+      g.gain.setValueAtTime(n.gain, now + durSec * 0.85);
+      g.gain.linearRampToValueAtTime(0, now + durSec);
       osc.connect(g);
       g.connect(master);
       osc.start();
-      osc.stop(now + 5);
+      osc.stop(now + durSec + 0.1);
       oscs.push(osc);
       gains.push(g);
     }
-    return { oscs, gains };
-  }, []);
+    currentChordRef.current = { oscs, gains };
+  }, [stopChord]);
 
-  const scheduleProgression = useCallback((theme: AmbientTheme, volume: number, muted: boolean) => {
-    const prog = PROGRESSIONS[theme];
-    if (!prog) return;
+  const scheduleSong = useCallback((theme: AmbientTheme, volume: number, muted: boolean) => {
+    const song = SONGS[theme];
+    if (!song) return;
 
     try {
       if (!actxRef.current) {
@@ -283,28 +349,25 @@ export function useAmbientAudio() {
         masterGainRef.current.gain.linearRampToValueAtTime(muted ? 0 : volume, ctx.currentTime + 0.2);
       }
       const master = masterGainRef.current;
-
-      const chordDurationMs = (60000 / prog.bpm) * 4;
-      chordIndexRef.current = 0;
       isPlayingRef.current = true;
 
-      const playCurrentChord = () => {
+      const scheduleNext = () => {
         if (!isPlayingRef.current || !master) return;
-        stopChord();
-        const notes = prog.chords[chordIndexRef.current];
-        const layer = playChord(notes, master, ctx);
-        currentChordRef.current = [layer];
-        chordIndexRef.current = (chordIndexRef.current + 1) % prog.chords.length;
+        const step = song.steps[stepIndexRef.current];
+        playStep(step, master, ctx);
+        const durMs = (60000 / song.bpm) * step.beats;
+        stepIndexRef.current = (stepIndexRef.current + 1) % song.steps.length;
+        chordTimerRef.current = setTimeout(scheduleNext, durMs);
       };
 
-      playCurrentChord();
-      chordTimerRef.current = setInterval(playCurrentChord, chordDurationMs);
+      stepIndexRef.current = 0;
+      scheduleNext();
     } catch {}
-  }, [stopChord, playChord]);
+  }, [stopChord, playStep]);
 
   const stop = useCallback(() => {
     if (chordTimerRef.current) {
-      clearInterval(chordTimerRef.current);
+      clearTimeout(chordTimerRef.current);
       chordTimerRef.current = null;
     }
     if (masterGainRef.current && actxRef.current) {
@@ -322,9 +385,9 @@ export function useAmbientAudio() {
   const play = useCallback(() => {
     const p = prefsRef.current;
     if (p.enabled && !isPlayingRef.current) {
-      scheduleProgression(p.theme, p.volume, p.muted);
+      scheduleSong(p.theme, p.volume, p.muted);
     }
-  }, [scheduleProgression]);
+  }, [scheduleSong]);
 
   const toggleMute = useCallback(() => {
     const newPrefs = { ...prefsRef.current, muted: !prefsRef.current.muted };
@@ -355,9 +418,9 @@ export function useAmbientAudio() {
     savePrefs(newPrefs);
     setPrefsState(newPrefs);
     if (isPlayingRef.current) {
-      scheduleProgression(theme, newPrefs.volume, newPrefs.muted);
+      scheduleSong(theme, newPrefs.volume, newPrefs.muted);
     }
-  }, [scheduleProgression]);
+  }, [scheduleSong]);
 
   const toggleEnabled = useCallback(() => {
     const newPrefs = { ...prefsRef.current, enabled: !prefsRef.current.enabled };
@@ -365,19 +428,19 @@ export function useAmbientAudio() {
     savePrefs(newPrefs);
     setPrefsState(newPrefs);
     if (newPrefs.enabled) {
-      scheduleProgression(newPrefs.theme, newPrefs.volume, newPrefs.muted);
+      scheduleSong(newPrefs.theme, newPrefs.volume, newPrefs.muted);
     } else {
       stop();
     }
-  }, [scheduleProgression, stop]);
+  }, [scheduleSong, stop]);
 
   const playPreview = useCallback((theme: AmbientTheme) => {
     if (isPlayingRef.current) stop();
     setTimeout(() => {
-      scheduleProgression(theme, 0.2, false);
+      scheduleSong(theme, 0.2, false);
       setTimeout(() => { stop(); }, 4000);
     }, 100);
-  }, [scheduleProgression, stop]);
+  }, [scheduleSong, stop]);
 
   useEffect(() => {
     return () => {
@@ -389,7 +452,7 @@ export function useAmbientAudio() {
   useEffect(() => {
     const p = prefsRef.current;
     if (p.enabled) {
-      scheduleProgression(p.theme, p.volume, p.muted);
+      scheduleSong(p.theme, p.volume, p.muted);
     }
     return () => { stop(); };
   }, []);
@@ -405,6 +468,6 @@ export function useAmbientAudio() {
     stop,
     playPreview,
     themeNames: THEME_NAMES,
-    themes: Object.keys(PROGRESSIONS) as AmbientTheme[],
+    themes: Object.keys(SONGS) as AmbientTheme[],
   };
 }
