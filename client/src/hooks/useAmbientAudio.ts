@@ -91,10 +91,13 @@ export function useAmbientAudio() {
     el.preload = 'auto';
     el.loop = loop;
     el.volume = muted ? 0 : volumeTargetRef.current;
-    el.play().catch(() => {});
     audioRef.current = el;
-    playingRef.current = true;
-    setIsPlaying(true);
+    el.play().then(() => {
+      playingRef.current = true;
+      setIsPlaying(true);
+    }).catch(() => {
+      audioRef.current = null;
+    });
   }, [stop]);
 
   const play = useCallback((loop = true) => {

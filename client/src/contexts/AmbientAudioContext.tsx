@@ -138,6 +138,7 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unlock = () => {
+      audio.play();
       window.speechSynthesis.cancel();
     };
     window.addEventListener('click', unlock, { once: true });
@@ -146,7 +147,7 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('click', unlock);
       window.removeEventListener('touchstart', unlock);
     };
-  }, []);
+  }, [audio]);
 
   const restoreVolume = useCallback(() => {
     audio.setAudioVolume(preVolumeRef.current);
