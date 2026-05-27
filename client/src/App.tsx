@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AmbientAudioProvider } from './contexts/AmbientAudioContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AIServiceProvider } from './contexts/AIServiceContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -193,6 +194,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <AuthProvider>
+    <AmbientAudioProvider>
     <AIServiceProvider>
     <LanguageProvider>
     <SocketProvider>
@@ -251,6 +253,7 @@ export default function App() {
     </SocketProvider>
     </LanguageProvider>
     </AIServiceProvider>
+    </AmbientAudioProvider>
     </AuthProvider>
     </ThemeProvider>
   );

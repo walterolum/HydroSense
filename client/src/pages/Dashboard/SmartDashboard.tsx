@@ -20,7 +20,8 @@ import {
   getSmartDashboardRecommendations,
   postSmartDashboardBehavior,
 } from '../../api/client';
-import { useAmbientAudio, AmbientTheme } from '../../hooks/useAmbientAudio';
+import { useAmbient } from '../../contexts/AmbientAudioContext';
+import type { AmbientTheme } from '../../hooks/useAmbientAudio';
 import AIWelcome, { AIWelcomeData } from '../../components/Dashboard/AIWelcome';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -259,7 +260,7 @@ export default function SmartDashboard() {
   const [riskLevel, setRiskLevel] = useState('stable');
   const [dataLoading, setDataLoading] = useState(true);
 
-  const { prefs: audioPrefs, toggleMute, setVolume, setTheme, playPreview, themeNames, themes } = useAmbientAudio();
+  const { prefs: audioPrefs, toggleMute, setVolume, setTheme, playPreview, themeNames, themes } = useAmbient();
   const [showAudioBar, setShowAudioBar] = useState(false);
 
   const role = user?.role || 'citizen';
