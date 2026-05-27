@@ -113,6 +113,17 @@ export const createVolunteerEvent = (data: object) => api.post('/citizen/events'
 export const joinEvent = (id: number) => api.post(`/citizen/events/${id}/join`);
 export const leaveEvent = (id: number) => api.delete(`/citizen/events/${id}/leave`);
 export const getCitizenAchievements = () => api.get('/citizen/achievements');
+// Enhanced discussion features
+export const pinDiscussion = (id: number) => api.put(`/citizen/discussions/${id}/pin`);
+export const editDiscussion = (id: number, data: object) => api.put(`/citizen/discussions/${id}`, data);
+export const deleteDiscussion = (id: number) => api.delete(`/citizen/discussions/${id}`);
+export const searchDiscussions = (params: object) => api.get('/citizen/discussions/search', { params });
+export const uploadDiscussionImage = (formData: FormData) => api.post('/citizen/discussions/upload-image', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+// Enhanced volunteer events
+export const updateVolunteerEvent = (id: number, data: object) => api.put(`/citizen/events/${id}`, data);
+export const getReminders = () => api.get('/citizen/reminders');
+export const updateReminderStatus = (id: number, status: string) => api.put(`/citizen/reminders/${id}/status`, { status });
+export const snoozeReminder = (id: number, minutes: number) => api.post(`/citizen/reminders/${id}/snooze`, { minutes });
 export const submitObservation = (data: object) => api.post('/citizen/observations', data);
 export const getObservations = (params?: object) => api.get('/citizen/observations', { params });
 export const updateObservationStatus = (id: number, data: object) => api.patch(`/citizen/observations/${id}/status`, data);

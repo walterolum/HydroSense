@@ -4,11 +4,24 @@
  * citizen observations, and personal achievements.
  */
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const { getDb } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const { notifyRoles } = require('../utils/notify');
 
 const router = express.Router();
+
+// ── Multer for citizen image uploads ──
+const CITIZEN_UPLOAD = path.join(__dirname, '..', 'uploads', 'citizen');
+if (!fs.existsSync(CITIZEN_UPLOAD)) fs.mkdirSync(CITIZEN_UPLOAD, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, CITIZEN_UPLOAD),
+  filename: (req, file, cb) => cb(null, `${Date.now()}_${crypto.randomUUID().slice(0, 8)}${path.extname(file.originalname) || '.jpg'}`)
+});
+const uploadCitizen = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => /\.(jpg|jpeg|png|gif|webp)$/i.test(path.extname(file.originalname)) ? cb(null, true) : cb(new Error('Only image files allowed')) });
 
 /* ─────────────────────────────────────────────────────────────
    PUBLIC ENVIRONMENTAL DASHBOARD (no auth needed)
@@ -65,20 +78,117 @@ router.get('/dashboard', async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────
-   DISCUSSIONS (auth required)
-───────────────────────────────────────────────────────────── */
-router.get('/discussions', authMiddleware, async (req, res) => {
+   VOLUNTEER EVENTS (auth required)
+   Support for online, physical, and hybrid event types
+   with meeting links, reminders, and alarms.
+   ───────────────────────────────────────────────────────────── */
+
+// Ensure event tables exist
+;(async () => {
+  try {
+    const db = await getDb();
+    await db.exec(`CREATE TABLE IF NOT EXISTS event_metadata (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL UNIQUE REFERENCES volunteer_events(id),
+      meeting_link TEXT,
+      end_date TEXT,
+      end_time TEXT,
+      platform TEXT DEFAULT 'other',
+      banner_image TEXT,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS event_reminders (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES volunteer_events(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      remind_at TIMESTAMPTZ NOT NULL,
+      reminder_type TEXT DEFAULT 'push' CHECK(reminder_type IN ('push','email','sms','all')),
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','sent','dismissed','snoozed')),
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+  } catch {}
+})();
+
+router.get('/events', authMiddleware, async (req, res) => {
   const db = await getDb();
-  const { category, limit = 20, offset = 0 } = req.query;
-  let sql = `SELECT d.*, u.avatar as user_avatar,
-    EXISTS(SELECT 1 FROM discussion_likes WHERE discussion_id=d.id AND user_id=?) as i_liked
-    FROM citizen_discussions d LEFT JOIN users u ON d.user_id=u.id WHERE 1=1`;
+  const { district, type } = req.query;
+  let sql = `SELECT e.*,
+    (SELECT COUNT(*) FROM event_registrations WHERE event_id=e.id)::int as registered_count,
+    EXISTS(SELECT 1 FROM event_registrations WHERE event_id=e.id AND user_id=?) as i_joined,
+    COALESCE(em.metadata::text, '{}') as metadata_json,
+    em.meeting_link, em.end_date, em.end_time, em.platform, em.banner_image
+    FROM volunteer_events e
+    LEFT JOIN event_metadata em ON em.event_id = e.id
+    WHERE e.status='active'`;
   const params = [req.user.id];
-  if (category && category !== 'all') {sql += ' AND d.category=?';params.push(category);}
-  sql += ` ORDER BY d.pinned DESC, d.created_at DESC LIMIT ${+limit} OFFSET ${+offset}`;
+  if (district) { sql += ' AND e.district=$2'; params.push(district); }
+  if (type) { sql += ' AND e.event_type=$' + (params.length + 1); params.push(type); }
+  sql += ' ORDER BY e.event_date ASC';
   const rows = await db.prepare(sql).all(...params);
-  const total = (await db.prepare(`SELECT COUNT(*) as c FROM citizen_discussions${category && category !== 'all' ? ' WHERE category=?' : ''}`).get(...(category && category !== 'all' ? [category] : []))).c;
-  res.json({ success: true, data: rows, total });
+  res.json({ success: true, data: rows.map(r => ({ ...r, metadata: JSON.parse(r.metadata_json || '{}') })) });
+});
+
+router.post('/events', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const ALLOWED = ['national_admin', 'district_officer', 'ngo_officer', 'community_committee'];
+  if (!ALLOWED.includes(req.user.role)) return res.status(403).json({ success: false, error: 'Only admins and NGOs can create events' });
+  const {
+    title, description, location, district,
+    event_date, event_time, event_type = 'cleanup', max_volunteers = 50,
+    // Extended fields
+    online_type, meeting_link, venue, end_date, end_time, platform,
+    banner_image, reminder_minutes = 60
+  } = req.body;
+  if (!title || !event_date) return res.status(400).json({ success: false, error: 'Title and date required' });
+  const VALID_TYPES = ['cleanup', 'planting', 'awareness', 'monitoring', 'training', 'online', 'physical', 'hybrid'];
+  if (!VALID_TYPES.includes(event_type)) return res.status(400).json({ success: false, error: 'Invalid event type' });
+
+  const r = await db.prepare(`INSERT INTO volunteer_events (title, description, location, district, event_date, event_time, event_type, max_volunteers, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`).run(title, description, location, district, event_date, event_time, event_type, max_volunteers, req.user.id);
+  const eid = r.lastInsertRowid;
+
+  // Store extended metadata
+  const meta = { online_type, meeting_link, venue, end_date, end_time, platform, banner_image, reminder_minutes };
+  await db.prepare(`INSERT INTO event_metadata (event_id, meeting_link, end_date, end_time, platform, banner_image, metadata) VALUES ($1,$2,$3,$4,$5,$6,$7)
+    ON CONFLICT (event_id) DO UPDATE SET meeting_link=excluded.meeting_link, end_date=excluded.end_date, end_time=excluded.end_time, platform=excluded.platform, banner_image=excluded.banner_image, metadata=excluded.metadata`)
+    .run(eid, meeting_link || null, end_date || null, end_time || null, platform || 'other', banner_image || null, JSON.stringify(meta));
+
+  // Auto-reminder for creator
+  if (reminder_minutes && event_time) {
+    const remindAt = new Date(`${event_date}T${event_time}`);
+    remindAt.setMinutes(remindAt.getMinutes() - reminder_minutes);
+    await db.prepare(`INSERT INTO event_reminders (event_id, user_id, remind_at) VALUES ($1,$2,$3)`)
+      .run(eid, req.user.id, remindAt.toISOString());
+  }
+
+  const dateLabel = event_date + (event_time ? ` at ${event_time}` : '');
+  const locationLabel = location ? ` at ${location}` : '';
+  notifyRoles(
+    ['citizen', 'community_committee', 'ngo_officer', 'district_officer', 'national_admin'],
+    district || null,
+    `📅 New Event: ${title}`,
+    `${req.user.name} has scheduled a ${event_type.replace(/_/g, ' ')} event on ${dateLabel}${locationLabel}${district ? ` in ${district}` : ''}. Join now!`,
+    'volunteer_event', eid
+  );
+
+  res.status(201).json({ success: true, id: eid });
+});
+
+router.put('/events/:id', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const ALLOWED = ['national_admin', 'district_officer', 'ngo_officer', 'community_committee'];
+  if (!ALLOWED.includes(req.user.role)) return res.status(403).json({ success: false, error: 'Insufficient permissions' });
+  const { title, description, location, district, event_date, event_time, event_type, max_volunteers, status, meeting_link, end_date, end_time, platform } = req.body;
+  const existing = await db.prepare(`SELECT * FROM volunteer_events WHERE id=$1`).get(req.params.id);
+  if (!existing) return res.status(404).json({ success: false, error: 'Event not found' });
+  await db.prepare(`UPDATE volunteer_events SET title=COALESCE($1,title), description=COALESCE($2,description), location=COALESCE($3,location), district=COALESCE($4,district), event_date=COALESCE($5,event_date), event_time=COALESCE($6,event_time), event_type=COALESCE($7,event_type), max_volunteers=COALESCE($8,max_volunteers), status=COALESCE($9,status), updated_at=NOW() WHERE id=$10`)
+    .run(title, description, location, district, event_date, event_time, event_type, max_volunteers, status, req.params.id);
+  if (meeting_link || end_date || end_time || platform) {
+    await db.prepare(`INSERT INTO event_metadata (event_id, meeting_link, end_date, end_time, platform) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (event_id) DO UPDATE SET meeting_link=COALESCE(excluded.meeting_link,event_metadata.meeting_link), end_date=COALESCE(excluded.end_date,event_metadata.end_date), end_time=COALESCE(excluded.end_time,event_metadata.end_time), platform=COALESCE(excluded.platform,event_metadata.platform)`)
+      .run(req.params.id, meeting_link, end_date, end_time, platform);
+  }
+  res.json({ success: true });
 });
 
 router.post('/discussions', authMiddleware, async (req, res) => {
@@ -160,9 +270,61 @@ router.post('/discussions/:id/replies', authMiddleware, async (req, res) => {
   res.status(201).json({ success: true });
 });
 
-/* ─────────────────────────────────────────────────────────────
-   VOLUNTEER EVENTS (auth required)
-───────────────────────────────────────────────────────────── */
+// ── Enhanced discussion features ──
+router.put('/discussions/:id/pin', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const allowed = ['national_admin', 'district_officer', 'community_committee'];
+  if (!allowed.includes(req.user.role)) return res.status(403).json({ success: false, error: 'Insufficient permissions' });
+  const disc = await db.prepare(`SELECT pinned FROM citizen_discussions WHERE id=?`).get(req.params.id);
+  if (!disc) return res.status(404).json({ success: false, error: 'Discussion not found' });
+  await db.prepare(`UPDATE citizen_discussions SET pinned=? WHERE id=?`).run(disc.pinned ? 0 : 1, req.params.id);
+  res.json({ success: true, pinned: !disc.pinned });
+});
+
+router.put('/discussions/:id', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { title, content, category } = req.body;
+  const disc = await db.prepare(`SELECT * FROM citizen_discussions WHERE id=?`).get(req.params.id);
+  if (!disc) return res.status(404).json({ success: false, error: 'Discussion not found' });
+  if (disc.user_id !== req.user.id && req.user.role !== 'national_admin')
+    return res.status(403).json({ success: false, error: 'Not authorized' });
+  await db.prepare(`UPDATE citizen_discussions SET title=COALESCE(?,title), content=COALESCE(?,content), category=COALESCE(?,category) WHERE id=?`)
+    .run(title || null, content || null, category || null, req.params.id);
+  res.json({ success: true });
+});
+
+router.delete('/discussions/:id', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const disc = await db.prepare(`SELECT * FROM citizen_discussions WHERE id=?`).get(req.params.id);
+  if (!disc) return res.status(404).json({ success: false, error: 'Discussion not found' });
+  if (disc.user_id !== req.user.id && req.user.role !== 'national_admin')
+    return res.status(403).json({ success: false, error: 'Not authorized' });
+  await db.prepare(`DELETE FROM discussion_likes WHERE discussion_id=?`).run(req.params.id);
+  await db.prepare(`DELETE FROM citizen_replies WHERE discussion_id=?`).run(req.params.id);
+  await db.prepare(`DELETE FROM citizen_discussions WHERE id=?`).run(req.params.id);
+  res.json({ success: true });
+});
+
+router.get('/discussions/search', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { q, category, limit = 20 } = req.query;
+  if (!q) return res.status(400).json({ success: false, error: 'Search query required' });
+  let sql = `SELECT d.*, u.avatar as user_avatar,
+    EXISTS(SELECT 1 FROM discussion_likes WHERE discussion_id=d.id AND user_id=?) as i_liked
+    FROM citizen_discussions d LEFT JOIN users u ON d.user_id=u.id
+    WHERE (d.title ILIKE ? OR d.content ILIKE ?)`;
+  const params = [req.user.id, `%${q}%`, `%${q}%`];
+  if (category && category !== 'all') { sql += ' AND d.category=?'; params.push(category); }
+  sql += ` ORDER BY d.pinned DESC, d.like_count DESC LIMIT ${parseInt(limit)}`;
+  const rows = await db.prepare(sql).all(...params);
+  res.json({ success: true, data: rows, total: rows.length });
+});
+
+router.post('/discussions/upload-image', authMiddleware, uploadCitizen.single('image'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, error: 'No image uploaded' });
+  const url = `/uploads/citizen/${req.file.filename}`;
+  res.json({ success: true, data: { url, name: req.file.originalname, size: req.file.size } });
+});
 router.get('/events', authMiddleware, async (req, res) => {
   const db = await getDb();
   const { district } = req.query;
@@ -203,31 +365,67 @@ router.post('/events', authMiddleware, async (req, res) => {
 router.post('/events/:id/join', authMiddleware, async (req, res) => {
   const db = await getDb();
   const eid = +req.params.id;
-  const ev = await db.prepare(`SELECT * FROM volunteer_events WHERE id=? AND status='active'`).get(eid);
+  const ev = await db.prepare(`SELECT * FROM volunteer_events WHERE id=$1 AND status='active'`).get(eid);
   if (!ev) return res.status(404).json({ success: false, error: 'Event not found' });
-  const count = (await db.prepare(`SELECT COUNT(*) as c FROM event_registrations WHERE event_id=?`).get(eid)).c;
+  const count = (await db.prepare(`SELECT COUNT(*) as c FROM event_registrations WHERE event_id=$1`).get(eid)).c;
   if (count >= ev.max_volunteers) return res.status(400).json({ success: false, error: 'Event is full' });
-  await db.prepare(`INSERT OR IGNORE INTO event_registrations (event_id, user_id) VALUES (?,?)`).run(eid, req.user.id);
+  await db.prepare(`INSERT INTO event_registrations (event_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`).run(eid, req.user.id);
 
-  // Personal confirmation notification for the person who joined
+  // Auto-create a reminder 1 hour before
+  if (ev.event_time) {
+    const remindAt = new Date(`${ev.event_date}T${ev.event_time}`);
+    remindAt.setMinutes(remindAt.getMinutes() - 60);
+    await db.prepare(`INSERT INTO event_reminders (event_id, user_id, remind_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`)
+      .run(eid, req.user.id, remindAt.toISOString());
+  }
+
   const dateLabel = ev.event_date + (ev.event_time ? ` at ${ev.event_time}` : '');
-  db.prepare(
-    `INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district)
-     VALUES (?, ?, 'in_app', ?, ?, 'sent', 'volunteer_event', ?, ?)`
-  ).run(
-    req.user.role, req.user.id,
-    `✅ Registered: ${ev.title}`,
-    `You're registered for "${ev.title}" on ${dateLabel}${ev.location ? ` at ${ev.location}` : ''}. See you there!`,
-    eid, ev.district || null
-  );
+  db.prepare(`INSERT INTO notification_log (recipient_type, recipient_id, channel, subject, message, status, reference_type, reference_id, district) VALUES ($1,$2,'in_app',$3,$4,'sent','volunteer_event',$5,$6)`)
+    .run(req.user.role, req.user.id, `✅ Registered: ${ev.title}`, `You're registered for "${ev.title}" on ${dateLabel}${ev.location ? ` at ${ev.location}` : ''}. See you there!`, eid, ev.district || null);
 
   res.json({ success: true, message: 'You have joined this event!' });
 });
 
 router.delete('/events/:id/leave', authMiddleware, async (req, res) => {
   const db = await getDb();
-  await db.prepare(`DELETE FROM event_registrations WHERE event_id=? AND user_id=?`).run(+req.params.id, req.user.id);
+  await db.prepare(`DELETE FROM event_registrations WHERE event_id=$1 AND user_id=$2`).run(+req.params.id, req.user.id);
+  await db.prepare(`DELETE FROM event_reminders WHERE event_id=$1 AND user_id=$2`).run(+req.params.id, req.user.id);
   res.json({ success: true, message: 'You have left this event.' });
+});
+
+// ── Event Reminders & Alarms ──
+router.get('/reminders', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const due = await db.prepare(`
+    SELECT r.*, e.title as event_title, e.event_date, e.event_time, e.event_type, e.description as event_description, e.location,
+      em.meeting_link, em.platform
+    FROM event_reminders r
+    JOIN volunteer_events e ON r.event_id = e.id
+    LEFT JOIN event_metadata em ON em.event_id = e.id
+    WHERE r.user_id = $1 AND r.status = 'pending' AND r.remind_at <= $2
+    ORDER BY r.remind_at
+  `).all(req.user.id, now);
+  res.json({ success: true, data: due });
+});
+
+router.put('/reminders/:id/status', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { status } = req.body;
+  await db.prepare(`UPDATE event_reminders SET status = $1 WHERE id = $2 AND user_id = $3`)
+    .run(status || 'dismissed', req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+router.post('/reminders/:id/snooze', authMiddleware, async (req, res) => {
+  const db = await getDb();
+  const { minutes = 5 } = req.body;
+  const r = await db.prepare(`SELECT * FROM event_reminders WHERE id=$1 AND user_id=$2`).get(req.params.id, req.user.id);
+  if (!r) return res.status(404).json({ success: false, error: 'Reminder not found' });
+  const newTime = new Date();
+  newTime.setMinutes(newTime.getMinutes() + minutes);
+  await db.prepare(`UPDATE event_reminders SET remind_at=$1, status='pending' WHERE id=$2`).run(newTime.toISOString(), req.params.id);
+  res.json({ success: true, remind_at: newTime.toISOString() });
 });
 
 /* ─────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import {
   MapPin, Calendar, Clock, ChevronRight, Star, Award,
   Leaf, CloudRain, Zap, Camera, Eye, X, Loader2,
   CheckCircle, Globe, Wind, Flame, ImagePlus, Navigation, Crosshair,
-  Mic, MicOff, Languages,
+  Mic, MicOff, Languages, Bell,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTranslations } from '../../hooks/useTranslations';
@@ -14,6 +14,9 @@ import {
   getDiscussionReplies, postDiscussionReply,
   getVolunteerEvents, joinEvent, leaveEvent,
   getCitizenAchievements, submitObservation, voiceTranslate,
+  pinDiscussion, editDiscussion, deleteDiscussion,
+  searchDiscussions, uploadDiscussionImage,
+  updateVolunteerEvent, getReminders, updateReminderStatus, snoozeReminder,
 } from '../../api/client';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
@@ -139,6 +142,9 @@ const EVENT_TYPES: Record<string, { label: string; color: string; icon: string }
   awareness:   { label: 'Awareness',     color: '#2563eb', icon: '📢' },
   monitoring:  { label: 'Monitoring',    color: '#0891b2', icon: '🔬' },
   training:    { label: 'Training',      color: '#7c3aed', icon: '📚' },
+  online:      { label: 'Online',        color: '#6366f1', icon: '💻' },
+  physical:    { label: 'Physical',      color: '#ea580c', icon: '📌' },
+  hybrid:      { label: 'Hybrid',        color: '#d946ef', icon: '🔄' },
 };
 
 const EDUCATION_CONTENT = [
@@ -244,15 +250,25 @@ export default function CitizenHub() {
   const [replies,     setReplies]       = useState<Record<number,any[]>>({});
   const [replyText,   setReplyText]     = useState('');
   const [replySaving, setReplySaving]   = useState(false);
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [searching,   setSearching]     = useState(false);
+  const [editingDisc, setEditingDisc]   = useState<number|null>(null);
+  const [editTitle,   setEditTitle]     = useState('');
+  const [editBody,    setEditBody]      = useState('');
+  const [editCat,     setEditCat]       = useState('');
+  const [uploadingImg,setUploadingImg]  = useState(false);
 
   /* volunteer */
   const [events,    setEvents]    = useState<any[]>([]);
   const [evLoad,    setEvLoad]    = useState(false);
   const [showNewEv, setShowNewEv] = useState(false);
-  const [evForm,    setEvForm]    = useState({ title:'', description:'', location:'', district:'Kampala', event_date:'', event_time:'09:00', event_type:'cleanup', max_volunteers:'50' });
+  const [evForm,    setEvForm]    = useState({ title:'', description:'', location:'', district:'Kampala', event_date:'', event_time:'09:00', event_type:'cleanup', max_volunteers:'50', online_type:'', meeting_link:'', venue:'', end_date:'', end_time:'', platform:'other', reminder_minutes:'60' });
   const [evSaving,  setEvSaving]  = useState(false);
   const [evMsg,     setEvMsg]     = useState('');
   const [joiningEv, setJoiningEv] = useState<Record<number,boolean>>({});
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [showAlarm, setShowAlarm] = useState(false);
 
   /* achievements */
   const [achieve,   setAchieve]   = useState<any>(null);
@@ -265,6 +281,7 @@ export default function CitizenHub() {
   const [obsMsg,    setObsMsg]    = useState('');
   const obsFileRef    = useRef<HTMLInputElement>(null);
   const obsCameraRef  = useRef<HTMLInputElement>(null);
+  const discImageRef  = useRef<HTMLInputElement>(null);
   const [obsPhoto,    setObsPhoto]      = useState<string|null>(null);
   const [obsPhotoUrl, setObsPhotoUrl]   = useState<string|null>(null);
   const [gpsLoading,  setGpsLoading]    = useState(false);
@@ -299,10 +316,21 @@ export default function CitizenHub() {
     setAchLoad(true);
     getCitizenAchievements().then(r => setAchieve(r.data.data)).finally(() => setAchLoad(false));
   };
+  const loadReminders = () => {
+    getReminders().then(r => setReminders(r.data.data || [])).catch(() => {});
+  };
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
+    setSearching(true);
+    try {
+      const r = await searchDiscussions({ q: searchQuery.trim(), category: discCat === 'all' ? undefined : discCat });
+      setSearchResults(r.data.data || []);
+    } catch {} finally { setSearching(false); }
+  };
 
   useEffect(() => { loadDash(); }, []);
   useEffect(() => { if (tab === 'discussions') loadDisc(); }, [tab, discCat]);
-  useEffect(() => { if (tab === 'volunteer')   loadEvents(); }, [tab]);
+  useEffect(() => { if (tab === 'volunteer')   { loadEvents(); loadReminders(); } }, [tab]);
   useEffect(() => { if (tab === 'achievements') loadAchieve(); }, [tab]);
 
   /* ── Handlers ── */
@@ -331,6 +359,41 @@ export default function CitizenHub() {
     }
   };
 
+  const handlePin = async (id: number) => {
+    const r = await pinDiscussion(id);
+    setDiscussions(prev => prev.map(d => d.id === id ? { ...d, pinned: r.data.pinned ? 1 : 0 } : d));
+  };
+
+  const handleEditStart = (d: any) => {
+    setEditingDisc(d.id); setEditTitle(d.title); setEditBody(d.content); setEditCat(d.category);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingDisc) return;
+    await editDiscussion(editingDisc, { title: editTitle, content: editBody, category: editCat });
+    setDiscussions(prev => prev.map(d => d.id === editingDisc ? { ...d, title: editTitle, content: editBody, category: editCat } : d));
+    setEditingDisc(null);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this discussion? This cannot be undone.')) return;
+    await deleteDiscussion(id);
+    setDiscussions(prev => prev.filter(d => d.id !== id));
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImg(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const r = await uploadDiscussionImage(fd);
+      const md = `![image](${r.data.data.url})`;
+      setNewDiscBody(prev => prev + '\n' + md);
+    } catch {} finally { setUploadingImg(false); e.target.value = ''; }
+  };
+
   const submitReply = async (id: number) => {
     if (!replyText.trim()) return;
     setReplySaving(true);
@@ -356,11 +419,15 @@ export default function CitizenHub() {
     e.preventDefault();
     setEvSaving(true);
     try {
-      await import('../../api/client').then(m => m.createVolunteerEvent({ ...evForm, max_volunteers: +evForm.max_volunteers }));
+      await import('../../api/client').then(m => m.createVolunteerEvent({ ...evForm, max_volunteers: +evForm.max_volunteers, reminder_minutes: +evForm.reminder_minutes }));
       setShowNewEv(false);
       loadEvents();
     } catch (err: any) { setEvMsg(err?.response?.data?.error || 'Failed to create event.'); }
     finally { setEvSaving(false); }
+  };
+
+  const handleEventUpdate = async (id: number, data: object) => {
+    try { await updateVolunteerEvent(id, data); loadEvents(); } catch {}
   };
 
   const handleObsPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -836,11 +903,27 @@ export default function CitizenHub() {
       {/* ══ DISCUSSIONS TAB ══ */}
       {tab === 'discussions' && (
         <div className="space-y-4">
-          {/* Category filter + new post */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          {/* Search bar + category filter */}
+          <div className="card p-3 space-y-3">
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input className="input pl-8 text-sm" placeholder="Search discussions..."
+                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }} />
+                <svg className="absolute left-2.5 top-2.5 text-gray-400" width="14" height="14" style={{ width: 14, height: 14 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              </div>
+              <button onClick={handleSearch} disabled={searching}
+                className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold disabled:opacity-50">
+                {searching ? '...' : 'Search'}
+              </button>
+              {searchResults !== null && (
+                <button onClick={() => { setSearchResults(null); setSearchQuery(''); }}
+                  className="px-3 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-xs font-semibold">Clear</button>
+              )}
+            </div>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               {DISC_CATS.map(c => (
-                <button key={c.value} onClick={() => setDiscCat(c.value)}
+                <button key={c.value} onClick={() => { setDiscCat(c.value); setSearchResults(null); }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all
                     ${discCat === c.value ? 'text-white shadow' : 'bg-white dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700'}`}
                   style={discCat === c.value ? { background: c.color } : undefined}>
@@ -848,10 +931,6 @@ export default function CitizenHub() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowNewDisc(true)}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold flex items-center gap-2 shadow flex-shrink-0 transition-colors">
-              <Plus size={14} /> New Post
-            </button>
           </div>
 
           {/* New discussion form */}
@@ -875,6 +954,14 @@ export default function CitizenHub() {
                   value={newDiscTitle} onChange={e => setNewDiscTitle(e.target.value)} />
                 <textarea className="input" rows={4} required placeholder="Share your thoughts, questions, or observations..."
                   value={newDiscBody} onChange={e => setNewDiscBody(e.target.value)} />
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => discImageRef.current?.click()}
+                    className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors flex items-center gap-1.5">
+                    <svg width="14" height="14" style={{ width: 14, height: 14 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                    {uploadingImg ? 'Uploading...' : 'Add Image'}
+                  </button>
+                  <input ref={discImageRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setShowNewDisc(false)} className="btn-secondary flex-1">Cancel</button>
                   <button type="submit" disabled={discSaving}
@@ -889,86 +976,128 @@ export default function CitizenHub() {
           )}
 
           {/* Discussion list */}
-          {discLoad ? (
-            <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-emerald-500" /></div>
-          ) : discussions.length === 0 ? (
-            <div className="card text-center py-10 text-gray-400">
-              <MessageSquare size={32} className="mx-auto mb-2 text-gray-300" />
-              <p>{s.noDiscussions}</p>
-              <button onClick={() => setShowNewDisc(true)} className="mt-3 text-sm text-emerald-600 hover:underline">Start the first one →</button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {discussions.map(d => {
-                const cat = DISC_CATS.find(c => c.value === d.category);
-                return (
-                  <div key={d.id} className="card hover:shadow-md transition-shadow">
-                    <div className="flex items-start gap-3">
-                      {/* Avatar */}
-                      <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden" style={{ background: 'linear-gradient(135deg,#065f46,#0891b2)' }}>
-                        {d.user_avatar
-                          ? <img src={d.user_avatar} alt="" className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold">
-                              {d.author_name?.charAt(0).toUpperCase()}
-                            </div>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <span className="font-bold text-gray-800 dark:text-gray-100 text-sm">{d.title}</span>
-                          {d.pinned === 1 && <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full border border-yellow-200">📌 PINNED</span>}
-                          {cat && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: cat.color }}>{cat.label}</span>}
+          {(() => {
+            const items = searchResults !== null ? searchResults : discussions;
+            return discLoad || searching ? (
+              <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-emerald-500" /></div>
+            ) : items.length === 0 ? (
+              <div className="card text-center py-10 text-gray-400">
+                <MessageSquare size={32} className="mx-auto mb-2 text-gray-300" />
+                <p>{searchResults !== null ? 'No results found' : s.noDiscussions}</p>
+                <button onClick={() => setShowNewDisc(true)} className="mt-3 text-sm text-emerald-600 hover:underline">
+                  {searchResults !== null ? 'Clear search and start a discussion →' : 'Start the first one →'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">{items.length} discussion{items.length !== 1 ? 's' : ''}</span>
+                  <button onClick={() => setShowNewDisc(true)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold flex items-center gap-2 shadow flex-shrink-0 transition-colors">
+                    <Plus size={14} /> New Post
+                  </button>
+                </div>
+                {items.map(d => {
+                  const cat = DISC_CATS.find(c => c.value === d.category);
+                  const isAuthor = user && d.user_id === user.id;
+                  const canModerate = user && ['national_admin','district_officer','community_committee'].includes(user.role);
+                  return (
+                    <div key={d.id} className="card hover:shadow-md transition-shadow">
+                      <div className="flex items-start gap-3">
+                        {/* Avatar */}
+                        <div className="w-9 h-9 rounded-xl flex-shrink-0 overflow-hidden" style={{ background: 'linear-gradient(135deg,#065f46,#0891b2)' }}>
+                          {d.user_avatar
+                            ? <img src={d.user_avatar} alt="" className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-white text-sm font-bold">
+                                {d.author_name?.charAt(0).toUpperCase()}
+                              </div>}
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{d.content}</p>
-                        <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-                          <span>👤 {d.author_name}</span>
-                          <span>🕐 {new Date(d.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        <button onClick={() => handleLike(d.id)}
-                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors ${d.i_liked ? 'bg-emerald-100 text-emerald-700' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
-                          <ThumbsUp size={12} /> {d.like_count}
-                        </button>
-                        <button onClick={() => toggleReplies(d.id)}
-                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
-                          <MessageSquare size={12} /> {d.reply_count}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Replies section */}
-                    {expandedDisc === d.id && (
-                      <div className="mt-3 pl-3 border-l-2 border-emerald-200 dark:border-emerald-800 space-y-2">
-                        {(replies[d.id] || []).map((r: any, i: number) => (
-                          <div key={i} className="text-sm bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              {r.user_avatar
-                                ? <img src={r.user_avatar} className="w-5 h-5 rounded-lg object-cover" alt="" />
-                                : <div className="w-5 h-5 rounded-lg bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold">{r.author_name?.charAt(0)}</div>}
-                              <span className="font-semibold text-xs text-gray-700 dark:text-gray-300">{r.author_name}</span>
-                              <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                        <div className="flex-1 min-w-0">
+                          {editingDisc === d.id ? (
+                            <div className="space-y-2">
+                              <input className="input text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+                              <textarea className="input text-sm" rows={3} value={editBody} onChange={e => setEditBody(e.target.value)} />
+                              <select className="input text-sm" value={editCat} onChange={e => setEditCat(e.target.value)}>
+                                {DISC_CATS.slice(1).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                              </select>
+                              <div className="flex gap-2">
+                                <button onClick={() => setEditingDisc(null)} className="btn-secondary text-xs flex-1">Cancel</button>
+                                <button onClick={handleEditSave} className="px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold">Save</button>
+                              </div>
                             </div>
-                            <p className="text-gray-600 dark:text-gray-400">{r.content}</p>
-                          </div>
-                        ))}
-                        <div className="flex gap-2 mt-2">
-                          <input className="input flex-1 text-sm py-2"
-                            placeholder="Write a reply..."
-                            value={replyText}
-                            onChange={e => setReplyText(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(d.id); } }} />
-                          <button onClick={() => submitReply(d.id)} disabled={replySaving || !replyText.trim()}
-                            className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 transition-colors">
-                            {replySaving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                <span className="font-bold text-gray-800 dark:text-gray-100 text-sm">{d.title}</span>
+                                {d.pinned === 1 && <span className="text-[10px] font-bold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full border border-yellow-200">📌 PINNED</span>}
+                                {cat && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: cat.color }}>{cat.label}</span>}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">{d.content}</div>
+                              <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                                <span>👤 {d.author_name}</span>
+                                <span>🕐 {new Date(d.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                          <button onClick={() => handleLike(d.id)}
+                            className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors ${d.i_liked ? 'bg-emerald-100 text-emerald-700' : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'}`}>
+                            <ThumbsUp size={12} /> {d.like_count}
                           </button>
+                          <button onClick={() => toggleReplies(d.id)}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                            <MessageSquare size={12} /> {d.reply_count}
+                          </button>
+                          {canModerate && (
+                            <button onClick={() => handlePin(d.id)}
+                              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors ${d.pinned ? 'text-yellow-600 bg-yellow-50' : 'text-gray-400 hover:text-yellow-600'}`}>
+                              📌 Pin
+                            </button>
+                          )}
+                          {(isAuthor || canModerate) && (
+                            <div className="flex gap-1">
+                              <button onClick={() => handleEditStart(d)} className="text-[10px] text-blue-500 hover:underline">Edit</button>
+                              <button onClick={() => handleDelete(d.id)} className="text-[10px] text-red-500 hover:underline">Del</button>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+
+                      {/* Replies section */}
+                      {expandedDisc === d.id && (
+                        <div className="mt-3 pl-3 border-l-2 border-emerald-200 dark:border-emerald-800 space-y-2">
+                          {(replies[d.id] || []).map((r: any, i: number) => (
+                            <div key={i} className="text-sm bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
+                              <div className="flex items-center gap-2 mb-1">
+                                {r.user_avatar
+                                  ? <img src={r.user_avatar} className="w-5 h-5 rounded-lg object-cover" alt="" />
+                                  : <div className="w-5 h-5 rounded-lg bg-emerald-500 flex items-center justify-center text-white text-[10px] font-bold">{r.author_name?.charAt(0)}</div>}
+                                <span className="font-semibold text-xs text-gray-700 dark:text-gray-300">{r.author_name}</span>
+                                <span className="text-[10px] text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-gray-600 dark:text-gray-400">{r.content}</p>
+                            </div>
+                          ))}
+                          <div className="flex gap-2 mt-2">
+                            <input className="input flex-1 text-sm py-2"
+                              placeholder="Write a reply..."
+                              value={replyText}
+                              onChange={e => setReplyText(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(d.id); } }} />
+                            <button onClick={() => submitReply(d.id)} disabled={replySaving || !replyText.trim()}
+                              className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 transition-colors">
+                              {replySaving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -998,7 +1127,7 @@ export default function CitizenHub() {
                 <textarea className="input" rows={3} placeholder="Describe the event and what volunteers will do..." value={evForm.description} onChange={e => setEvForm(f => ({ ...f, description: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="label">Event Type</label>
-                    <select className="input" value={evForm.event_type} onChange={e => setEvForm(f => ({ ...f, event_type: e.target.value }))}>
+                    <select className="input" value={evForm.event_type} onChange={e => { setEvForm(f => ({ ...f, event_type: e.target.value })); }}>
                       {Object.entries(EVENT_TYPES).map(([v, t]) => <option key={v} value={v}>{t.icon} {t.label}</option>)}
                     </select></div>
                   <div><label className="label">District</label>
@@ -1007,8 +1136,20 @@ export default function CitizenHub() {
                     </select></div>
                   <div><label className="label">Date *</label><input type="date" className="input" required value={evForm.event_date} onChange={e => setEvForm(f => ({ ...f, event_date: e.target.value }))} /></div>
                   <div><label className="label">Time</label><input type="time" className="input" value={evForm.event_time} onChange={e => setEvForm(f => ({ ...f, event_time: e.target.value }))} /></div>
+                  <div><label className="label">End Date</label><input type="date" className="input" value={evForm.end_date} onChange={e => setEvForm(f => ({ ...f, end_date: e.target.value }))} /></div>
+                  <div><label className="label">End Time</label><input type="time" className="input" value={evForm.end_time} onChange={e => setEvForm(f => ({ ...f, end_time: e.target.value }))} /></div>
                   <div><label className="label">Location / Venue</label><input className="input" placeholder="Meeting point..." value={evForm.location} onChange={e => setEvForm(f => ({ ...f, location: e.target.value }))} /></div>
+                  <div><label className="label">Venue Name</label><input className="input" placeholder="e.g. Community Hall..." value={evForm.venue} onChange={e => setEvForm(f => ({ ...f, venue: e.target.value }))} /></div>
                   <div><label className="label">Max Volunteers</label><input type="number" className="input" min="1" max="500" value={evForm.max_volunteers} onChange={e => setEvForm(f => ({ ...f, max_volunteers: e.target.value }))} /></div>
+                  <div><label className="label">Online Type</label>
+                    <select className="input" value={evForm.online_type} onChange={e => setEvForm(f => ({ ...f, online_type: e.target.value }))}>
+                      <option value="">None</option><option value="zoom">Zoom</option><option value="meet">Google Meet</option><option value="teams">Microsoft Teams</option><option value="other">Other</option>
+                    </select></div>
+                  <div><label className="label">Meeting Link</label><input className="input" placeholder="https://..." value={evForm.meeting_link} onChange={e => setEvForm(f => ({ ...f, meeting_link: e.target.value }))} /></div>
+                  <div><label className="label">Reminder (minutes before)</label>
+                    <select className="input" value={evForm.reminder_minutes} onChange={e => setEvForm(f => ({ ...f, reminder_minutes: e.target.value }))}>
+                      <option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option><option value="1440">1 day</option>
+                    </select></div>
                 </div>
                 <div className="flex gap-3"><button type="button" onClick={() => setShowNewEv(false)} className="btn-secondary flex-1">Cancel</button>
                   <button type="submit" disabled={evSaving} className="flex-1 py-2.5 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: 'linear-gradient(135deg,#7c3aed,#2563eb)' }}>
@@ -1027,7 +1168,8 @@ export default function CitizenHub() {
               <p className="text-sm mt-1">Check back soon or ask your community leader to create one.</p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 gap-4">
+            <>
+              <div className="grid sm:grid-cols-2 gap-4">
               {events.map((ev: any) => {
                 const et = EVENT_TYPES[ev.event_type] || { label: ev.event_type, color: '#6b7280', icon: '📅' };
                 const pct = Math.min(100, Math.round((ev.registered_count / ev.max_volunteers) * 100));
@@ -1069,6 +1211,36 @@ export default function CitizenHub() {
                   </div>
                 );
               })}
+            </div>
+            </>
+          )}
+
+          {/* Reminders / Upcoming events for the user */}
+          {reminders.length > 0 && (
+            <div className="card">
+              <h3 className="section-title mb-3"><Bell size={16} className="text-amber-500" /> Upcoming Reminders</h3>
+              <div className="space-y-2">
+                {reminders.map((r: any) => (
+                  <div key={r.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm text-gray-800 dark:text-gray-100">{r.event_title}</div>
+                      <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+                        <Clock size={10} />
+                        {new Date(r.event_date).toLocaleDateString()} at {r.event_time}
+                        {r.district && <> · {r.district}</>}
+                      </div>
+                    </div>
+                    <button onClick={() => { snoozeReminder(r.id, 10); loadReminders(); }}
+                      className="text-xs px-3 py-1.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+                      Snooze
+                    </button>
+                    <button onClick={() => { updateReminderStatus(r.id, 'dismissed'); loadReminders(); }}
+                      className="text-xs px-3 py-1.5 rounded-xl bg-green-100 text-green-700 font-semibold hover:bg-green-200 transition-colors">
+                      Dismiss
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1374,6 +1546,25 @@ export default function CitizenHub() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Alarm notification popup */}
+      {showAlarm && reminders.filter(r => r.status === 'pending').length > 0 && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 max-w-sm mx-auto">
+          {reminders.filter(r => r.status === 'pending').map(r => (
+            <div key={r.id} className="px-4 py-3 bg-amber-50 dark:bg-amber-900/80 border border-amber-300 dark:border-amber-600 rounded-2xl shadow-2xl text-sm mb-2 animate-bounce-in">
+              <div className="flex items-center gap-2 mb-1"><Bell size={14} className="text-amber-600" /><span className="font-bold text-amber-800 dark:text-amber-200">Upcoming Event!</span></div>
+              <p className="text-amber-700 dark:text-amber-300 font-semibold">{r.event_title}</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{new Date(r.event_date).toLocaleDateString()} at {r.event_time}</p>
+              <div className="flex gap-2">
+                <button onClick={() => { updateReminderStatus(r.id, 'dismissed'); loadReminders(); }}
+                  className="flex-1 py-1.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors">Dismiss</button>
+                <button onClick={() => { snoozeReminder(r.id, 10); loadReminders(); }}
+                  className="flex-1 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-500 transition-colors">Snooze 10m</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
