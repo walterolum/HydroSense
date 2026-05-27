@@ -82,6 +82,11 @@ export function useAmbientAudio() {
   const playingRef = useRef(false);
   const [prefs, setPrefsState] = useState<AmbientPrefs>(prefsRef.current);
 
+  const setAudioVolume = useCallback((vol: number) => {
+    const a = audioRef.current;
+    if (a) a.volume = vol;
+  }, []);
+
   const stop = useCallback(() => {
     const a = audioRef.current;
     if (a) {
@@ -174,6 +179,7 @@ export function useAmbientAudio() {
     isPlaying: playingRef.current,
     toggleMute,
     setVolume,
+    setAudioVolume,
     setTheme,
     toggleEnabled,
     play,

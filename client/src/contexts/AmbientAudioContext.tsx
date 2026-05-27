@@ -79,18 +79,25 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
     return () => window.speechSynthesis.removeEventListener('voiceschanged', init);
   }, []);
 
+  const preNarrateVolRef = useRef(audio.prefs.volume);
+
+  const restoreVolume = useCallback(() => {
+    audio.setAudioVolume(preNarrateVolRef.current);
+  }, [audio]);
+
   const stopNarration = useCallback(() => {
     stopRef.current = true;
     window.speechSynthesis.cancel();
     setIsNarrating(false);
-  }, []);
+    restoreVolume();
+  }, [restoreVolume]);
 
   const speakSingle = useCallback((text: string, onDone?: () => void) => {
     if (stopRef.current) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.78;
     utterance.pitch = 1.0;
-    utterance.volume = 0.75;
+    utterance.volume = 0.9;
     if (voiceRef.current) utterance.voice = voiceRef.current;
     utterance.onend = onDone ?? null;
     utterance.onerror = () => onDone?.();
@@ -99,11 +106,15 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
 
   const startNarration = useCallback(() => {
     stopRef.current = false;
+    preNarrateVolRef.current = audio.prefs.volume;
+    audio.setAudioVolume(0.03);
     setIsNarrating(true);
     let index = 0;
     const next = () => {
-      if (stopRef.current || index >= GUIDE.length) {
+      if (stopRef.current) return;
+      if (index >= GUIDE.length) {
         setIsNarrating(false);
+        restoreVolume();
         return;
       }
       speakSingle(GUIDE[index], next);
@@ -111,7 +122,7 @@ export function AmbientAudioProvider({ children }: { children: ReactNode }) {
     };
     const pause = setTimeout(next, 400);
     return () => clearTimeout(pause);
-  }, [speakSingle]);
+  }, [speakSingle, restoreVolume, audio]);
 
   useEffect(() => {
     if (user?.id && prevUserId.current !== user.id) {
