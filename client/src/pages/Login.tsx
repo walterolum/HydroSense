@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, EyeOff, AlertCircle, Shield, Wifi, UserPlus, Mail, Users } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Shield, Wifi, Mail, Users } from 'lucide-react';
 import SignupModal from '../components/auth/SignupModal';
 
 declare global {
@@ -708,26 +708,14 @@ export default function Login() {
             <div ref={googleButtonRef} className="flex justify-center min-h-[40px]" />
           </form>
 
-          {/* Sign Up with Email — outside form, as secondary CTA */}
+          {/* Sign Up with Email — navigates to full registration page */}
           <div className="mt-5">
-            <button
-              type="button"
-              onClick={() => setShowSignup(true)}
+            <Link
+              to="/register"
               className="w-full py-3.5 rounded-2xl font-semibold text-sm border-2 border-blue-200 text-blue-700 bg-white hover:bg-blue-50 hover:border-blue-300 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] shadow-sm"
             >
               <Mail size={17} />
               Sign Up with Email
-            </button>
-          </div>
-
-          {/* Create Account link — tertiary text link */}
-          <div className="text-center mt-4">
-            <Link
-              to="/register"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              <UserPlus size={15} />
-              Create a Community Member Account
             </Link>
           </div>
 
