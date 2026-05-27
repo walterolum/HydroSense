@@ -247,6 +247,8 @@ const io = new Server(server, {
   pingTimeout: 20000
 });
 
+app.set('io', io);
+
 // ═══════════════════════════════════════════════════════════════
 // ROUTES
 // ═══════════════════════════════════════════════════════════════
@@ -272,6 +274,9 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/incident-analysis', require('./routes/incident-analysis'));
 app.use('/api/emergency-response', require('./routes/emergency-response'));
 app.use('/api/ai-conversations', require('./routes/ai-conversations'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use('/api/community', require('./routes/community'));
 
 // ═══════════════════════════════════════════════════════════════
 // ENHANCED MULTILINGUAL & AUTO-ASSIGNMENT ROUTES
@@ -1430,9 +1435,50 @@ setTimeout(() => initialAIDetection(), 2000);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Client connected: ${socket.id}`);
+
+  // ── Legacy district subscriptions ──
   socket.on('subscribe_district', (district) => socket.join(`district_${district}`));
   socket.on('unsubscribe_district', (district) => socket.leave(`district_${district}`));
-  socket.on('disconnect', (reason) => console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`));
+
+  // ── Authenticate socket for community features ──
+  socket.on('authenticate', (userData) => {
+    if (userData && userData.id) {
+      socket.data.user_id = userData.id;
+      socket.data.user_name = userData.name || 'Unknown';
+      socket.data.user_role = userData.role || 'user';
+      console.log(`[Socket] ${socket.data.user_name} (${socket.data.user_id}) authenticated`);
+      socket.emit('authenticated', { success: true });
+      // Broadcast presence
+      socket.broadcast.emit('user_online', { user_id: socket.data.user_id, user_name: socket.data.user_name });
+    }
+  });
+
+  // ── Channel subscriptions ──
+  socket.on('channel_join', (channelId) => {
+    socket.join(`channel_${channelId}`);
+    console.log(`[Socket] ${socket.data.user_name || socket.id} joined channel ${channelId}`);
+  });
+
+  socket.on('channel_leave', (channelId) => {
+    socket.leave(`channel_${channelId}`);
+  });
+
+  // ── Typing indicators ──
+  socket.on('typing_start', ({ channel_id, user_name }) => {
+    socket.to(`channel_${channel_id}`).emit('user_typing', { channel_id, user_id: socket.data.user_id, user_name });
+  });
+
+  socket.on('typing_stop', ({ channel_id }) => {
+    socket.to(`channel_${channel_id}`).emit('user_stopped_typing', { channel_id, user_id: socket.data.user_id });
+  });
+
+  // ── Disconnect ──
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] Client disconnected: ${socket.id} (${reason})`);
+    if (socket.data.user_id) {
+      socket.broadcast.emit('user_offline', { user_id: socket.data.user_id });
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════
