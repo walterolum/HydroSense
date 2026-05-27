@@ -1462,6 +1462,7 @@ async def ai_capabilities():
         "providers": {
             "gemini": bool(os.getenv("GEMINI_API_KEY")),
             "openai": bool(os.getenv("OPENAI_API_KEY")),
+            "claude": bool(os.getenv("ANTHROPIC_API_KEY")),
             "ollama": bool(os.getenv("OLLAMA_BASE_URL")),
         },
     }
