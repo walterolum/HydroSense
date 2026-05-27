@@ -58,7 +58,7 @@ function TypewriterText({ text, speed = 40, onComplete }: { text: string; speed?
 }
 
 function HexParticles() {
-  const particles = Array.from({ length: 40 }, (_, i) => ({
+    const particles = Array.from({ length: 12 }, (_, i) => ({
     id: i,
     x: Math.random() * 100,
     y: Math.random() * 100,
@@ -78,8 +78,8 @@ function HexParticles() {
             top: `${p.y}%`,
             width: p.size,
             height: p.size,
-            background: `rgba(6, 182, 212, ${0.2 + Math.random() * 0.3})`,
-            boxShadow: `0 0 ${p.size * 3}px rgba(6, 182, 212, 0.3)`,
+            background: `rgba(6, 182, 212, ${0.1 + Math.random() * 0.15})`,
+            boxShadow: `0 0 ${p.size * 2}px rgba(6, 182, 212, 0.15)`,
           }}
           animate={{
             y: [0, -30, 0],
@@ -146,6 +146,20 @@ export default function AIWelcome({ data, loading, onDismiss, ttsEnabled, onTtsT
   }, [loading, data, onDismiss]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timeout = setTimeout(() => onDismiss(), 6000);
+    return () => clearTimeout(timeout);
+  }, [loading, onDismiss]);
+
+  useEffect(() => {
     if (loading || !data || !ttsEnabled) return;
     const msg = `${data.greeting}. ${data.motivational}. ${data.aiInsight}.`;
     const utterance = new SpeechSynthesisUtterance(msg);
@@ -168,7 +182,7 @@ export default function AIWelcome({ data, loading, onDismiss, ttsEnabled, onTtsT
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[9999] flex items-center justify-center"
+        className="fixed inset-0 z-50 flex items-center justify-center"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0, transition: { duration: 0.8, ease: 'easeInOut' } }}
@@ -176,7 +190,7 @@ export default function AIWelcome({ data, loading, onDismiss, ttsEnabled, onTtsT
         <motion.div
           className="absolute inset-0"
           style={{
-            background: 'radial-gradient(ellipse at center, rgba(6, 78, 120, 0.95) 0%, rgba(2, 32, 54, 0.98) 50%, rgba(0, 10, 20, 1) 100%)',
+            background: 'radial-gradient(ellipse at center, rgba(6, 78, 120, 0.35) 0%, rgba(2, 32, 54, 0.45) 50%, rgba(0, 10, 20, 0.55) 100%)',
           }}
         />
         <HexParticles />
@@ -254,7 +268,7 @@ export default function AIWelcome({ data, loading, onDismiss, ttsEnabled, onTtsT
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="mb-8"
                 >
-                  <div className="inline-block px-5 py-3 rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-cyan-500/10 max-w-xl mx-auto">
+                    <div className="inline-block px-5 py-3 rounded-2xl bg-gray-900/60 backdrop-blur-sm border border-cyan-500/15 max-w-xl mx-auto">
                     <p className="text-xs text-cyan-400/60 font-mono uppercase tracking-widest mb-1.5">AI Insight</p>
                     <p className="text-sm text-cyan-100/90 font-medium leading-relaxed">
                       <TypewriterText
@@ -307,17 +321,28 @@ export default function AIWelcome({ data, loading, onDismiss, ttsEnabled, onTtsT
           </div>
         )}
 
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.4, 0] }}
-            transition={{ duration: 3, repeat: Infinity }}
-            className="text-[10px] font-mono text-white/20 tracking-[0.3em] uppercase"
-          >
-            {userName ? `${userName} · ` : ''}HydroSense Intelligence Network
-          </motion.p>
-        </div>
-      </motion.div>
-    </AnimatePresence>
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.4, 0] }}
+              transition={{ duration: 3, repeat: Infinity }}
+              className="text-[10px] font-mono text-white/20 tracking-[0.3em] uppercase"
+            >
+              {userName ? `${userName} · ` : ''}HydroSense Intelligence Network
+            </motion.p>
+          </div>
+
+          <div className="absolute top-4 right-4 z-20">
+            <motion.button
+              onClick={onDismiss}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3 py-1.5 rounded-lg bg-gray-900/60 backdrop-blur-sm border border-white/10 text-white/60 hover:text-white text-xs transition-all hover:bg-gray-900/80"
+            >
+              Skip → 
+            </motion.button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
   );
 }

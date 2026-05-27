@@ -66,7 +66,7 @@ function GlassCard({ children, className = '', glow = 'rgba(6,182,212,0.15)', de
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: 'easeOut' }}
-      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gray-900/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] ${className}`}
       style={{ boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 60px ${glow}` }}
     >
       {children}
@@ -77,7 +77,7 @@ function GlassCard({ children, className = '', glow = 'rgba(6,182,212,0.15)', de
 function NeonGlow({ color = 'rgba(6,182,212,0.15)', className = '' }) {
   return (
     <div
-      className={`absolute -top-20 -right-20 w-40 h-40 rounded-full blur-3xl pointer-events-none ${className}`}
+      className={`absolute -top-16 -right-16 w-32 h-32 rounded-full blur-2xl pointer-events-none ${className}`}
       style={{ background: `radial-gradient(circle, ${color}, transparent)` }}
     />
   );
@@ -91,7 +91,7 @@ function StatWidget({ label, value, icon: Icon, color, sub, trend }: {
       <NeonGlow color={`${color}10`} />
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-[11px] font-bold text-white/40 uppercase tracking-widest">{label}</p>
+          <p className="text-[11px] font-bold text-white/70 uppercase tracking-widest">{label}</p>
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ background: `${color}15`, boxShadow: `0 0 20px ${color}20` }}
@@ -102,7 +102,7 @@ function StatWidget({ label, value, icon: Icon, color, sub, trend }: {
         <p className="text-3xl font-extrabold text-white tracking-tight">{value}</p>
         {(sub || trend) && (
           <div className="flex items-center gap-2 mt-1.5">
-            {sub && <p className="text-xs text-white/40 font-medium">{sub}</p>}
+            {sub && <p className="text-xs text-white/70 font-medium">{sub}</p>}
             {trend && (
               <span className={`text-[11px] font-bold flex items-center gap-0.5 ${trend.dir === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
                 <TrendingUp size={10} className={trend.dir === 'down' ? 'rotate-180' : ''} />
@@ -126,7 +126,8 @@ function AIInsightPanel({ recommendations, onAction }: {
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-4">
           <Brain size={16} className="text-purple-400" />
-          <h3 className="text-sm font-bold text-white/90">AI Intelligence</h3>
+          <h3 className="text-sm font-bold text-white">AI Intelligence</h3>
+          
           <span className="ml-auto text-[10px] font-mono text-purple-400/60 bg-purple-500/10 px-2 py-0.5 rounded-full">
             LIVE
           </span>
@@ -140,8 +141,8 @@ function AIInsightPanel({ recommendations, onAction }: {
               transition={{ delay: i * 0.1 }}
               className={`p-3 rounded-xl border backdrop-blur-sm cursor-pointer transition-all duration-200 hover:scale-[1.02] group ${
                 rec.priority === 'high'
-                  ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/40'
-                  : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+                  ? 'bg-red-500/10 border-red-500/20 hover:border-red-500/40'
+                  : 'bg-gray-900/40 border-white/10 hover:border-white/20'
               }`}
               onClick={() => onAction(rec.link)}
             >
@@ -157,8 +158,8 @@ function AIInsightPanel({ recommendations, onAction }: {
                       <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                     )}
                   </div>
-                  <p className="text-sm font-semibold text-white/90 truncate">{rec.title}</p>
-                  <p className="text-xs text-white/50 mt-0.5 line-clamp-2">{rec.description}</p>
+                  <p className="text-sm font-semibold text-white truncate">{rec.title}</p>
+                  <p className="text-xs text-white/75 mt-0.5 line-clamp-2">{rec.description}</p>
                 </div>
                 <ArrowRight size={14} className="text-white/20 group-hover:text-white/60 transition-colors flex-shrink-0 mt-1" />
               </div>
@@ -178,7 +179,7 @@ function NotificationFeed({ notifications }: { notifications: any[] }) {
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-4">
           <Bell size={16} className="text-amber-400" />
-          <h3 className="text-sm font-bold text-white/90">Live Feed</h3>
+          <h3 className="text-sm font-bold text-white">Live Feed</h3>
           <span className="ml-auto flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[10px] font-mono text-emerald-400/60">REALTIME</span>
@@ -191,17 +192,17 @@ function NotificationFeed({ notifications }: { notifications: any[] }) {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors"
+              className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-gray-900/40 transition-colors"
             >
               <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
                 n.priority === 'urgent' ? 'bg-red-400 animate-pulse' :
                 n.priority === 'high' ? 'bg-orange-400' : 'bg-cyan-400'
               }`} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white/80 truncate">{n.title || n.subject}</p>
-                <p className="text-xs text-white/40 mt-0.5 line-clamp-1">{n.message}</p>
+                <p className="text-sm font-semibold text-white/90 truncate">{n.title || n.subject}</p>
+                <p className="text-xs text-white/70 mt-0.5 line-clamp-1">{n.message}</p>
               </div>
-              <span className="text-[10px] text-white/30 font-mono flex-shrink-0">
+              <span className="text-[10px] text-white/50 font-mono flex-shrink-0">
                 {new Date(n.sent_at || n.time).toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </motion.div>
@@ -219,8 +220,8 @@ function SystemMeter({ label, value, max = 100, color = '#06b6d4' }: {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-white/60 font-medium">{label}</span>
-        <span className="text-white/80 font-bold font-mono">{pct}%</span>
+        <span className="text-white/80 font-medium">{label}</span>
+        <span className="text-white font-bold font-mono">{pct}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
         <motion.div
@@ -329,10 +330,10 @@ export default function SmartDashboard() {
         )}
       </AnimatePresence>
 
-      <div className="relative min-h-screen">
+      <div className="relative min-h-screen bg-gray-950">
         <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute top-0 -left-40 w-96 h-96 rounded-full blur-[120px]" style={{ background: `${theme.from}08` }} />
-          <div className="absolute bottom-0 -right-40 w-96 h-96 rounded-full blur-[120px]" style={{ background: `${theme.to}08` }} />
+          <div className="absolute top-0 -left-40 w-80 h-80 rounded-full blur-[100px]" style={{ background: `${theme.from}06` }} />
+          <div className="absolute bottom-0 -right-40 w-80 h-80 rounded-full blur-[100px]" style={{ background: `${theme.to}06` }} />
         </div>
 
         <div className="relative z-10 space-y-6 pb-8 max-w-[1600px] mx-auto px-4 md:px-6">
@@ -355,7 +356,7 @@ export default function SmartDashboard() {
                 </span>
               </div>
               <span className="text-white/10">|</span>
-              <span className="text-xs font-mono text-white/40">
+              <span className="text-xs font-mono text-white/70">
                 {now.toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </div>
@@ -363,7 +364,7 @@ export default function SmartDashboard() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAudioBar(!showAudioBar)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 hover:text-white/90 text-xs transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-xs transition-all"
               >
                 {audioPrefs.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
                 Soundscape
@@ -388,36 +389,36 @@ export default function SmartDashboard() {
               >
                 <GlassCard className="p-4">
                   <div className="relative z-10 flex flex-wrap items-center gap-4">
-                    <span className="text-xs font-bold text-white/60 uppercase tracking-widest">Soundscape</span>
+                    <span className="text-xs font-bold text-white/80 uppercase tracking-widest">Soundscape</span>
                     <button
                       onClick={toggleMute}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all ${
                         audioPrefs.muted
                           ? 'bg-red-500/10 border-red-500/20 text-red-400'
-                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                          : 'bg-white/5 border-white/10 text-white/90 hover:text-white'
                       }`}
                     >
                       {audioPrefs.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
                       {audioPrefs.muted ? 'Muted' : 'Active'}
                     </button>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-white/40">Vol</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="0.5"
-                        step="0.01"
-                        value={audioPrefs.volume}
-                        onChange={(e) => setVolume(parseFloat(e.target.value))}
-                        className="w-20 h-1 accent-cyan-500"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-white/40">Theme</span>
+                          <span className="text-[10px] text-white/60">Vol</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="0.5"
+                            step="0.01"
+                            value={audioPrefs.volume}
+                            onChange={(e) => setVolume(parseFloat(e.target.value))}
+                            className="w-20 h-1 accent-cyan-500"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-white/60">Theme</span>
                       <select
                         value={audioPrefs.theme}
                         onChange={(e) => setTheme(e.target.value as AmbientTheme)}
-                        className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white/80"
+                        className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white/90"
                       >
                         {themes.map((t) => (
                           <option key={t} value={t} className="bg-gray-900">{themeNames[t]}</option>
@@ -425,7 +426,7 @@ export default function SmartDashboard() {
                       </select>
                       <button
                         onClick={() => playPreview(audioPrefs.theme)}
-                        className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 text-xs"
+                        className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 text-xs"
                       >
                         Preview
                       </button>
@@ -450,7 +451,7 @@ export default function SmartDashboard() {
                   <div
                     className="relative p-6"
                     style={{
-                      background: `linear-gradient(135deg, ${theme.from}25 0%, ${theme.to}15 100%)`,
+                      background: `linear-gradient(135deg, ${theme.from}40 0%, ${theme.to}30 100%)`,
                     }}
                   >
                     <NeonGlow color={`${theme.from}15`} />
@@ -475,13 +476,13 @@ export default function SmartDashboard() {
                           <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${theme.badge}`}>
                             {ROLE_LABELS[role] || role}
                           </span>
-                          {user?.district && (
-                            <span className="text-xs text-white/50 flex items-center gap-1">
+                            {user?.district && (
+                            <span className="text-xs text-white/75 flex items-center gap-1">
                               <Map size={10} /> {user.district}
                             </span>
                           )}
                           {user?.organization && (
-                            <span className="text-xs text-white/40">{user.organization}</span>
+                            <span className="text-xs text-white/70">{user.organization}</span>
                           )}
                         </div>
                       </div>
@@ -490,7 +491,7 @@ export default function SmartDashboard() {
                           <p className="text-2xl font-extrabold text-white font-mono tracking-tight">
                             {now.toLocaleTimeString('en-UG', { hour: '2-digit', minute: '2-digit' })}
                           </p>
-                          <p className="text-[11px] text-white/50 font-medium">
+                          <p className="text-[11px] text-white/75 font-medium">
                             {now.toLocaleDateString('en-UG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                           </p>
                         </div>
@@ -509,11 +510,11 @@ export default function SmartDashboard() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.2 + i * 0.05 }}
-                          className="bg-white/[0.05] backdrop-blur-sm rounded-xl p-3 border border-white/5 hover:bg-white/[0.08] transition-all"
+                          className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-3 border border-white/10 hover:bg-gray-900/70 transition-all"
                         >
                           <item.icon size={13} className="mb-1.5" style={{ color: item.color }} />
                           <div className="text-lg font-extrabold text-white">{item.value}</div>
-                          <div className="text-[10px] text-white/40 font-medium mt-0.5">{item.label}</div>
+                          <div className="text-[10px] text-white/70 font-medium mt-0.5">{item.label}</div>
                         </motion.div>
                       ))}
                     </div>
@@ -524,7 +525,7 @@ export default function SmartDashboard() {
               {dataLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {[1,2,3,4,5,6].map((i) => (
-                    <div key={i} className="h-32 rounded-2xl bg-white/[0.03] animate-pulse border border-white/5" />
+                    <div key={i} className="h-32 rounded-2xl bg-gray-900/40 animate-pulse border border-white/10" />
                   ))}
                 </div>
               ) : (
@@ -580,12 +581,12 @@ export default function SmartDashboard() {
                       <NeonGlow color="rgba(6,182,212,0.08)" />
                       <div className="relative z-10">
                         <div className="flex items-center justify-between mb-5">
-                          <h3 className="text-sm font-bold text-white/90 flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
                             <BarChart3 size={14} className="text-cyan-400" /> System Health
                           </h3>
                           <span className="text-2xl font-extrabold font-mono" style={{ color: healthScore >= 70 ? '#10b981' : healthScore >= 40 ? '#f59e0b' : '#ef4444' }}>
                             {healthScore}
-                            <span className="text-xs text-white/30">/100</span>
+                            <span className="text-xs text-white/50">/100</span>
                           </span>
                         </div>
                         <div className="space-y-3">
@@ -602,10 +603,10 @@ export default function SmartDashboard() {
                       <div className="relative z-10">
                         <div className="flex items-center gap-2 mb-4">
                           <Calendar size={14} className="text-emerald-400" />
-                          <h3 className="text-sm font-bold text-white/90">Upcoming Events</h3>
+                          <h3 className="text-sm font-bold text-white">Upcoming Events</h3>
                         </div>
                         {events.length === 0 ? (
-                          <p className="text-xs text-white/40 py-6 text-center">No upcoming events</p>
+                          <p className="text-xs text-white/60 py-6 text-center">No upcoming events</p>
                         ) : (
                           <div className="space-y-2">
                             {events.map((ev: any, i: number) => (
@@ -614,7 +615,7 @@ export default function SmartDashboard() {
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: i * 0.05 }}
-                                className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors"
+                                className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-gray-900/40 transition-colors"
                               >
                                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
                                   <span className="text-xs font-bold text-emerald-300">
@@ -622,21 +623,21 @@ export default function SmartDashboard() {
                                   </span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-white/80 truncate">{ev.title}</p>
-                                  <p className="text-xs text-white/40">
+                <p className="text-sm font-semibold text-white/90 truncate">{ev.title}</p>
+                <p className="text-xs text-white/70">
                                     {new Date(ev.event_date).toLocaleDateString('en-UG', { month: 'short' })}
                                     {ev.event_time ? ` · ${ev.event_time}` : ''}
                                     {ev.district ? ` · ${ev.district}` : ''}
                                   </p>
                                 </div>
-                                <ChevronRight size={14} className="text-white/20 flex-shrink-0 mt-1" />
+                                <ChevronRight size={14} className="text-white/40 flex-shrink-0 mt-1" />
                               </motion.div>
                             ))}
                           </div>
                         )}
                         <Link
                           to="/community"
-                          className="flex items-center justify-center gap-1 mt-4 text-xs text-cyan-400/60 hover:text-cyan-300 transition-colors"
+                          className="flex items-center justify-center gap-1 mt-4 text-xs text-cyan-400/80 hover:text-cyan-300 transition-colors"
                         >
                           View All Events <ChevronRight size={10} />
                         </Link>
@@ -652,28 +653,28 @@ export default function SmartDashboard() {
                       <div className="relative z-10">
                         <div className="flex items-center gap-2 mb-4">
                           <Sun size={14} className="text-yellow-400" />
-                          <h3 className="text-sm font-bold text-white/90">Climate & Environment</h3>
+                          <h3 className="text-sm font-bold text-white">Climate & Environment</h3>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="text-center p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                          <div className="text-center p-3 rounded-xl bg-gray-900/40 border border-white/10">
                             <Thermometer size={16} className="mx-auto mb-1.5 text-orange-400" />
                             <p className="text-lg font-extrabold text-white">{dashboardData.weather.temperature ?? '—'}°C</p>
-                            <p className="text-[10px] text-white/40 font-medium">Temperature</p>
+                            <p className="text-[10px] text-white/60 font-medium">Temperature</p>
                           </div>
-                          <div className="text-center p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                          <div className="text-center p-3 rounded-xl bg-gray-900/40 border border-white/10">
                             <Wind size={16} className="mx-auto mb-1.5 text-cyan-400" />
                             <p className="text-lg font-extrabold text-white">{dashboardData.weather.humidity ?? '—'}%</p>
-                            <p className="text-[10px] text-white/40 font-medium">Humidity</p>
+                            <p className="text-[10px] text-white/60 font-medium">Humidity</p>
                           </div>
-                          <div className="text-center p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                          <div className="text-center p-3 rounded-xl bg-gray-900/40 border border-white/10">
                             <CloudRain size={16} className="mx-auto mb-1.5 text-blue-400" />
                             <p className="text-lg font-extrabold text-white">{dashboardData.weather.rainfall ?? '—'}mm</p>
-                            <p className="text-[10px] text-white/40 font-medium">Rainfall</p>
+                            <p className="text-[10px] text-white/60 font-medium">Rainfall</p>
                           </div>
-                          <div className="text-center p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                          <div className="text-center p-3 rounded-xl bg-gray-900/40 border border-white/10">
                             <Map size={16} className="mx-auto mb-1.5 text-emerald-400" />
                             <p className="text-lg font-extrabold text-white">{dashboardData.weather.district || user?.district || '—'}</p>
-                            <p className="text-[10px] text-white/40 font-medium">District</p>
+                            <p className="text-[10px] text-white/60 font-medium">District</p>
                           </div>
                         </div>
                       </div>
@@ -689,7 +690,7 @@ export default function SmartDashboard() {
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-3">
                     <Cpu size={14} className="text-cyan-400" />
-                    <h3 className="text-sm font-bold text-white/90">Quick Actions</h3>
+                    <h3 className="text-sm font-bold text-white">Quick Actions</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <QuickActionButton icon={BarChart3} label="Analytics" to="/analytics" color="#8b5cf6" />
@@ -711,7 +712,7 @@ export default function SmartDashboard() {
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-3">
                     <Activity size={14} className="text-cyan-400" />
-                    <h3 className="text-sm font-bold text-white/90">System Status</h3>
+                    <h3 className="text-sm font-bold text-white">System Status</h3>
                   </div>
                   <div className="space-y-2.5">
                     <StatusRow label="Database" status="operational" />
@@ -736,10 +737,10 @@ function QuickActionButton({ icon: Icon, label, to, color }: {
   return (
     <Link
       to={to}
-      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/20 transition-all group"
+      className="flex flex-col items-center gap-1 p-3 rounded-xl bg-gray-900/40 border border-white/10 hover:bg-gray-900/60 hover:border-white/20 transition-all group"
     >
       <Icon size={16} style={{ color }} className="group-hover:scale-110 transition-transform" />
-      <span className="text-[10px] text-white/50 font-medium group-hover:text-white/80 transition-colors">{label}</span>
+      <span className="text-[10px] text-white/75 font-medium group-hover:text-white transition-colors">{label}</span>
     </Link>
   );
 }
@@ -752,10 +753,10 @@ function StatusRow({ label, status }: { label: string; status: string }) {
   };
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-white/50">{label}</span>
+      <span className="text-xs text-white/75">{label}</span>
       <div className="flex items-center gap-1.5">
         <span className={`w-1.5 h-1.5 rounded-full ${colors[status] || 'bg-gray-400'}`} />
-        <span className="text-[10px] font-mono text-white/30 uppercase tracking-wider">{status}</span>
+        <span className="text-[10px] font-mono text-white/50 uppercase tracking-wider">{status}</span>
       </div>
     </div>
   );
