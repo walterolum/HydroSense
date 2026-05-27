@@ -211,3 +211,10 @@ export const getAIDecisionLogs = (limit?: number) => api.get('/ai-conversations/
 
 // System
 export const getSystemStatus = () => api.get('/system/status');
+
+// Smart Dashboard (AI-powered)
+export const getSmartDashboardWelcome = () => api.get('/smart-dashboard/welcome');
+export const getSmartDashboardData = () => api.get('/smart-dashboard/data');
+export const getSmartDashboardRecommendations = () => api.get('/smart-dashboard/recommendations');
+export const postSmartDashboardBehavior = (action: string, metadata?: object) => api.post('/smart-dashboard/behavior', { action, metadata });
+export const getSmartDashboardBehaviorInsights = () => api.get('/smart-dashboard/behavior/insights');

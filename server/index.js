@@ -273,6 +273,7 @@ app.use('/api/notifications/push', require('./routes/push'));
 app.use('/api/incident-analysis', require('./routes/incident-analysis'));
 app.use('/api/emergency-response', require('./routes/emergency-response'));
 app.use('/api/ai-conversations', require('./routes/ai-conversations'));
+app.use('/api/smart-dashboard', require('./routes/smartDashboard'));
 
 // ═══════════════════════════════════════════════════════════════
 // ENHANCED MULTILINGUAL & AUTO-ASSIGNMENT ROUTES

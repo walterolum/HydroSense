@@ -455,6 +455,23 @@ async function runMigrations() {
     console.log('[MIGRATION] email_verification_columns_v1: email_verified, verification_token, verification_expires_at columns added.');
   }
 
+  // Migration: user_behavior_log_table_v1
+  if (!(await isApplied('user_behavior_log_table_v1'))) {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS user_behavior_log (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        metadata TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_user_behavior_log_user_id ON user_behavior_log(user_id)'); } catch {}
+    try { await db.exec('CREATE INDEX IF NOT EXISTS idx_user_behavior_log_created_at ON user_behavior_log(created_at)'); } catch {}
+    await markApplied('user_behavior_log_table_v1');
+    console.log('[MIGRATION] user_behavior_log_table_v1: user_behavior_log table created.');
+  }
+
   // Migration: push_subscriptions_table_v1
   if (!(await isApplied('push_subscriptions_table_v1'))) {
     await db.exec(`
