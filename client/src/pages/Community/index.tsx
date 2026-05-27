@@ -1,705 +1,474 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useSocket } from '../../contexts/SocketContext';
-import api, {
-  getCommunityChannels, getChannelMessages, sendChannelMessage,
-  markMessageRead, uploadCommunityFile, uploadVoiceNote,
-  createEvent, getEvents, joinCommunityEvent, leaveCommunityEvent,
-  getReminders, updateReminderStatus, getPresence,
-} from '../../api/client';
+import React, { useEffect, useState, useRef } from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { Users, MessageSquare, Plus, Phone, Filter, Eye, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import {
-  Hash, MessageSquare, Send, Users, Plus, Mic, Paperclip, X, Image,
-  Calendar, MapPin, Video, Globe, Clock, Bell, BellOff,
-  Check, CheckCheck, Loader2, ChevronDown, ChevronLeft,
-  Wifi, WifiOff, Volume2, VolumeX, Settings,
-} from 'lucide-react';
+  getCommunityReports, getCommunityReportStats, submitCommunityReport, updateCommunityReport,
+  getObservations, updateObservationStatus,
+} from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
+import StatCard from '../../components/common/StatCard';
+import StatusBadge from '../../components/common/StatusBadge';
+import { ALL_DISTRICTS } from '../../constants/districts';
 
-const CHANNEL_COLORS: Record<string, string> = {
-  general: 'text-blue-400', announcements: 'text-amber-400',
-  discussions: 'text-emerald-400', media: 'text-purple-400',
-  events: 'text-rose-400', support: 'text-teal-400',
+const CHANNELS   = ['sms', 'ussd', 'app', 'voice', 'in_person'];
+const ISSUE_TYPES = ['breakdown', 'water_quality', 'contamination', 'shortage', 'infrastructure', 'pump_failure', 'vandalism', 'other'];
+const COLORS     = ['#3b82f6', '#16a34a', '#ea580c', '#8b5cf6', '#d97706', '#06b6d4'];
+const DISTRICTS  = ALL_DISTRICTS;
+
+const STATUS_COLORS: Record<string, string> = {
+  new:          'bg-blue-100   dark:bg-blue-900/40   text-blue-700   dark:text-blue-300',
+  under_review: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
+  resolved:     'bg-green-100  dark:bg-green-900/40  text-green-700  dark:text-green-300',
+  escalated:    'bg-red-100    dark:bg-red-900/40    text-red-700    dark:text-red-300',
 };
 
-function timeAgo(date: string) {
-  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24); return `${d}d ago`;
+const OBS_TYPE_ICONS: Record<string, string> = {
+  'Water Color/Clarity': '💧', 'Dead Fish / Wildlife': '🐟',
+  'Industrial Discharge': '🏭', 'Algae Bloom': '🌿',
+  'Bad Odor': '💨', 'Illegal Dumping': '🗑️',
+  'Flooding / Overflow': '🌊', 'Oil Spill': '🔴',
+};
+function obsIcon(type: string) {
+  for (const [key, icon] of Object.entries(OBS_TYPE_ICONS)) {
+    if (type?.includes(key.split(' ')[0])) return icon;
+  }
+  return '🔍';
 }
 
-function formatTime(date: string) {
-  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+const COMM_STRINGS = [
+  'Water Reports','Environmental Observations',
+  'Multiple Reporting Channels Available',
+  'Submit Report','New Report','Community Reports',
+  'By Issue Type','By Channel','By District',
+  'Reporter','District / Village','Issue','Severity','Channel','Status','Date','Action',
+  'Total Reports','Open Reports','Resolved','Critical Open',
+  'Awaiting response','High severity unresolved',
+  'Accept','Resolve',
+  'No reports found','No observations found',
+  'Environmental Observations',
+  'All','Submit','Cancel',
+  'Review','Approve','Reject',
+];
 
-function DeliveryIcon({ status }: { status: string }) {
-  if (status === 'sent') return <Check size={12} className="text-gray-400" />;
-  if (status === 'delivered') return <CheckCheck size={12} className="text-gray-400" />;
-  if (status === 'read') return <CheckCheck size={12} className="text-blue-400" />;
-  return null;
-}
-
-function EventAlarm({ events }: { events: any[] }) {
-  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
+function useCommunityStrings() {
+  const { language, translate } = useLanguage();
+  const cacheRef = useRef<Record<string, Record<string,string>>>({});
+  const [ts, setTs] = useState<Record<string,string>>({});
   useEffect(() => {
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAgICAf39/f35+fn59fX19fHx8fHt7e3t6enp6eXl5eXh4eHh3d3d3dnZ2dnV1dXV0dHR0c3Nzc3Jyc3JxcXFxcHBwcG9vb29ubm5ubW1tbWxsbGxra2tra2pqa2ppamppamlpaWhpaGhoZ2dnZ2ZmZmZlZWVlZGRkZGNjY2NjYmJiYmFhYWFgYGBgX19fX15eXl5dXV1dXFxcXFtbW1taWlpaWVlZWVhYWFhXV1dXVlZWVlVVVVVUVFRUU1NTU1JSUlJRUVFRUFBQUE9PT09OTk5OTU1NTUxMTExLS0tLSkpKSklJSUlISEhIR0dHR0ZGRkZFRUVFREVEREQ=');
-    audioRef.current.loop = true;
-    audioRef.current.volume = 0.3;
-  }, []);
-
-  const upcoming = events.filter(e => {
-    const t = new Date(`${e.event_date}T${e.event_time}`).getTime();
-    const now = Date.now();
-    return t > now && t < now + 3600000 && !dismissed.has(e.id);
-  });
-
-  useEffect(() => {
-    if (upcoming.length > 0 && audioRef.current) {
-      audioRef.current.play().catch(() => {});
-    } else if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-  }, [upcoming.length]);
-
-  if (upcoming.length === 0) return null;
-
-  return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
-      {upcoming.map(e => (
-        <div key={e.id} className="bg-gradient-to-r from-rose-600 to-red-600 text-white rounded-xl shadow-2xl p-4 animate-bounce-in">
-          <div className="flex items-center gap-2 mb-1">
-            <Bell size={16} className="animate-pulse" />
-            <span className="font-bold text-sm">Event Starting Soon!</span>
-          </div>
-          <p className="text-sm font-semibold">{e.title}</p>
-          <p className="text-xs text-rose-200 mt-0.5">{formatTime(e.event_time)} — {e.event_date}</p>
-          <div className="flex gap-2 mt-2">
-            <button onClick={() => updateReminderStatus(e.reminder_id || e.id, 'snoozed').catch(() => {})}
-              className="text-xs px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-              Snooze 5min
-            </button>
-            <button onClick={() => setDismissed(prev => new Set(prev).add(e.id))}
-              className="text-xs px-2 py-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    if (language === 'en') { setTs({}); return; }
+    if (cacheRef.current[language]) { setTs(cacheRef.current[language]); return; }
+    Promise.all(COMM_STRINGS.map(s => translate(s).then(t => [s,t] as [string,string])))
+      .then(pairs => { const m = Object.fromEntries(pairs); cacheRef.current[language]=m; setTs(m); });
+  }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (s: string) => ts[s] || s;
 }
 
-// ── Channel sidebar ──
-function ChannelSidebar({
-  channels, activeChannel, onSelect, onNewChannel, onlineCount, connected, unreadMap, typingMap,
-}: {
-  channels: any[]; activeChannel: any; onSelect: (ch: any) => void; onNewChannel: () => void;
-  onlineCount: number; connected: boolean; unreadMap: Record<number, boolean>; typingMap: Record<number, number>;
-}) {
-  return (
-    <div className="w-60 bg-gray-900 text-gray-200 flex flex-col h-full border-r border-gray-800">
-      <div className="p-3 border-b border-gray-800">
-        <div className="flex items-center gap-2 mb-2">
-          <MessageSquare size={18} className="text-blue-400" />
-          <span className="font-bold text-sm">Community</span>
-          {connected ? <Wifi size={12} className="text-green-400 ml-auto" /> : <WifiOff size={12} className="text-red-400 ml-auto" />}
-        </div>
-        <div className="flex items-center gap-1 text-xs text-gray-400">
-          <Users size={12} />
-          <span>{onlineCount} online</span>
-        </div>
-      </div>
+export default function CommunityReports() {
+  const { user } = useAuth();
+  const t = useCommunityStrings();
+  const [activeTab, setActiveTab] = useState<'reports' | 'observations'>('reports');
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider px-2 py-1">Channels</div>
-        {channels.map(ch => (
-          <button
-            key={ch.id}
-            onClick={() => onSelect(ch)}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors text-left ${
-              activeChannel?.id === ch.id
-                ? 'bg-blue-600/20 text-blue-300'
-                : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <Hash size={14} className={CHANNEL_COLORS[ch.type] || 'text-gray-500'} />
-            <span className="flex-1 truncate">{ch.name}</span>
-            {unreadMap[ch.id] && <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />}
-            {(typingMap[ch.id] || 0) > 0 && <span className="text-[10px] text-emerald-400 animate-pulse">...</span>}
-          </button>
-        ))}
-      </div>
+  /* ── Community Reports state ── */
+  const [reports,    setReports]    = useState<any[]>([]);
+  const [stats,      setStats]      = useState<any>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [filter,     setFilter]     = useState('all');
+  const [showModal,  setShowModal]  = useState(false);
+  const [form,       setForm]       = useState({ reporter_name: '', reporter_phone: '', district: 'Kampala', sub_county: '', village: '', issue_type: 'breakdown', description: '', severity: 'medium', channel: 'app' });
+  const [msg,        setMsg]        = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
 
-      <div className="p-2 border-t border-gray-800">
-        <button onClick={onNewChannel}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-          <Plus size={14} />
-          <span>Add Channel</span>
-        </button>
-      </div>
-    </div>
-  );
-}
+  /* ── Observations state ── */
+  const [observations,  setObservations]  = useState<any[]>([]);
+  const [obsLoading,    setObsLoading]    = useState(false);
+  const [obsFilter,     setObsFilter]     = useState('all');
+  const [obsDistFilter, setObsDistFilter] = useState('');
+  const [reviewId,      setReviewId]      = useState<number | null>(null);
+  const [reviewNote,    setReviewNote]    = useState('');
+  const [reviewSaving,  setReviewSaving]  = useState(false);
 
-// ── Message bubble ──
-function MessageBubble({ msg, isOwn, onRead }: { msg: any; isOwn: boolean; onRead: () => void }) {
-  const msgRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOwn && msgRef.current) {
-      const observer = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting) onRead();
-      }, { threshold: 0.5 });
-      observer.observe(msgRef.current);
-      return () => observer.disconnect();
-    }
-  }, [isOwn, onRead]);
-
-  return (
-    <div ref={msgRef} className={`flex gap-2 mb-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-      {!isOwn && (
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-          {(msg.user_name || '?')[0].toUpperCase()}
-        </div>
-      )}
-      <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
-        {!isOwn && <div className="text-[11px] text-gray-400 mb-0.5 ml-1">{msg.user_name}</div>}
-        <div className={`rounded-2xl px-3 py-2 text-sm ${
-          isOwn
-            ? 'bg-blue-600 text-white rounded-br-md'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-md'
-        }`}>
-          {msg.message_type === 'image' && (
-            <img src={msg.media_url} alt="" className="max-w-[200px] rounded-lg mb-1 cursor-pointer" onClick={() => window.open(msg.media_url)} />
-          )}
-          {msg.message_type === 'video' && (
-            <video src={msg.media_url} controls className="max-w-[250px] rounded-lg mb-1" />
-          )}
-          {msg.message_type === 'voice' && (
-            <audio src={msg.media_url} controls className="h-8 w-48" />
-          )}
-          {msg.message_type === 'file' && (
-            <a href={msg.media_url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-2 text-sm underline decoration-dotted">
-              <Paperclip size={14} /> {msg.content || 'Download File'}
-            </a>
-          )}
-          {msg.content && (
-            <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-          )}
-          {msg.reply_to && <div className="text-[10px] opacity-50 mt-1">↪ Reply</div>}
-        </div>
-        <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] text-gray-400">{formatTime(msg.created_at)}</span>
-          {isOwn && <DeliveryIcon status={msg.delivery_status} />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Events Panel ──
-function EventsPanel({ events, onJoin, onLeave, onCreateEvent }: {
-  events: any[]; onJoin: (id: number) => void; onLeave: (id: number) => void; onCreateEvent: () => void;
-}) {
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', event_type: 'online', location: '', venue: '', meeting_link: '', district: '', event_date: '', event_time: '', max_participants: 100, reminder_minutes: 30 });
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try { await createEvent(form); setShowForm(false); } catch {}
+  /* ── Loaders ── */
+  const loadReports = () => {
+    const params: any = {};
+    if (filter !== 'all') params.status = filter;
+    Promise.all([getCommunityReports(params), getCommunityReportStats()])
+      .then(([rr, sr]) => { setReports(rr.data.data); setStats(sr.data.data); })
+      .finally(() => setLoading(false));
   };
 
+  const loadObservations = () => {
+    setObsLoading(true);
+    const params: any = { limit: 200 };
+    if (obsFilter !== 'all') params.status = obsFilter;
+    if (obsDistFilter) params.district = obsDistFilter;
+    getObservations(params)
+      .then(r => setObservations(r.data.data || []))
+      .finally(() => setObsLoading(false));
+  };
+
+  useEffect(() => { loadReports(); }, [filter]);
+  useEffect(() => { if (activeTab === 'observations') loadObservations(); }, [activeTab, obsFilter, obsDistFilter]);
+
+  /* ── Handlers ── */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true); setModalError('');
+    try {
+      await submitCommunityReport(form);
+      setMsg('✅ Report submitted! Our team will respond within 24 hours.');
+      setShowModal(false);
+      setForm({ reporter_name: '', reporter_phone: '', district: 'Kampala', sub_county: '', village: '', issue_type: 'breakdown', description: '', severity: 'medium', channel: 'app' });
+      loadReports();
+      setTimeout(() => setMsg(''), 6000);
+    } catch (err: any) {
+      setModalError(err?.response?.data?.error || 'Submission failed. Please check your connection and try again.');
+    } finally { setSubmitting(false); }
+  };
+
+  const handleStatus = async (id: number, status: string) => {
+    await updateCommunityReport(id, { status }); loadReports();
+  };
+
+  const handleObsReview = async (id: number, status: string) => {
+    setReviewSaving(true);
+    try {
+      await updateObservationStatus(id, { status, review_note: reviewNote });
+      setReviewId(null); setReviewNote('');
+      loadObservations();
+    } catch {}
+    finally { setReviewSaving(false); }
+  };
+
+  const channelIcons: Record<string, string> = { sms: '📱', ussd: '📟', app: '📲', voice: '📞', in_person: '🤝' };
+  const issueIcons:  Record<string, string>  = { breakdown: '🔧', water_quality: '🧪', contamination: '⚠️', shortage: '💧', infrastructure: '🏗', pump_failure: '⚙️', vandalism: '🚫', other: '❓' };
+  const canReview = user && !['citizen'].includes(user.role);
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h3 className="font-bold text-sm flex items-center gap-2"><Calendar size={16} /> Events</h3>
-        <button onClick={() => setShowForm(true)} className="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700">+ New</button>
-      </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {events.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No upcoming events</p>}
-        {events.map(e => {
-          const meta = e.metadata || {};
-          const isOnline = e.event_type === 'online' || e.event_type === 'hybrid';
-          const isPhysical = e.event_type === 'physical' || e.event_type === 'hybrid';
-          return (
-            <div key={e.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-2 mb-1">
-                {e.event_type === 'online' ? <Video size={16} className="text-blue-500 mt-0.5" /> :
-                 e.event_type === 'physical' ? <MapPin size={16} className="text-rose-500 mt-0.5" /> :
-                 <Globe size={16} className="text-purple-500 mt-0.5" />}
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-sm">{e.title}</h4>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5 mt-0.5">
-                    <div className="flex items-center gap-1">
-                      <Clock size={10} /> {e.event_date} @ {e.event_time}
-                    </div>
-                    {isPhysical && e.location && <div>📍 {e.location}</div>}
-                    {isOnline && meta.meeting_link && (
-                      <a href={meta.meeting_link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">🔗 Join Meeting</a>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {e.description && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">{e.description}</p>}
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-gray-400">{e.participant_count || 0}/{e.max_volunteers} joined</span>
-                {e.i_joined ? (
-                  <button onClick={() => onLeave(e.id)} className="text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">Leave</button>
-                ) : (
-                  <button onClick={() => onJoin(e.id)} className="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700">Join</button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    <div className="space-y-6">
+      {msg && <div className="bg-green-50 border border-green-300 text-green-700 px-4 py-3 rounded-lg text-sm">{msg}</div>}
+
+      {/* Tab switcher */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'reports' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+        >
+          💧 {t('Water Reports')}
+        </button>
+        <button
+          onClick={() => setActiveTab('observations')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${activeTab === 'observations' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+        >
+          🔬 {t('Environmental Observations')}
+        </button>
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="font-bold">New Event</h3>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+      {/* ══════════ WATER REPORTS TAB ══════════ */}
+      {activeTab === 'reports' && (
+        <>
+          <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl p-4 text-white">
+            <div className="flex items-start gap-3">
+              <Phone size={24} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold">{t('Multiple Reporting Channels Available')}</h3>
+                <div className="text-sm text-green-100 mt-1 grid sm:grid-cols-3 gap-2">
+                  <div>📱 <strong>SMS:</strong> Text WATER to 8002</div>
+                  <div>📟 <strong>USSD:</strong> Dial *285# then select 2</div>
+                  <div>📞 <strong>Hotline:</strong> 0800 100 006 (Free)</div>
+                </div>
+              </div>
+              <button onClick={() => setShowModal(true)} className="ml-auto btn bg-white text-green-700 hover:bg-green-50 text-sm flex-shrink-0">
+                <Plus size={14} /> {t('Submit Report')}
+              </button>
             </div>
-            <form onSubmit={handleCreate} className="p-5 space-y-3">
-              <input className="input" placeholder="Event Title *" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
-              <textarea className="input" rows={2} placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              <select className="input" value={form.event_type} onChange={e => setForm({ ...form, event_type: e.target.value })}>
-                <option value="online">Online (Zoom/Meet/Teams)</option>
-                <option value="physical">Physical (Venue + GPS)</option>
-                <option value="hybrid">Hybrid (Both)</option>
-              </select>
-              {['online', 'hybrid'].includes(form.event_type) && (
-                <input className="input" placeholder="Meeting Link (Zoom/Google Meet/Teams)" value={form.meeting_link} onChange={e => setForm({ ...form, meeting_link: e.target.value })} />
-              )}
-              {['physical', 'hybrid'].includes(form.event_type) && (
-                <input className="input" placeholder="Venue / Location" value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} />
-              )}
-              <input className="input" placeholder="District" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} />
-              <div className="grid grid-cols-2 gap-2">
-                <input className="input" type="date" required value={form.event_date} onChange={e => setForm({ ...form, event_date: e.target.value })} />
-                <input className="input" type="time" required value={form.event_time} onChange={e => setForm({ ...form, event_time: e.target.value })} />
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard loading={loading} title={t('Total Reports')}  value={stats?.total || 0} icon={MessageSquare} color="blue" />
+            <StatCard loading={loading} title={t('Open Reports')}   value={stats?.by_status?.find((s: any) => s.status === 'open')?.count || 0} subtitle={t('Awaiting response')} icon={MessageSquare} color="red" />
+            <StatCard loading={loading} title={t('Resolved')}       value={stats?.by_status?.find((s: any) => s.status === 'resolved')?.count || 0} icon={Users} color="green" />
+            <StatCard loading={loading} title={t('Critical Open')}  value={stats?.open_critical || 0} subtitle={t('High severity unresolved')} icon={Filter} color="orange" />
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="card">
+              <h3 className="section-title mb-3">{t('By Issue Type')}</h3>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={stats?.by_issue?.slice(0, 6) || []} dataKey="count" nameKey="issue_type" cx="50%" cy="50%" outerRadius={65} label={({ count }: any) => count}>
+                    {(stats?.by_issue || []).map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: any, n: any) => [v, n?.replace(/_/g, ' ')]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="card">
+              <h3 className="section-title mb-3">{t('By Channel')}</h3>
+              <div className="space-y-2">
+                {(stats?.by_channel || []).map((c: any) => (
+                  <div key={c.channel} className="flex items-center gap-2">
+                    <span className="w-24 text-sm text-gray-600 dark:text-gray-300">{channelIcons[c.channel]} {c.channel}</span>
+                    <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full flex items-center justify-end pr-2" style={{ width: `${(c.count / (stats?.total || 1)) * 100}%` }}>
+                        <span className="text-xs text-white font-bold">{c.count}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input className="input" type="number" placeholder="Max Participants" value={form.max_participants} onChange={e => setForm({ ...form, max_participants: parseInt(e.target.value) || 100 })} />
-                <input className="input" type="number" placeholder="Reminder (min)" value={form.reminder_minutes} onChange={e => setForm({ ...form, reminder_minutes: parseInt(e.target.value) || 30 })} />
+            </div>
+            <div className="card">
+              <h3 className="section-title mb-3">{t('By District')}</h3>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={(stats?.by_district || []).slice(0, 6)} layout="vertical" margin={{ left: 40, right: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis type="category" dataKey="district" tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="card p-0">
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap items-center gap-3">
+              <h3 className="section-title">{t('Community Reports')}</h3>
+              <div className="flex gap-2 ml-4 flex-wrap">
+                {['all', 'open', 'under_review', 'in_progress', 'resolved'].map(f => (
+                  <button key={f} onClick={() => setFilter(f)} className={`px-2.5 py-1 rounded-lg text-xs ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{f.replace(/_/g, ' ')}</button>
+                ))}
               </div>
-              <button type="submit" className="btn-primary w-full justify-center">Create Event</button>
+              <button onClick={() => { setShowModal(true); setModalError(''); }} className="btn-primary text-xs ml-auto"><Plus size={14} /> {t('New Report')}</button>
+            </div>
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="th">{t('Reporter')}</th>
+                    <th className="th">{t('District / Village')}</th>
+                    <th className="th">{t('Issue')}</th>
+                    <th className="th">{t('Severity')}</th>
+                    <th className="th">{t('Channel')}</th>
+                    <th className="th">{t('Status')}</th>
+                    <th className="th">{t('Date')}</th>
+                    <th className="th">{t('Action')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {reports.map(r => (
+                    <tr key={r.id} className="tr">
+                      <td className="td">
+                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{r.reporter_name || 'Anonymous'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{r.reporter_phone || '—'}</div>
+                      </td>
+                      <td className="td text-xs text-gray-700 dark:text-gray-200">{r.village ? `${r.village}, ` : ''}{r.sub_county}, {r.district}</td>
+                      <td className="td">
+                        <div className="text-sm text-gray-700 dark:text-gray-200">{issueIcons[r.issue_type] || '❓'} {r.issue_type?.replace(/_/g, ' ')}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{r.description}</div>
+                      </td>
+                      <td className="td">
+                        <span className={`badge ${r.severity === 'high' ? 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400' : r.severity === 'medium' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{r.severity}</span>
+                      </td>
+                      <td className="td text-sm text-gray-700 dark:text-gray-200">{channelIcons[r.channel]} {r.channel}</td>
+                      <td className="td"><StatusBadge status={r.status} type="report" /></td>
+                      <td className="td text-xs text-gray-600 dark:text-gray-300">{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td className="td">
+                        {r.status === 'open'        && <button onClick={() => handleStatus(r.id, 'in_progress')} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">{t('Accept')}</button>}
+                        {r.status === 'in_progress' && <button onClick={() => handleStatus(r.id, 'resolved')}    className="text-xs font-medium text-green-600 dark:text-green-400 hover:underline">{t('Resolve')}</button>}
+                        {r.status === 'resolved'    && <span className="text-xs text-green-500">✓</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {reports.length === 0 && !loading && <tr><td colSpan={8} className="td text-center text-gray-400 py-8">No reports found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════ OBSERVATIONS TAB ══════════ */}
+      {activeTab === 'observations' && (
+        <div className="space-y-4">
+          {/* Info banner */}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl p-4 text-white">
+            <div className="flex items-start gap-3">
+              <Eye size={22} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold">Environmental Observations from Citizens</h3>
+                <p className="text-sm text-emerald-100 mt-0.5">
+                  These reports were submitted by community members via the Citizen Hub. Review them and mark as resolved or escalate as needed.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="card py-3 px-4 flex flex-wrap gap-3 items-center">
+            <div className="flex gap-1.5 flex-wrap">
+              {['all', 'new', 'under_review', 'resolved', 'escalated'].map(f => (
+                <button key={f} onClick={() => setObsFilter(f)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium ${obsFilter === f ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                  {f === 'all' ? 'All' : f.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+            <select
+              className="input py-1 text-xs w-40"
+              value={obsDistFilter}
+              onChange={e => setObsDistFilter(e.target.value)}
+            >
+              <option value="">All Districts</option>
+              {DISTRICTS.map(d => <option key={d}>{d}</option>)}
+            </select>
+            <span className="text-xs text-gray-400 ml-auto">{observations.length} observation{observations.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* List */}
+          {obsLoading ? (
+            <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+          ) : observations.length === 0 ? (
+            <div className="card text-center py-14 text-gray-400 dark:text-gray-500">
+              <Eye size={36} className="mx-auto mb-3 opacity-30" />
+              <p className="font-semibold">No observations found</p>
+              <p className="text-sm mt-1">Citizens submit observations via the Citizen Hub → Submit Observation form.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {observations.map((obs: any) => (
+                <div key={obs.id} className={`card border-l-4 ${obs.status === 'new' ? 'border-blue-500' : obs.status === 'under_review' ? 'border-yellow-500' : obs.status === 'resolved' ? 'border-green-500' : 'border-red-500'}`}>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <div className="text-2xl flex-shrink-0 mt-0.5">{obsIcon(obs.observation_type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-bold text-sm text-gray-800 dark:text-gray-100">{obs.observation_type}</span>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[obs.status] || STATUS_COLORS.new}`}>
+                          {obs.status?.replace(/_/g, ' ') || 'new'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-200 mb-2">{obs.description}</p>
+                      <div className="flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+                        <span>👤 {obs.author_name || 'Anonymous'}</span>
+                        <span>📍 {obs.district}{obs.location ? ` — ${obs.location}` : ''}</span>
+                        <span>🕐 {new Date(obs.created_at).toLocaleString()}</span>
+                        {obs.lat && <span>🗺 {parseFloat(obs.lat).toFixed(4)}, {parseFloat(obs.lng).toFixed(4)}</span>}
+                      </div>
+                      {obs.review_note && (
+                        <div className="mt-2 text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-gray-600 dark:text-gray-300">
+                          <span className="font-semibold">Note ({obs.reviewed_by}):</span> {obs.review_note}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action buttons — staff only */}
+                    {canReview && obs.status !== 'resolved' && (
+                      <div className="flex flex-col gap-1.5 flex-shrink-0">
+                        {obs.status === 'new' && (
+                          <button onClick={() => { setReviewId(obs.id); setReviewNote(''); }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700 hover:bg-yellow-100 transition-colors">
+                            <Clock size={12} /> Review
+                          </button>
+                        )}
+                        <button onClick={() => { setReviewId(obs.id); setReviewNote(''); }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700 hover:bg-green-100 transition-colors">
+                          <CheckCircle size={12} /> Resolve
+                        </button>
+                        {obs.status !== 'escalated' && (
+                          <button onClick={() => handleObsReview(obs.id, 'escalated')}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-700 hover:bg-red-100 transition-colors">
+                            <AlertTriangle size={12} /> Escalate
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {canReview && obs.status === 'resolved' && (
+                      <span className="text-xs text-green-600 dark:text-green-400 font-semibold flex items-center gap-1"><CheckCircle size={13} /> Resolved</span>
+                    )}
+                  </div>
+
+                  {/* Review panel */}
+                  {reviewId === obs.id && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                      <textarea
+                        className="input text-sm"
+                        rows={2}
+                        placeholder="Add a review note (optional)…"
+                        value={reviewNote}
+                        onChange={e => setReviewNote(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => setReviewId(null)} className="btn-secondary text-xs flex-1">Cancel</button>
+                        <button onClick={() => handleObsReview(obs.id, 'under_review')} disabled={reviewSaving}
+                          className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-yellow-500 hover:bg-yellow-600 transition-colors disabled:opacity-60">
+                          Mark Under Review
+                        </button>
+                        <button onClick={() => handleObsReview(obs.id, 'resolved')} disabled={reviewSaving}
+                          className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-60">
+                          Mark Resolved
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Submit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Submit Community Water Report</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 text-xl">&times;</button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-3">
+              {modalError && (
+                <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-center gap-2">
+                  <span className="font-bold">✕</span> {modalError}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">Your Name</label><input className="input" value={form.reporter_name} onChange={e => setForm({ ...form, reporter_name: e.target.value })} placeholder="Optional" /></div>
+                <div><label className="label">Phone Number</label><input className="input" value={form.reporter_phone} onChange={e => setForm({ ...form, reporter_phone: e.target.value })} placeholder="+256..." /></div>
+                <div><label className="label">District *</label>
+                  <select className="input" required value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}>
+                    {DISTRICTS.map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div><label className="label">Village</label><input className="input" value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} /></div>
+                <div><label className="label">Issue Type *</label>
+                  <select className="input" required value={form.issue_type} onChange={e => setForm({ ...form, issue_type: e.target.value })}>
+                    {ISSUE_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+                <div><label className="label">Severity</label>
+                  <select className="input" value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
+                    {['low', 'medium', 'high'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div><label className="label">Reporting Channel</label>
+                  <select className="input" value={form.channel} onChange={e => setForm({ ...form, channel: e.target.value })}>
+                    {CHANNELS.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div><label className="label">Description *</label><textarea className="input" required rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Describe the water issue in detail…" /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setShowModal(false); setModalError(''); }} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={submitting} className="btn-primary flex-1 justify-center gap-2">
+                  {submitting && <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                  {submitting ? 'Submitting…' : 'Submit Report'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════
-// MAIN COMMUNITY PAGE
-// ══════════════════════════════════════════════
-
-export default function CommunityPage() {
-  const { user } = useAuth();
-  const { socket, connected, onlineUsers, joinChannel, leaveChannel, sendTypingStart, sendTypingStop } = useSocket();
-
-  const [channels, setChannels] = useState<any[]>([]);
-  const [activeChannel, setActiveChannel] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
-  const [reminders, setReminders] = useState<any[]>([]);
-  const [messageInput, setMessageInput] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [showEvents, setShowEvents] = useState(false);
-  const [showNewChannel, setShowNewChannel] = useState(false);
-  const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
-  const [typingMap, setTypingMap] = useState<Record<number, number>>({});
-  const [recording, setRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const recordingRef = useRef<number>(0);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Load channels
-  const loadChannels = useCallback(async () => {
-    try {
-      const res = await getCommunityChannels();
-      setChannels(res.data.data);
-      if (!activeChannel && res.data.data.length > 0) {
-        setActiveChannel(res.data.data[0]);
-      }
-    } catch {}
-    finally { setLoading(false); }
-  }, [activeChannel]);
-
-  // Load messages for active channel
-  const loadMessages = useCallback(async () => {
-    if (!activeChannel) return;
-    try {
-      const res = await getChannelMessages(activeChannel.id, { limit: 100 });
-      setMessages(res.data.data || []);
-      // Mark visible messages as read
-      const userId = user?.id;
-      if (userId) {
-        (res.data.data || []).forEach((m: any) => {
-          if (m.user_id !== userId) markMessageRead(m.id).catch(() => {});
-        });
-      }
-    } catch {}
-  }, [activeChannel, user]);
-
-  // Load events
-  const loadEvents = useCallback(async () => {
-    try { const res = await getEvents(); setEvents(res.data.data || []); } catch {}
-  }, []);
-
-  // Load reminders
-  const loadReminders = useCallback(async () => {
-    try { const res = await getReminders(); setReminders(res.data.data || []); } catch {}
-  }, []);
-
-  useEffect(() => { loadChannels(); }, []);
-  useEffect(() => { loadMessages(); }, [activeChannel]);
-  useEffect(() => { loadEvents(); }, []);
-
-  // Socket listeners
-  useEffect(() => {
-    if (!socket) return;
-    const onNewMessage = (msg: any) => {
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev;
-        const updated = [...prev, msg];
-        if (msg.channel_id === activeChannel?.id) {
-          if (msg.user_id !== user?.id) markMessageRead(msg.id).catch(() => {});
-        } else if (msg.user_id !== user?.id) {
-          setUnreadMap(prevMap => ({ ...prevMap, [msg.channel_id]: true }));
-        }
-        return updated;
-      });
-    };
-
-    const onMessageDelivered = ({ message_id }: { message_id: number }) => {
-      setMessages(prev => prev.map(m => m.id === message_id ? { ...m, delivery_status: 'delivered' } : m));
-    };
-
-    const onMessageRead = ({ message_id }: { message_id: number }) => {
-      setMessages(prev => prev.map(m => m.id === message_id ? { ...m, delivery_status: 'read' } : m));
-    };
-
-    const onUserTyping = ({ channel_id, user_id, user_name }: { channel_id: number; user_id: number; user_name: string }) => {
-      if (user_id !== user?.id) {
-        setTypingMap(prev => ({ ...prev, [channel_id]: (prev[channel_id] || 0) + 1 }));
-        setTimeout(() => setTypingMap(prev => ({ ...prev, [channel_id]: Math.max(0, (prev[channel_id] || 0) - 1) })), 4000);
-      }
-    };
-
-    const onNewEvent = () => { loadEvents(); loadReminders(); };
-
-    socket.on('new_message', onNewMessage);
-    socket.on('message_delivered', onMessageDelivered);
-    socket.on('message_read', onMessageRead);
-    socket.on('user_typing', onUserTyping);
-    socket.on('new_event', onNewEvent);
-    socket.on('event_updated', loadEvents);
-
-    return () => {
-      socket.off('new_message', onNewMessage);
-      socket.off('message_delivered', onMessageDelivered);
-      socket.off('message_read', onMessageRead);
-      socket.off('user_typing', onUserTyping);
-      socket.off('new_event', onNewEvent);
-      socket.off('event_updated', loadEvents);
-    };
-  }, [socket, activeChannel, user, loadEvents, loadReminders]);
-
-  // Join/leave channel room
-  useEffect(() => {
-    if (!activeChannel) return;
-    joinChannel(activeChannel.id);
-    setUnreadMap(prev => ({ ...prev, [activeChannel.id]: false }));
-    return () => leaveChannel(activeChannel.id);
-  }, [activeChannel, joinChannel, leaveChannel]);
-
-  // Auto scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
-
-  // Recording timer
-  useEffect(() => {
-    if (!recording) { setRecordingDuration(0); return; }
-    const interval = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
-    return () => clearInterval(interval);
-  }, [recording]);
-
-  const handleSend = async () => {
-    if (!messageInput.trim() || !activeChannel || sending) return;
-    setSending(true);
-    try {
-      const res = await sendChannelMessage({ channel_id: activeChannel.id, content: messageInput.trim() });
-      setMessages(prev => [...prev, res.data.data]);
-      setMessageInput('');
-    } catch {}
-    finally { setSending(false); }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessageInput(e.target.value);
-    if (activeChannel && user) {
-      sendTypingStart(activeChannel.id, user.name);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        sendTypingStop(activeChannel.id);
-      }, 3000);
-    }
-  };
-
-  const handleFileUpload = async (type: 'image' | 'file') => {
-    const input = type === 'image' ? imageInputRef : fileInputRef;
-    input.current?.click();
-  };
-
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeChannel) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await uploadCommunityFile(formData);
-      await sendChannelMessage({
-        channel_id: activeChannel.id,
-        content: file.name,
-        message_type: file.type.startsWith('image/') ? 'image' : 'file',
-        media_url: res.data.data.url,
-      });
-    } catch {}
-    e.target.value = '';
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        if (blob.size > 0 && activeChannel) {
-          const fd = new FormData();
-          fd.append('audio', blob, 'voice.webm');
-          fd.append('channel_id', String(activeChannel.id));
-          fd.append('duration', String(recordingDuration));
-          try { await uploadVoiceNote(fd); } catch {}
-        }
-        stream.getTracks().forEach(t => t.stop());
-      };
-      recorder.start();
-      setMediaRecorder(recorder);
-      setRecording(true);
-    } catch {}
-  };
-
-  const stopRecording = () => {
-    mediaRecorder?.stop();
-    setRecording(false);
-    setMediaRecorder(null);
-  };
-
-  const handleJoinEvent = async (id: number) => {
-    try { await joinCommunityEvent(id); loadEvents(); } catch {}
-  };
-  const handleLeaveEvent = async (id: number) => {
-    try { await leaveCommunityEvent(id); loadEvents(); } catch {}
-  };
-
-  const onlineCount = onlineUsers.size;
-
-  return (
-    <>
-      <EventAlarm events={reminders} />
-      <div className="flex h-[calc(100vh-3.5rem)] bg-white dark:bg-gray-950 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
-        {/* Channel Sidebar */}
-        {showSidebar && (
-          <ChannelSidebar
-            channels={channels}
-            activeChannel={activeChannel}
-            onSelect={ch => { setActiveChannel(ch); setShowSidebar(window.innerWidth > 768); }}
-            onNewChannel={() => setShowNewChannel(true)}
-            onlineCount={onlineCount}
-            connected={connected}
-            unreadMap={unreadMap}
-            typingMap={typingMap}
-          />
-        )}
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-            <button onClick={() => setShowSidebar(!showSidebar)} className="md:hidden p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-              <ChevronLeft size={18} />
-            </button>
-            {activeChannel && (
-              <>
-                <Hash size={16} className={CHANNEL_COLORS[activeChannel.type] || 'text-gray-500'} />
-                <span className="font-semibold text-sm">{activeChannel.name}</span>
-                {activeChannel.description && <span className="text-xs text-gray-400 hidden sm:inline ml-1">— {activeChannel.description}</span>}
-                <div className="ml-auto flex items-center gap-2">
-                  <button onClick={() => setShowEvents(!showEvents)}
-                    className={`text-xs px-2 py-1 rounded-lg transition-colors ${showEvents ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500'}`}>
-                    <Calendar size={14} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50/50 dark:bg-gray-900/50">
-            {messages.map(msg => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                isOwn={msg.user_id === user?.id}
-                onRead={() => markMessageRead(msg.id).catch(() => {})}
-              />
-            ))}
-            {typingMap[activeChannel?.id || 0] > 0 && (
-              <div className="flex items-center gap-2 text-xs text-gray-400 italic py-1">
-                <span className="flex gap-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-                Someone is typing...
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-            {recording ? (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-sm font-medium text-red-600">Recording {recordingDuration}s</span>
-                  <div className="flex-1 h-1 bg-red-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-red-500 rounded-full animate-pulse" style={{ width: `${(recordingDuration % 10) * 10}%` }} />
-                  </div>
-                </div>
-                <button onClick={stopRecording} className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-end gap-2">
-                <button onClick={() => handleFileUpload('image')} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 transition-colors" title="Send Image">
-                  <Image size={18} />
-                </button>
-                <button onClick={() => handleFileUpload('file')} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 transition-colors" title="Attach File">
-                  <Paperclip size={18} />
-                </button>
-                <button onClick={startRecording} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-rose-500 transition-colors" title="Voice Note">
-                  <Mic size={18} />
-                </button>
-                <div className="flex-1 relative">
-                  <textarea
-                    value={messageInput}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    placeholder={`Message #${activeChannel?.name || 'channel'}`}
-                    rows={1}
-                    className="input pr-10 resize-none py-2.5 text-sm rounded-xl"
-                    style={{ minHeight: 40, maxHeight: 120 }}
-                  />
-                </div>
-                <button onClick={handleSend} disabled={!messageInput.trim() || sending}
-                  className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                  {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                </button>
-              </div>
-            )}
-            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelected} />
-            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelected} />
-          </div>
-        </div>
-
-        {/* Events Panel (Right sidebar) */}
-        {showEvents && (
-          <div className="w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hidden lg:block">
-            <EventsPanel events={events} onJoin={handleJoinEvent} onLeave={handleLeaveEvent} onCreateEvent={() => {}} />
-          </div>
-        )}
-      </div>
-
-      {/* New Channel Modal */}
-      {showNewChannel && (
-        <NewChannelModal onClose={() => setShowNewChannel(false)} onCreated={(ch) => { setChannels(prev => [...prev, ch]); setActiveChannel(ch); setShowNewChannel(false); }} />
-      )}
-    </>
-  );
-}
-
-function NewChannelModal({ onClose, onCreated }: { onClose: () => void; onCreated: (ch: any) => void }) {
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [type, setType] = useState('general');
-  const [creating, setCreating] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setCreating(true);
-    try {
-      const { createCommunityChannel } = await import('../../api/client');
-      const res = await createCommunityChannel({ name: name.trim(), description: desc, type });
-      const newCh = { id: res.data.data.id, name: name.trim(), description: desc, type, message_count: 0 };
-      onCreated(newCh);
-    } catch {}
-    finally { setCreating(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h3 className="font-bold">New Channel</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-3">
-          <input className="input" placeholder="Channel name *" value={name} onChange={e => setName(e.target.value)} required />
-          <input className="input" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} />
-          <select className="input" value={type} onChange={e => setType(e.target.value)}>
-            <option value="general">General</option>
-            <option value="announcements">Announcements</option>
-            <option value="discussions">Discussions</option>
-            <option value="media">Media</option>
-            <option value="events">Events</option>
-            <option value="support">Support</option>
-          </select>
-          <button type="submit" disabled={creating} className="btn-primary w-full justify-center">
-            {creating && <Loader2 size={16} className="animate-spin" />}
-            {creating ? 'Creating...' : 'Create Channel'}
-          </button>
-        </form>
-      </div>
     </div>
   );
 }

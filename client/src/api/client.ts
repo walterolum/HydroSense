@@ -189,23 +189,5 @@ export const summarizeConversation = (id: number) => api.post(`/ai-conversations
 export const getAIConversationStats = () => api.get('/ai-conversations/stats/overview');
 export const getAIDecisionLogs = (limit?: number) => api.get('/ai-conversations/decisions/log', { params: { limit } });
 
-// Community Platform
-export const getCommunityChannels = () => api.get('/community/channels');
-export const createCommunityChannel = (data: object) => api.post('/community/channels', data);
-export const getChannelMessages = (channelId: number, params?: object) => api.get(`/community/messages/${channelId}`, { params });
-export const sendChannelMessage = (data: object) => api.post('/community/messages', data);
-export const markMessageRead = (id: number) => api.put(`/community/messages/${id}/read`);
-export const uploadCommunityFile = (formData: FormData) => api.post('/community/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-export const uploadMultipleFiles = (formData: FormData) => api.post('/community/upload-multiple', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-export const uploadVoiceNote = (formData: FormData) => api.post('/community/voice-notes', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-export const createEvent = (data: object) => api.post('/community/events', data);
-export const updateEvent = (id: number, data: object) => api.put(`/community/events/${id}`, data);
-export const getEvents = () => api.get('/community/events');
-export const joinCommunityEvent = (id: number) => api.post(`/community/events/${id}/join`);
-export const leaveCommunityEvent = (id: number) => api.delete(`/community/events/${id}/leave`);
-export const getReminders = () => api.get('/community/reminders');
-export const updateReminderStatus = (id: number, status: string) => api.put(`/community/reminders/${id}/status`, { status });
-export const getPresence = () => api.get('/community/presence');
-
 // System
 export const getSystemStatus = () => api.get('/system/status');
