@@ -6,6 +6,7 @@ import {
   ChevronRight, CheckCircle, XCircle, Wrench, Sun, Moon,
   Volume2, VolumeX, Radio, ArrowRight, Brain, Sparkles,
   Thermometer, Wind, Eye, Navigation, Github, Calendar,
+  Headphones,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -260,7 +261,7 @@ export default function SmartDashboard() {
   const [riskLevel, setRiskLevel] = useState('stable');
   const [dataLoading, setDataLoading] = useState(true);
 
-  const { prefs: audioPrefs, toggleMute, setVolume, setTheme, playPreview, themeNames, themes } = useAmbient();
+  const { prefs: audioPrefs, toggleMute, setVolume, setTheme, playPreview, themeNames, themes, isNarrating, stopNarration, startNarration, voiceName } = useAmbient();
   const [showAudioBar, setShowAudioBar] = useState(false);
 
   const role = user?.role || 'citizen';
@@ -363,6 +364,15 @@ export default function SmartDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              {isNarrating && (
+                <button
+                  onClick={stopNarration}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 text-xs transition-all animate-pulse"
+                >
+                  <Headphones size={12} />
+                  AI Voice
+                </button>
+              )}
               <button
                 onClick={() => setShowAudioBar(!showAudioBar)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-xs transition-all"
