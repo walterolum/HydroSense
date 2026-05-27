@@ -1,6 +1,6 @@
 """
 HydroSense AI — Multi-Provider AI Router
-Routes requests across Gemini, OpenAI, Claude, and Ollama with
+Routes requests across Gemini, OpenAI, and Ollama with
 smart fallback, health tracking, and model selection.
 """
 
@@ -19,7 +19,6 @@ logger = logging.getLogger("hydrosense.ai_router")
 class Provider(Enum):
     GEMINI = "gemini"
     OPENAI = "openai"
-    CLAUDE = "claude"
     OLLAMA = "ollama"
     RULE_BASED = "rule_based"
 
@@ -42,7 +41,6 @@ class AIRouter:
         self._providers: Dict[Provider, ProviderStatus] = {
             Provider.GEMINI: ProviderStatus(provider=Provider.GEMINI),
             Provider.OPENAI: ProviderStatus(provider=Provider.OPENAI),
-            Provider.CLAUDE: ProviderStatus(provider=Provider.CLAUDE),
             Provider.OLLAMA: ProviderStatus(provider=Provider.OLLAMA),
         }
         self._provider_order: List[Provider] = []
@@ -54,7 +52,6 @@ class AIRouter:
         for p, cfg in [
             (Provider.GEMINI, "GEMINI_API_KEY"),
             (Provider.OPENAI, "OPENAI_API_KEY"),
-            (Provider.CLAUDE, "ANTHROPIC_API_KEY"),
             (Provider.OLLAMA, "OLLAMA_BASE_URL"),
         ]:
             if os.getenv(cfg):
@@ -120,27 +117,6 @@ class AIRouter:
             self._providers[Provider.OPENAI].healthy = False
             return False
 
-    async def _check_claude(self) -> bool:
-        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        if not api_key:
-            return False
-        try:
-            import httpx
-            start = time.time()
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(
-                    "https://api.anthropic.com/v1/models",
-                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
-                )
-                ok = resp.status_code == 200
-                self._providers[Provider.CLAUDE].latency_ms = (time.time() - start) * 1000
-                self._providers[Provider.CLAUDE].healthy = ok
-                return ok
-        except Exception as e:
-            logger.warning(f"Claude health check failed: {e}")
-            self._providers[Provider.CLAUDE].healthy = False
-            return False
-
     async def _check_ollama(self) -> bool:
         base_url = os.getenv("OLLAMA_BASE_URL", "").strip()
         if not base_url:
@@ -163,7 +139,6 @@ class AIRouter:
         checks = {
             Provider.GEMINI: self._check_gemini(),
             Provider.OPENAI: self._check_openai(),
-            Provider.CLAUDE: self._check_claude(),
             Provider.OLLAMA: self._check_ollama(),
         }
         results = {}
