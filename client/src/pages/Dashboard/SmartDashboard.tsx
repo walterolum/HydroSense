@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import AIAssistantPanel from '../../components/AIAssistant/AIAssistantPanel';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useWeather, weatherInfo } from '../../hooks/useWeather';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -746,6 +747,7 @@ export default function SmartDashboard() {
           </div>
         </div>
       </div>
+      <AIAssistantPanel />
     </>
   );
 }
